@@ -1,0 +1,5 @@
+# Dependencias so de desenvolvimento/teste (o app em si so precisa de pandas).
+#   python -m pip install -r requirements-dev.txt
+# O Playwright usa o Edge ja instalado (channel="msedge"): NAO rode "playwright install".
+pytest>=9
+playwright>=1.50

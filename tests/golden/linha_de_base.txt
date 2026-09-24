@@ -1,0 +1,50 @@
+﻿# Linha de base ANTES das otimizacoes (tarefa 1.5) - codigo original, sem alteracoes
+
+## tools/bench.py --check
+startup do servidor: 2.7s   (2026-09-24 04:45)
+
+rota                            servidor   cliente   meta
+meta                                 2ms      15ms   
+partidas da semana                   4ms       6ms   
+detalhe do jogo                    111ms     118ms   <= 60 ms (4.2) FALHA
+lista de jogadas                     9ms      16ms   
+tracking, 1o acesso ao jogo        144ms     150ms   <= 60 ms (2.1) FALHA
+tracking, jogo ja acessado          52ms      56ms   <= 20 ms (2.2) FALHA
+formacao no snap                    51ms      53ms   
+jogada sem tracking (404)           28ms      28ms   <= 20 ms (2.4) FALHA
+comentarista                        15ms      22ms   
+lista do olheiro (40)                7ms       9ms   
+busca de jogadores (300)            25ms      35ms   <= 30 ms (5.3) ok
+perfil do jogador                    9ms      22ms   
+comparacao                          21ms      31ms   
+lideres                              6ms      20ms   
+
+METAS FALHARAM:
+  detalhe do jogo: 111 ms > 60 ms (4.2)
+  tracking, 1o acesso ao jogo: 144 ms > 60 ms (2.1)
+  tracking, jogo ja acessado: 52 ms > 20 ms (2.2)
+  jogada sem tracking (404): 28 ms > 20 ms (2.4)
+
+## tools/carga.py --usuarios 1
+1 usuarios simultaneos · 14 requisicoes em 0.9s   (2026-09-24 04:45)
+  todas     p50     53 ms   p95    145 ms
+  tracking  p50     74 ms   p95    172 ms
+  resultados: {'ok': 14}
+  pico de memoria do servidor: 230 MB
+
+## tools/carga.py --usuarios 10 --check
+10 usuarios simultaneos · 140 requisicoes em 8.3s   (2026-09-24 04:45)
+  todas     p50    457 ms   p95   1502 ms
+  tracking  p50    486 ms   p95   1831 ms
+  resultados: {'ok': 140}
+  pico de memoria do servidor: 381 MB
+
+METAS FALHARAM:
+  p95 1502 ms > 300 ms (1.1)
+
+## tools/carga.py --usuarios 25 (acima da meta; so para registro)
+25 usuarios simultaneos · 350 requisicoes em 21.4s   (2026-09-24 04:45)
+  todas     p50   1097 ms   p95   3483 ms
+  tracking  p50   1226 ms   p95   3931 ms
+  resultados: {'ok': 345, 'recusada': 5}
+  pico de memoria do servidor: 538 MB
