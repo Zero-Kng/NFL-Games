@@ -16,8 +16,8 @@ dataset — 122 jogos, 8.557 jogadas e 810 MB de tracking a 10 quadros por segun
 RODAR.bat
 ```
 
-Na primeira execução ele gera o cache de métricas (~20 s), sobe o servidor e abre o
-navegador. Nas próximas, sobe direto.
+Na primeira execução o servidor prepara o cache (~50 s, com o progresso no terminal) e
+o navegador abre sozinho quando o app estiver no ar. Nas próximas, sobe em ~3 s.
 
 ### Opção 2 — linha de comando
 
@@ -25,14 +25,15 @@ navegador. Nas próximas, sobe direto.
 # 1. dependência (uma vez)
 python -m pip install pandas
 
-# 2. processa o tracking e gera o cache (uma vez, ~20 s)
-python etl/build_metrics.py
-
-# 3. sobe o app
+# 2. sobe o app (na 1a vez ele mesmo prepara o cache)
 python server/serve.py
 ```
 
 Depois abra **<http://127.0.0.1:8000>**.
+
+O cache é **incremental**: se um CSV de tracking mudar ou uma partida nova for
+adicionada, só aquele jogo é reprocessado. Para refazer tudo:
+`python etl/build_metrics.py --force`.
 
 Para trocar a porta: `python server/serve.py --port 9000`.
 
@@ -83,15 +84,20 @@ Projeto/
 │  ├─ css/app.css             design system do protótipo + componentes novos
 │  └─ js/app.js               toda a lógica (JS puro, sem dependências)
 ├─ etl/
-│  └─ build_metrics.py        varre os 122 arquivos de tracking → cache/
+│  └─ build_metrics.py        prepara o cache de forma incremental (ensure_cache)
 ├─ server/
 │  ├─ serve.py                servidor HTTP + API JSON (só stdlib + pandas)
 │  ├─ data_layer.py           consultas, ratings e geração de insights
+│  ├─ response_cache.py       respostas prontas da API em memória (calcula cada uma 1 vez)
+│  ├─ tracking_npz.py         formato binário do tracking de um jogo
 │  ├─ teams.py                nomes e cores das 32 franquias
 │  ├─ smoke_test.py           testa a camada de dados
 │  ├─ ui_test.py              testa a home num navegador headless
 │  └─ ui_test_all.py          testa as 4 telas num navegador headless
-├─ cache/                     gerado pelo ETL (não versionar)
+├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários)
+├─ tests/                     pytest + testes de navegador (Playwright com o Edge)
+├─ .kiro/specs/               specs SDD (requirements, design, tasks)
+├─ cache/                     gerado automaticamente, ~120 MB (não versionar)
 └─ nfl-big-data-bowl-regional-event-data-main/data/    dataset original
 ```
 
@@ -175,14 +181,58 @@ curl http://127.0.0.1:8000/api/leaders?metric=pressureRate&role=Pass+Rush&limit=
 ## Verificação
 
 ```powershell
+python -m pip install -r requirements-dev.txt   # pytest + playwright (uma vez)
+
+python -m pytest                  # 39 testes (~80 s); cada um sobe seu próprio servidor
+python -m pytest -m lento         # preparo completo do cache do zero (~50 s)
+python tools/golden.py check      # prova que nenhuma resposta da API mudou (2.159 URLs)
+python tools/bench.py --check     # tempo por rota com 1 usuário, contra as metas
+python tools/carga.py --usuarios 10 --check   # 10 usuários ao mesmo tempo
+```
+
+Os testes de navegador usam o **Edge já instalado** (não rode `playwright install`).
+O `tests/golden/hashes.json` é a "foto" das respostas da versão original: se uma
+mudança alterar qualquer número da API, o `golden.py check` aponta a URL. Só refaça a
+foto (`capture`) quando a mudança de dados for intencional, como ao trocar o dataset.
+
+Os testes de fumaça antigos continuam valendo (esses precisam do servidor rodando):
+
+```powershell
 python server/smoke_test.py      # camada de dados
 python server/ui_test.py         # home renderizada num navegador headless
 python server/ui_test_all.py     # as 4 telas
 ```
 
-Os testes de UI usam o Edge ou o Chrome já instalado em modo headless, executam o
-JavaScript de verdade e conferem se os dados chegaram ao DOM. **Precisam do servidor
-rodando.**
+---
+
+## Desempenho
+
+Otimizado pela spec `.kiro/specs/otimizacao-desempenho/` (meta: uma banca de 10
+pessoas usando ao mesmo tempo). Medido nesta máquina, com os mesmos números na tela:
+
+| Medida | Antes | Depois |
+|---|---|---|
+| 10 usuários simultâneos, p95 | 1.502 ms | 263–393 ms; mediana 289 (meta 300; ver abaixo) |
+| 10 usuários simultâneos, p50 | 457 ms | 24–29 ms |
+| 25 usuários simultâneos | 5 conexões recusadas | 0 recusadas, p95 ~650 ms |
+| Tela inicial pronta | ~340 ms | ~40 ms |
+| Abrir jogada, 1º acesso ao jogo | 144 ms | 30–38 ms |
+| Abrir jogada, jogo já aberto | 52 ms | 8–10 ms |
+| Avançar para a próxima jogada | ~65 ms | 5–6 ms (pré-carregada) |
+| Detalhe do jogo | 111 ms | 0 ms (em cache) |
+| Busca de 300 jogadores | 25 ms | 17–21 ms |
+
+Como: respostas prontas em memória (cada uma calculada uma vez, pré-aquecidas ao
+subir), tracking em formato binário por jogo, montagem das jogadas com numpy,
+pré-carga das jogadas vizinhas no navegador e descarte de respostas atrasadas.
+
+O cache binário ocupa **~111 MB** em `cache/tracking/` (1 arquivo por jogo).
+
+**Sobre a meta de 10 usuários:** o teste de carga dispara as requisições sem pausa
+entre cliques (mais agressivo que pessoas reais), e o p95 oscila entre rodadas em
+torno da meta de 300 ms. O custo que sobra é descomprimir o tracking de cada jogo aberto
+pela primeira vez (~25 ms). Detalhes e opções em
+`.kiro/specs/otimizacao-desempenho/tasks.md` (tarefa 9).
 
 ---
 
@@ -191,7 +241,9 @@ rodando.**
 | Sintoma | Causa e solução |
 |---|---|
 | A página abre com o aviso "API indisponível" | O servidor não está de pé. Rode `python server/serve.py`. |
-| `Cache de métricas ausente` ao subir o servidor | Rode `python etl/build_metrics.py` antes. |
+| Primeira subida demora ~50 s | É o preparo do cache (só na 1ª vez ou quando o dataset muda). O progresso aparece no terminal. |
+| `[aviso] <jogo>.npz ilegivel` no terminal | O arquivo do cache daquele jogo corrompeu. O app segue funcionando (lê o CSV original); ele é regenerado ao reiniciar o servidor. |
+| `503 servidor ocupado` | Mais de 64 requisições simultâneas. O navegador pode tentar de novo em 2 s. |
 | `ModuleNotFoundError: pandas` | `python -m pip install pandas` |
 | Tela em branco abrindo o arquivo direto | É o caso do `file://`. Acesse por `http://127.0.0.1:8000`. |
 | Porta 8000 ocupada | `python server/serve.py --port 9000` |
