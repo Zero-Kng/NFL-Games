@@ -1,0 +1,11 @@
+# Cache gerado automaticamente pelo servidor (etl/build_metrics.py ensure_cache).
+# ~120 MB; e recriado na 1a subida (~50 s) a partir do dataset.
+cache/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Temporarios de escrita atomica (so existem se um processo for interrompido)
+*.tmp

@@ -2,12 +2,18 @@
 Teste de carga: N usuarios fazendo a "sessao tipica" ao mesmo tempo
 (Requisito 1 e criterio 6.5 da spec otimizacao-desempenho).
 
-    python tools/carga.py --usuarios 10            # imprime o resultado
-    python tools/carga.py --usuarios 10 --check    # sai com erro se falhar alguma meta
+    python tools/carga.py --usuarios 10              # cenario da spec (com pausas)
+    python tools/carga.py --usuarios 10 --check      # sai com erro se falhar alguma meta
+    python tools/carga.py --usuarios 10 --sem-pausa  # estresse: cliques sem intervalo
 
 Sessao tipica (7 requisicoes): detalhe do jogo, lista de jogadas, 3 trackings,
-comentarista e lista do olheiro. Cada usuario faz 2 sessoes. Sorteio com semente
-fixa, para que antes e depois comparem a mesma carga.
+comentarista e lista do olheiro, com uma pausa de 1 a 2 s entre um clique e o
+proximo, como uma pessoa real (requirements v0.3). So o tempo de cada resposta
+e medido; a pausa nao entra na conta. Cada usuario faz 2 sessoes. Sorteios com
+semente fixa, para que rodadas diferentes comparem a mesma carga.
+
+O modo --sem-pausa e o cenario antigo (mais agressivo que pessoas reais): fica
+como teste de estresse, sem meta de p95.
 """
 
 from __future__ import annotations
@@ -47,10 +53,14 @@ def sessoes(base: str, n: int, semente: int = 2021) -> list[list[str]]:
     return out
 
 
-def executar(base: str, paths: list[str]) -> list[tuple[float, str, str]]:
+def executar(base: str, paths: list[str], pausa: tuple[float, float] | None = None,
+             semente: int = 0) -> list[tuple[float, str, str]]:
     """[(ms, tipo, resultado)] com resultado em ok | http-XXX | recusada | erro"""
+    rnd = random.Random(semente)
     out = []
-    for p in paths:
+    for i, p in enumerate(paths):
+        if pausa and i:
+            time.sleep(rnd.uniform(*pausa))  # a pessoa le a tela antes do proximo clique
         tipo = "tracking" if p.endswith("/tracking") else "outras"
         t = time.perf_counter()
         try:
@@ -77,13 +87,18 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--usuarios", type=int, default=10)
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--sem-pausa", action="store_true", help="estresse: cliques sem intervalo (sem meta de p95)")
+    ap.add_argument("--pausa-min", type=float, default=1.0)
+    ap.add_argument("--pausa-max", type=float, default=2.0)
     a = ap.parse_args()
+    pausa = None if a.sem_pausa else (a.pausa_min, a.pausa_max)
 
     with servidor() as srv:
         todas = sessoes(srv.url, a.usuarios * 2)
         t0 = time.perf_counter()
         with ThreadPoolExecutor(a.usuarios) as ex:
-            res = [x for r in ex.map(lambda s: executar(srv.url, s), todas) for x in r]
+            res = [x for r in ex.map(lambda i: executar(srv.url, todas[i], pausa, semente=i),
+                                     range(len(todas))) for x in r]
         parede = time.perf_counter() - t0
         pico = pico_memoria_mb(srv.pid)
 
@@ -93,7 +108,9 @@ def main() -> int:
     recusadas = contagem.get("recusada", 0)
     erros = sum(v for k, v in contagem.items() if k not in ("ok", "recusada"))
 
-    print(f"{a.usuarios} usuarios simultaneos · {len(res)} requisicoes em {parede:.1f}s   ({time.strftime('%Y-%m-%d %H:%M')})")
+    modo = "SEM pausa (estresse)" if a.sem_pausa else f"pausa de {a.pausa_min:g}-{a.pausa_max:g}s entre cliques"
+    print(f"{a.usuarios} usuarios simultaneos, {modo} · {len(res)} requisicoes em {parede:.1f}s   "
+          f"({time.strftime('%Y-%m-%d %H:%M')})")
     print(f"  todas     p50 {statistics.median(ms):6.0f} ms   p95 {p95(ms):6.0f} ms")
     print(f"  tracking  p50 {statistics.median(trk):6.0f} ms   p95 {p95(trk):6.0f} ms")
     print(f"  resultados: {dict(sorted(contagem.items()))}")
@@ -102,7 +119,9 @@ def main() -> int:
     if not a.check:
         return 0
     falhas = []
-    if p95(ms) > META_P95_MS:
+    if a.sem_pausa:
+        print("  (estresse: o p95 nao tem meta; so erros, recusas e memoria sao checados)")
+    elif p95(ms) > META_P95_MS:
         falhas.append(f"p95 {p95(ms):.0f} ms > {META_P95_MS} ms (1.1)")
     if recusadas:
         falhas.append(f"{recusadas} conexoes recusadas (1.2)")

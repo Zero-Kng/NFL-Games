@@ -48,3 +48,13 @@ METAS FALHARAM:
   tracking  p50   1226 ms   p95   3931 ms
   resultados: {'ok': 345, 'recusada': 5}
   pico de memoria do servidor: 538 MB
+
+# ---------------------------------------------------------------------------
+# Resultado parcial apos as tarefas 2-4 (borda HTTP + cache de respostas) - 2026-09-24
+# golden: 2159/2159 identicas
+#
+# carga 10 usuarios: p50 151 ms (antes 457) | p95 1678 ms (antes 1502) - tracking ainda sem cache e caro
+# bench: detalhe do jogo 0 ms (antes 111) | 404 4 ms (antes 28)
+#        tracking 1o acesso 183 ms | jogo acessado 68 ms | busca 300: 32 ms
+# Obs.: a partir da tarefa 4 o X-Query-Time inclui serializacao JSON + gzip do
+#       miss (antes media so a consulta). Por isso busca 300 foi de 25 para 32 ms.

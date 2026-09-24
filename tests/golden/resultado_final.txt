@@ -1,0 +1,97 @@
+﻿# Resultado final DEPOIS das otimizacoes (tarefa 9.1) - 2026-09-24 10:42
+
+## tools/golden.py check
+2159/2159 URLs identicas em 30s
+GOLDEN OK
+
+## pytest (padrao) e pytest -m lento
+
+39 passed, 1 deselected in 75.66s (0:01:15)
+
+
+1 passed, 39 deselected in 42.75s
+
+## tools/bench.py --check
+startup do servidor: 3.3s   (2026-09-24 10:45)
+
+rota                            servidor   cliente   meta
+meta                                 0ms      16ms   
+partidas da semana                   0ms       3ms   
+detalhe do jogo                      0ms       3ms   <= 60 ms (4.2) ok
+lista de jogadas                     0ms       3ms   
+tracking, 1o acesso ao jogo         46ms      49ms   <= 60 ms (2.1) ok
+tracking, jogo ja acessado           6ms       9ms   <= 20 ms (2.2) ok
+formacao no snap                     4ms       6ms   
+jogada sem tracking (404)            7ms       7ms   <= 20 ms (2.4) ok
+comentarista                         0ms       2ms   
+lista do olheiro (40)                9ms      11ms   
+busca de jogadores (300)            19ms      26ms   <= 30 ms (5.3) ok
+perfil do jogador                   17ms      19ms   
+comparacao                          39ms      41ms   
+lideres                              9ms      11ms   
+
+METAS OK
+
+## tools/carga.py --usuarios 10 --check (rodada 1 de 5)
+10 usuarios simultaneos · 140 requisicoes em 1.2s   (2026-09-24 10:46)
+  todas     p50     29 ms   p95    393 ms
+  tracking  p50     72 ms   p95    464 ms
+  resultados: {'ok': 140}
+  pico de memoria do servidor: 319 MB
+
+METAS FALHARAM:
+  p95 393 ms > 300 ms (1.1)
+
+## tools/carga.py --usuarios 10 --check (rodada 2 de 5)
+10 usuarios simultaneos · 140 requisicoes em 1.0s   (2026-09-24 10:46)
+  todas     p50     24 ms   p95    347 ms
+  tracking  p50     60 ms   p95    429 ms
+  resultados: {'ok': 140}
+  pico de memoria do servidor: 319 MB
+
+METAS FALHARAM:
+  p95 347 ms > 300 ms (1.1)
+
+## tools/carga.py --usuarios 10 --check (rodada 3 de 5)
+10 usuarios simultaneos · 140 requisicoes em 1.0s   (2026-09-24 10:47)
+  todas     p50     26 ms   p95    289 ms
+  tracking  p50     57 ms   p95    388 ms
+  resultados: {'ok': 140}
+  pico de memoria do servidor: 315 MB
+
+METAS OK
+
+## tools/carga.py --usuarios 10 --check (rodada 4 de 5)
+10 usuarios simultaneos · 140 requisicoes em 1.0s   (2026-09-24 10:47)
+  todas     p50     29 ms   p95    288 ms
+  tracking  p50     60 ms   p95    363 ms
+  resultados: {'ok': 140}
+  pico de memoria do servidor: 310 MB
+
+METAS OK
+
+## tools/carga.py --usuarios 10 --check (rodada 5 de 5)
+10 usuarios simultaneos · 140 requisicoes em 0.9s   (2026-09-24 10:48)
+  todas     p50     28 ms   p95    263 ms
+  tracking  p50     53 ms   p95    376 ms
+  resultados: {'ok': 140}
+  pico de memoria do servidor: 329 MB
+
+METAS OK
+
+## tools/carga.py --usuarios 25 (acima da meta; so para registro)
+25 usuarios simultaneos · 350 requisicoes em 2.4s   (2026-09-24 10:48)
+  todas     p50     72 ms   p95    643 ms
+  tracking  p50    156 ms   p95    859 ms
+  resultados: {'ok': 350}
+  pico de memoria do servidor: 388 MB
+
+# ---------------------------------------------------------------------------
+# Revisao v0.3 do requirements (decisao do Jose, 2026-09-24): a "sessao tipica"
+# tem pausa de 1-2 s entre cliques. carga.py --usuarios 10 --check, 5 rodadas:
+#   p95 (todas):  40 | 42 | 42 | 37 | 42 ms      -> 5 de 5 dentro da meta de 300 ms
+#   p95 tracking: 50 | 52 | 52 | 43 | 50 ms
+#   resultados: 140/140 ok em todas; pico de memoria 297-299 MB
+# Estresse (--sem-pausa, sem meta): p95 307 ms, 140/140 ok.
+# Obs.: o codigo ORIGINAL nao foi medido com pausa; o "antes" (1.502 ms) e do
+#       cenario sem pausa.

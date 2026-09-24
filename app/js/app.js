@@ -6,9 +6,18 @@
   'use strict';
 
   /* ------------------------------- API ---------------------------------- */
+  // Cache de respostas da sessão (deduplica pedidos iguais, inclusive em voo).
+  // LRU com teto, para não crescer sem fim numa sessão longa de navegação.
   const cache = new Map();
+  const CACHE_MAX = 150;
   function get(path) {
-    if (cache.has(path)) return cache.get(path);
+    if (cache.has(path)) {
+      const hit = cache.get(path);
+      cache.delete(path);
+      cache.set(path, hit); // vira o mais recente
+      return hit;
+    }
+    while (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
     const p = fetch(path, { headers: { Accept: 'application/json' } })
       .then(async (res) => {
         if (!res.ok) {
@@ -19,7 +28,7 @@
         return res.json();
       });
     cache.set(path, p);
-    p.catch(() => cache.delete(path));
+    p.catch(() => { if (cache.get(path) === p) cache.delete(path); });
     return p;
   }
   function qs(o) {
@@ -93,14 +102,32 @@
   const none = (m) => '<div class="state"><span class="ic">📭</span>' + esc(m) + '</div>';
   const $ = (id) => document.getElementById(id);
 
-  /** Renderiza em um container com estados de carregando/erro. */
-  async function into(id, fn, msg) {
+  /**
+   * Renderiza em um container com estados de carregando/erro.
+   * `atual`, se informado, diz se este pedido ainda é o mais recente: uma
+   * resposta que chega atrasada (o usuário já pediu outra coisa) é descartada.
+   * Devolve true se o resultado foi desenhado.
+   */
+  async function into(id, fn, msg, atual) {
     const el = $(id);
-    if (!el) return;
+    if (!el) return false;
     el.innerHTML = spin(msg);
-    try { el.innerHTML = (await fn()) || ''; }
-    catch (e) { console.error(e); el.innerHTML = oops('Falha ao carregar: ' + e.message); }
+    let html;
+    try { html = (await fn()) || ''; }
+    catch (e) {
+      if (atual && !atual()) return false;
+      console.error(e);
+      el.innerHTML = oops('Falha ao carregar: ' + e.message);
+      return false;
+    }
+    if (atual && !atual()) return false;
+    el.innerHTML = html;
+    return true;
   }
+
+  // "Só o último vence": cada fluxo que pode ser disparado de novo antes de a
+  // resposta anterior chegar tem um contador. Quem volta com contador velho descarta.
+  const seq = { play: 0, scout: 0 };
 
   /* ------------------------------ estado -------------------------------- */
   const S = {
@@ -274,6 +301,7 @@
       b.classList.toggle('active', b.dataset.tab === S.coachTab));
 
     if (S.coachTab === 'lineup') return coachLineup();
+    seq.play++; // uma prancheta ainda carregando não pode desenhar sobre outra aba
     if (S.coachTab === 'plays') return coachPlays();
     if (S.coachTab === 'stats') return coachStats();
     return coachBook();
@@ -289,10 +317,12 @@
   }
 
   async function coachLineup() {
+    const my = ++seq.play;
     const body = $('coachBody');
     body.innerHTML = spin('Carregando tracking da jogada...');
     try {
       await ensurePlays();
+      if (my !== seq.play) return; // o usuário já escolheu outra jogada
       if (!S.playId) { body.innerHTML = none('Sem tracking disponível neste jogo.'); return; }
 
       body.innerHTML =
@@ -334,8 +364,9 @@
         'Q' + p.quarter + ' ' + p.clock + ' · ' + esc(p.offense) + ' · ' + ordDown(p.down, p.yardsToGo) +
         ' · ' + signed(p.result) + 'jd</option>').join('');
 
-      await loadFieldPlay();
+      await loadFieldPlay(my);
     } catch (e) {
+      if (my !== seq.play) return; // erro de um pedido que já não importa
       console.error(e);
       body.innerHTML = oops('Falha ao montar a prancheta: ' + e.message);
     }
@@ -343,9 +374,12 @@
 
   let FV = null;
 
-  async function loadFieldPlay() {
-    const tr = await api.tracking(S.gameId, S.playId);
+  async function loadFieldPlay(my) {
+    const gameId = S.gameId, playId = S.playId;
+    const tr = await api.tracking(gameId, playId);
+    if (my !== seq.play) return; // resposta atrasada: outra jogada já foi pedida
     const p = tr.play;
+    if (FV) FV.pause(); // a animação anterior não pode seguir mexendo nos controles novos
     FV = new Field($('field'), tr);
     FV.onFrame = (i) => {
       $('frameRange').value = i;
@@ -362,6 +396,22 @@
       '<button class="ev-chip" data-frame="' + e.frame + '">' + esc(evLabel(e.name)) + '</button>').join('');
 
     $('playMeta').innerHTML = playMetaHTML(p);
+    prefetchVizinhas(gameId, playId);
+  }
+
+  /**
+   * Antecipa as jogadas anterior e seguinte, depois que a atual já está
+   * desenhada (a escolhida nunca disputa conexão com a antecipação). Falha
+   * aqui é silenciosa: o get() esquece o pedido e a jogada é buscada de novo
+   * se o usuário a escolher.
+   */
+  function prefetchVizinhas(gameId, playId) {
+    const lista = S.plays.filter((q) => q.hasTracking);
+    const i = lista.findIndex((q) => q.playId === playId);
+    if (i < 0) return;
+    [lista[i + 1], lista[i - 1]].forEach((q) => {
+      if (q) api.tracking(gameId, q.playId).catch(() => {});
+    });
   }
 
   const EV_PT = {
@@ -743,6 +793,7 @@
   }
 
   async function scoutList() {
+    const my = ++seq.scout;
     await into('scoutBody', async () => {
       const list = await api.players({ position: S.scoutPos, q: S.scoutQuery, limit: 60 });
       if (!list.length) return none('Nenhum jogador com amostra suficiente para esse filtro.');
@@ -755,11 +806,12 @@
             esc(p.roleLabel) + ' · ' + p.snaps + ' snaps' +
             (isNum(p.topSpeed) ? ' · ' + nm(p.topSpeed, 1) + ' mph' : '') + '</span></div>' +
           rateChip(p.rating) + '</div>').join('') + '</div>';
-    }, 'Buscando jogadores...');
+    }, 'Buscando jogadores...', () => my === seq.scout);
   }
 
   async function scoutDetail() {
-    await into('scoutBody', async () => {
+    const my = ++seq.scout;
+    const desenhou = await into('scoutBody', async () => {
       const p = await api.player(S.playerId);
       const r = p.roles[0];
       const t = teamOf(p.team);
@@ -818,11 +870,11 @@
         '<div class="cmp-pick"><select id="cmpPick" aria-label="Comparar com"><option value="">Escolha um jogador...</option></select></div>' +
         '<div id="cmpSlot"></div></div>';
 
-      S._roles = p.roles;
+      if (my === seq.scout) S._roles = p.roles;
       return html;
-    }, 'Carregando o perfil...');
+    }, 'Carregando o perfil...', () => my === seq.scout);
 
-    fillComparePicker();
+    if (desenhou) fillComparePicker();
   }
 
   function bioBox(k, v) {
@@ -1132,6 +1184,11 @@
 
   /* =============================== BOOT ================================= */
   (async function boot() {
+    // As partidas da semana saem junto com o meta, e não depois dele: a semana
+    // do deep link (ou a 1ª) é conhecida antes. O get() entrega a mesma
+    // promessa quando renderGames() pedir a mesma URL.
+    const semanaPedida = Number(new URLSearchParams(location.search).get('week')) || 1;
+    api.games({ week: semanaPedida }).catch(() => {});
     try {
       S.meta = await api.meta();
     } catch (e) {

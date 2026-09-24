@@ -165,7 +165,11 @@ def play_tracking(self, game_id, play_id) -> dict | None:
     #  - timing por dict {(gameId, playId): linha} em vez de varrer self.timing
 ```
 
-- `snap_formation` passa a usar `play_tracking` via cache (hoje ele recalcula tudo).
+- ~~`snap_formation` passa a usar `play_tracking` via cache~~ **(cortado na execução):** o cache guarda bytes gzip, não dicionários. Com o `play_tracking` novo, a formação já custa ~7 ms.
+- **Ajustes feitos na execução (tarefa 6):**
+  - O codec do `.npz` ficou num módulo próprio, `server/tracking_npz.py`, compartilhado pelo ETL e pelo servidor.
+  - O texto é gravado como **categoria** (códigos + valores). A versão em unicode por célula levava 56–73 ms para ler; a de categorias leva ~22 ms, com os mesmos valores.
+  - `play_participants` e `players_list` trocaram `iterrows` por `to_dict("records")`. Os participantes passaram a vir de uma tabela estreita por jogo, com índice por jogada.
 - **Arredondamento:** `np.round` e o `round()` do Python podem divergir em casos de meio-termo. Por isso a conversão final usa `round()` do Python sobre `ndarray.tolist()`. São ~5.500 números por jogada, ~1 ms.
 
 ### 4. Preparação incremental (`etl/build_metrics.py`, alterado)
@@ -251,7 +255,7 @@ Nada no banco (não há banco). Arquivos em `cache/`, todos derivados e regener�
 | Mais de 128 conexões esperando accept | fila do SO cheia | só acontece bem acima da carga-alvo. O limite de 64 dá 503 antes disso | 1.2, 1.4 |
 | Exceção ao construir uma resposta | `build()` lança | 500 para quem pediu e para quem esperava a mesma chave. Nada é guardado, então a próxima tentativa recalcula. As outras threads não são afetadas | 1.5 |
 | Jogada sem tracking | `sub.empty` | 404 "tracking indisponível", como hoje (não vai para o cache) | 2.4 |
-| `.npz` ausente ou corrompido | `FileNotFoundError` / `BadZipFile` / `ValueError` no `np.load` | log `[aviso]`, lê o CSV original e responde normalmente | 2.5 |
+| `.npz` ausente ou corrompido | `FileNotFoundError` / `BadZipFile` / `ValueError` no `np.load` | log `[aviso]`, lê o CSV original e responde normalmente. **(ajuste da execução)** O `.npz` ruim é apagado, para o `ensure_cache` da próxima subida regenerá-lo; sem isso ele ficaria para sempre, porque o CSV de origem não mudou | 2.5 |
 | `.npz` e CSV ausentes | os dois caminhos falham | 404 "tracking indisponível" só para esse jogo | 2.5 |
 | Pré-carga de vizinha falha | `promise` rejeitada | engolida em silêncio. O `get()` remove a entrada e a jogada é buscada de novo se escolhida | 3.3 |
 | Resposta de jogada ou busca antiga chega depois da atual | contador `seq` diferente | descartada sem tocar no DOM | 3.2, 5.2 |
@@ -345,6 +349,7 @@ Medido em 10 jogos reais (71 MB de CSV):
 | A reescrita de `play_tracking` muda um número na 2ª casa decimal ou a ordem de um campo | alto | golden capturado **antes** da primeira mudança; `round()` do Python; o hash é do JSON canônico, então a ordem de chaves não conta, mas a de listas conta |
 | O aquecimento em segundo plano disputa CPU com os primeiros usuários logo após o startup | médio | aquece a semana 1 primeiro, cede CPU entre tarefas; banca abre o app com o servidor já de pé há mais de 20 s; o log avisa quando o aquecimento termina |
 | O primeiro preparo (~45 s estimados) passa de 90 s em máquina mais lenta | médio | o progresso aparece no terminal; se passar, a tarefa de ETL paraleliza por jogo com `ProcessPoolExecutor`, porque cada jogo é independente |
+| **(medido na execução, 9.1; resolvido em 9.2)** No teste **sem pausa** entre cliques, a meta 1.1 ficou instável: p95 de 393, 347, 289, 288 e 263 ms (3 de 5 dentro). O José decidiu medir o cenário do requisito, com pausa de 1–2 s (requirements v0.3), e aí deu 5 de 5 dentro (p95 37–42 ms). O sem pausa continua como teste de estresse. O custo restante é descomprimir o `.npz` (~22 ms) de cada jogo aberto pela 1ª vez, que enfileira quando 10 pessoas abrem jogos diferentes no mesmo segundo | médio | numa banca real, as pessoas tendem a olhar o mesmo jogo (o cache de respostas absorve); se virar problema, a opção é pré-carregar o tracking do jogo quando o detalhe dele é aberto |
 | A pré-carga aumenta a carga no servidor com 10 usuários (até 3× pedidos de tracking) | baixo | é medida no teste de carga com a pré-carga ligada; o limite é de 2 vizinhas por vez |
 | O disco do usuário não tem os ~123 MB extras | baixo | sem o `.npz`, o fallback para CSV mantém o app funcionando, só mais lento |
 

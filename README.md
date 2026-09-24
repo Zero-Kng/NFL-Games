@@ -187,7 +187,8 @@ python -m pytest                  # 39 testes (~80 s); cada um sobe seu próprio
 python -m pytest -m lento         # preparo completo do cache do zero (~50 s)
 python tools/golden.py check      # prova que nenhuma resposta da API mudou (2.159 URLs)
 python tools/bench.py --check     # tempo por rota com 1 usuário, contra as metas
-python tools/carga.py --usuarios 10 --check   # 10 usuários ao mesmo tempo
+python tools/carga.py --usuarios 10 --check   # 10 usuários ao mesmo tempo (~45 s)
+python tools/carga.py --usuarios 10 --sem-pausa   # estresse, sem pausa entre cliques
 ```
 
 Os testes de navegador usam o **Edge já instalado** (não rode `playwright install`).
@@ -212,8 +213,9 @@ pessoas usando ao mesmo tempo). Medido nesta máquina, com os mesmos números na
 
 | Medida | Antes | Depois |
 |---|---|---|
-| 10 usuários simultâneos, p95 | 1.502 ms | 263–393 ms; mediana 289 (meta 300; ver abaixo) |
-| 10 usuários simultâneos, p50 | 457 ms | 24–29 ms |
+| 10 usuários, pausa de 1–2 s entre cliques (cenário da spec), p95 | não medido | **37–42 ms** (meta 300) |
+| 10 usuários **sem pausa** (estresse), p95 | 1.502 ms | 263–393 ms |
+| 10 usuários sem pausa, p50 | 457 ms | 24–29 ms |
 | 25 usuários simultâneos | 5 conexões recusadas | 0 recusadas, p95 ~650 ms |
 | Tela inicial pronta | ~340 ms | ~40 ms |
 | Abrir jogada, 1º acesso ao jogo | 144 ms | 30–38 ms |
@@ -228,11 +230,11 @@ pré-carga das jogadas vizinhas no navegador e descarte de respostas atrasadas.
 
 O cache binário ocupa **~111 MB** em `cache/tracking/` (1 arquivo por jogo).
 
-**Sobre a meta de 10 usuários:** o teste de carga dispara as requisições sem pausa
-entre cliques (mais agressivo que pessoas reais), e o p95 oscila entre rodadas em
-torno da meta de 300 ms. O custo que sobra é descomprimir o tracking de cada jogo aberto
-pela primeira vez (~25 ms). Detalhes e opções em
-`.kiro/specs/otimizacao-desempenho/tasks.md` (tarefa 9).
+**Sobre a meta de 10 usuários:** o cenário da spec é uma banca de pessoas, com uma
+pausa de 1 a 2 s entre cliques (`tools/carga.py --usuarios 10`). O modo
+`--sem-pausa` dispara tudo sem intervalo. É mais agressivo que gente de verdade e
+fica como teste de estresse: nele o p95 oscila em torno de 300 ms, e o custo que
+sobra é descomprimir o tracking de cada jogo aberto pela primeira vez (~25 ms).
 
 ---
 

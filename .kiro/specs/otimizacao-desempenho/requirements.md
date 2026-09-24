@@ -2,7 +2,7 @@
 
 **Feature:** otimizacao-desempenho
 **Status:** aprovado
-**Data:** 2026-09-24 (v0.2: perguntas em aberto respondidas)
+**Data:** 2026-09-24 (v0.2: perguntas em aberto respondidas · v0.3: pausa entre cliques na "sessão típica")
 **Autores:** José Cota (com Claude)
 
 ---
@@ -35,7 +35,9 @@ Restrições de contexto que o implementador precisa respeitar:
 | Memória do servidor | 261 MB, pico de 434 MB | |
 | Arquivos da página (CSS/JS) | baixados de novo a cada visita | nunca reaproveitados |
 
-"Sessão típica" = abrir um jogo, listar as jogadas, abrir 3 jogadas na prancheta, abrir o comentarista e a lista do olheiro (7 requisições).
+"Sessão típica" = abrir um jogo, listar as jogadas, abrir 3 jogadas na prancheta, abrir o comentarista e a lista do olheiro (7 requisições), **com uma pausa de 1 a 2 s entre um clique e o próximo**, como uma pessoa real faz. O tempo medido é só o de cada resposta; a pausa não entra na conta.
+
+> **Revisão v0.3 (2026-09-24, decidida pelo José):** a versão aprovada não definia pausa, e o teste de carga disparava as requisições sem intervalo nenhum. Isso é mais agressivo que uma banca de pessoas. Nesse modo, a meta 1.1 passou em só 3 de 5 rodadas (p95 de 263–393 ms). Decidiu-se medir o cenário que o requisito descreve. O modo sem pausa continua existindo como **teste de estresse** (`carga.py --sem-pausa`), sem meta, só para registro.
 
 ---
 

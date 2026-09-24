@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import math
 import threading
+import zipfile
 from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+import tracking_npz
 from teams import team_info
 
 FPS = 10.0
@@ -135,6 +137,17 @@ def yd_s_to_mph(v):
     return None if f is None else round(f * 2.04545, 2)
 
 
+def _registros(df: pd.DataFrame) -> list[dict]:
+    """
+    Mesmo resultado de df.to_dict("records") (valores em tipos nativos do
+    Python), mas convertendo coluna a coluna com .tolist(), que roda em C:
+    ~10x mais rapido que o to_dict, que converte celula a celula.
+    """
+    cols = list(df.columns)
+    valores = [df[c].tolist() for c in cols]
+    return [dict(zip(cols, linha)) for linha in zip(*valores)]
+
+
 def _pct_rank(series: pd.Series, lower_is_better: bool) -> pd.Series:
     """Percentil 0-100 dentro do grupo; inverte quando menor e melhor."""
     ranked = series.rank(pct=True, na_option="keep")
@@ -147,7 +160,7 @@ def _pct_rank(series: pd.Series, lower_is_better: bool) -> pd.Series:
 class NFLData:
     """Tudo carregado em memoria, exceto o tracking (lido por jogo, com cache)."""
 
-    def __init__(self, data_dir: Path, cache_dir: Path, tracking_cache_size: int = 6):
+    def __init__(self, data_dir: Path, cache_dir: Path, tracking_cache_size: int = 12):
         self.data_dir = Path(data_dir)
         self.cache_dir = Path(cache_dir)
         self.tracking_dir = self.data_dir / "tracking"
@@ -172,6 +185,14 @@ class NFLData:
             )
         self.timing = pd.read_csv(timing_path)
         self.motion = pd.read_csv(motion_path)
+        # (gameId, playId) -> (snapFrame, releaseFrame): evita varrer self.timing por jogada.
+        self._timing_idx = {
+            (g, p): (s, r)
+            for g, p, s, r in zip(
+                self.timing["gameId"].tolist(), self.timing["playId"].tolist(),
+                self.timing["snapFrame"].astype(float).tolist(), self.timing["releaseFrame"].astype(float).tolist(),
+            )
+        }
 
         self._build_play_index()
         self._build_participants()
@@ -257,6 +278,7 @@ class NFLData:
         )
         self.participants = part
         self._part_by_game = {g: df for g, df in part.groupby("gameId")}
+        self._linhas_cache: OrderedDict[int, dict] = OrderedDict()
 
         # Time principal de cada jogador (o que ele mais representou no periodo).
         team_mode = (
@@ -699,23 +721,59 @@ class NFLData:
         }
 
     def play(self, game_id: int, play_id: int) -> dict | None:
-        plays = self._plays_by_game.get(game_id)
-        if plays is None:
+        jogo = self._linhas_do_jogo(game_id)
+        if jogo is None:
             return None
-        row = plays[plays["playId"] == play_id]
-        if row.empty:
+        r = jogo["jogadas"].get(play_id)
+        if r is None:
             return None
-        card = self._play_card(row.iloc[0])
+        card = self._play_card(r)
         card["players"] = self.play_participants(game_id, play_id)
         return card
 
-    def play_participants(self, game_id: int, play_id: int) -> list[dict]:
+    # Colunas que play_participants le.
+    _COLS_PARTICIPANTES = [
+        "playId", "nflId", "displayName", "officialPosition", "pff_positionLinedUp", "pff_role",
+        "side", "team", "maxSpeed", "distance", "depth", "timeToQb", "pff_sack", "pff_hurry",
+        "pff_hit", "pff_sackAllowed", "pff_hurryAllowed", "pff_hitAllowed",
+        "pff_beatenByDefender", "pff_blockType", "pff_nflIdBlockedPlayer",
+    ]
+
+    def _linhas_do_jogo(self, game_id: int) -> dict | None:
+        """
+        Linhas de jogadas e participantes de um jogo ja como dicionarios,
+        agrupadas por playId, montadas uma vez por jogo (LRU, como o tracking).
+        Abrir uma jogada vira consulta direta, sem filtrar tabelas largas nem
+        chamar to_dict a cada vez. A ordem das linhas e a original.
+        """
+        with self._lock:
+            if game_id in self._linhas_cache:
+                self._linhas_cache.move_to_end(game_id)
+                return self._linhas_cache[game_id]
+        plays = self._plays_by_game.get(game_id)
+        if plays is None:
+            return None
+        jogadas: dict[int, dict] = {}
+        for r in _registros(plays):
+            jogadas.setdefault(int(r["playId"]), r)  # 1a ocorrencia, como plays[...].iloc[0]
+        participantes: dict[int, list[dict]] = {}
         part = self._part_by_game.get(game_id)
-        if part is None:
+        if part is not None:
+            for r in _registros(part[self._COLS_PARTICIPANTES]):
+                participantes.setdefault(int(r["playId"]), []).append(r)
+        jogo = {"jogadas": jogadas, "participantes": participantes}
+        with self._lock:
+            self._linhas_cache[game_id] = jogo
+            while len(self._linhas_cache) > self._tracking_cache_size:
+                self._linhas_cache.popitem(last=False)
+        return jogo
+
+    def play_participants(self, game_id: int, play_id: int) -> list[dict]:
+        jogo = self._linhas_do_jogo(game_id)
+        if jogo is None:
             return []
-        sub = part[part["playId"] == play_id]
         out = []
-        for _, r in sub.iterrows():
+        for r in jogo["participantes"].get(play_id, []):
             nfl_id = num(r["nflId"], 0)
             out.append(
                 {
@@ -753,55 +811,100 @@ class NFLData:
         return self.primary.at[nfl_id, "rating"]
 
     # ------------------------------- tracking ----------------------------- #
-    def _tracking_for_game(self, game_id: int) -> pd.DataFrame | None:
+    def _tracking_for_game(self, game_id: int) -> tuple[pd.DataFrame, dict] | None:
+        """
+        (quadros do jogo ordenados por playId, {playId: (inicio, fim)}), com LRU.
+        Le o binario cache/tracking/<id>.npz; se faltar ou estiver ilegivel, cai
+        no CSV original. A ordenacao e estavel: dentro de cada jogada as linhas
+        mantem a ordem do arquivo, como no filtro df[df.playId == x] de antes.
+        """
         with self._lock:
             if game_id in self._tracking_cache:
                 self._tracking_cache.move_to_end(game_id)
                 return self._tracking_cache[game_id]
-        path = self.tracking_dir / f"tracking_{game_id}.csv"
-        if not path.exists():
-            return None
-        df = pd.read_csv(
-            path,
-            usecols=["playId", "nflId", "frameId", "jerseyNumber", "team", "playDirection",
-                     "x", "y", "s", "a", "o", "dir", "event"],
-        )
-        with self._lock:
-            self._tracking_cache[game_id] = df
-            while len(self._tracking_cache) > self._tracking_cache_size:
-                self._tracking_cache.popitem(last=False)
-        return df
-
-    def play_tracking(self, game_id: int, play_id: int) -> dict | None:
-        df = self._tracking_for_game(game_id)
+        df = self._ler_tracking(game_id)
         if df is None:
             return None
-        sub = df[df["playId"] == play_id]
-        if sub.empty:
+        df = df.sort_values("playId", kind="stable").reset_index(drop=True)
+        pids = df["playId"].to_numpy()
+        inicios = np.flatnonzero(np.r_[True, pids[1:] != pids[:-1]]) if len(pids) else np.array([], int)
+        fins = np.r_[inicios[1:], len(pids)]
+        entrada = (df, {int(pids[a]): (int(a), int(b)) for a, b in zip(inicios, fins)})
+        with self._lock:
+            self._tracking_cache[game_id] = entrada
+            while len(self._tracking_cache) > self._tracking_cache_size:
+                self._tracking_cache.popitem(last=False)
+        return entrada
+
+    def _ler_tracking(self, game_id: int) -> pd.DataFrame | None:
+        npz = self.cache_dir / "tracking" / f"{game_id}.npz"
+        try:
+            return tracking_npz.carregar(npz)
+        except FileNotFoundError:
+            pass
+        except (OSError, ValueError, KeyError, EOFError, zipfile.BadZipFile) as e:
+            print(f"[aviso] {npz.name} ilegivel ({e!r}); lendo o CSV original "
+                  f"(o arquivo sera regenerado na proxima subida)", flush=True)
+            # Apagar faz o ensure_cache do proximo startup refazer este jogo;
+            # senao o arquivo ruim ficaria para sempre (o CSV de origem nao mudou).
+            try:
+                npz.unlink()
+            except OSError:
+                pass
+        csv = self.tracking_dir / f"tracking_{game_id}.csv"
+        if not csv.exists():
             return None
+        return pd.read_csv(csv, usecols=tracking_npz.COLUNAS)
+
+    def play_tracking(self, game_id: int, play_id: int) -> dict | None:
+        entrada = self._tracking_for_game(game_id)
+        if entrada is None:
+            return None
+        df, faixas = entrada
+        if play_id not in faixas:
+            return None
+        a, b = faixas[play_id]
+        sub = df.iloc[a:b]
 
         info = self.play(game_id, play_id) or {}
         roster = {p["nflId"]: p for p in info.get("players", [])}
-        frames = sorted(sub["frameId"].unique())
-        frame_pos = {f: i for i, f in enumerate(frames)}
-        n = len(frames)
 
+        frame_ids = sub["frameId"].to_numpy()
+        frames = np.unique(frame_ids)                      # ordenados, como sorted(unique())
+        frame_pos = {f: i for i, f in enumerate(frames.tolist())}
+        n = len(frames)
+        idx_quadro = np.searchsorted(frames, frame_ids).tolist()
+
+        nfl = sub["nflId"].to_numpy(dtype=float)
+        eh_jogador = ~np.isnan(nfl)
+        x, y = sub["x"].to_numpy().tolist(), sub["y"].to_numpy().tolist()
+        vel, ori, dire = sub["s"].to_numpy().tolist(), sub["o"].to_numpy().tolist(), sub["dir"].to_numpy().tolist()
+        camisa = sub["jerseyNumber"].to_numpy()
+        time_col = sub["team"].to_numpy(dtype=object)
+
+        # Jogadores em ordem de nflId e, dentro de cada um, por quadro (o groupby +
+        # sort_values de antes). Arredondamento com round() do Python, igual ao original.
+        linhas = np.flatnonzero(eh_jogador)
+        linhas = linhas[np.lexsort((frame_ids[linhas], nfl[linhas]))]
+        ids = nfl[linhas]
+        cortes = np.flatnonzero(np.r_[True, ids[1:] != ids[:-1]]) if len(ids) else np.array([], int)
         players = []
-        for nfl_id, grp in sub[sub["nflId"].notna()].groupby("nflId"):
-            grp = grp.sort_values("frameId")
-            meta = roster.get(int(nfl_id), {})
+        for c0, c1 in zip(cortes.tolist(), np.r_[cortes[1:], len(ids)].tolist()):
+            grupo = linhas[c0:c1].tolist()
+            primeira = grupo[0]
+            nfl_id = int(nfl[primeira])
+            meta = roster.get(nfl_id, {})
             track = [None] * n
-            for _, r in grp.iterrows():
-                track[frame_pos[r["frameId"]]] = [
-                    round(float(r["x"]), 2), round(float(r["y"]), 2),
-                    round(float(r["s"]), 2), round(float(r["o"]), 1), round(float(r["dir"]), 1),
+            for k in grupo:
+                track[idx_quadro[k]] = [
+                    round(x[k], 2), round(y[k], 2), round(vel[k], 2), round(ori[k], 1), round(dire[k], 1),
                 ]
             players.append(
                 {
-                    "nflId": int(nfl_id),
+                    "nflId": nfl_id,
                     "name": meta.get("name"),
-                    "jersey": num(grp["jerseyNumber"].iloc[0], 0),
-                    "team": text(grp["team"].iloc[0]),
+                    "jersey": num(camisa[primeira], 0),
+                    "team": text(time_col[primeira]),
                     "side": meta.get("side"),
                     "role": meta.get("role"),
                     "linedUp": meta.get("linedUp"),
@@ -811,23 +914,22 @@ class NFLData:
                 }
             )
 
-        ball_rows = sub[sub["nflId"].isna()].sort_values("frameId")
+        bola = np.flatnonzero(~eh_jogador)
+        bola = bola[np.argsort(frame_ids[bola], kind="stable")].tolist()
+        evento = sub["event"].to_numpy(dtype=object)
         ball = [None] * n
-        for _, r in ball_rows.iterrows():
-            ball[frame_pos[r["frameId"]]] = [round(float(r["x"]), 2), round(float(r["y"]), 2)]
+        events = []
+        for k in bola:
+            ball[idx_quadro[k]] = [round(x[k], 2), round(y[k], 2)]
+            nome = text(evento[k])
+            if nome:
+                events.append({"frame": idx_quadro[k], "name": nome})
 
-        events = [
-            {"frame": frame_pos[r["frameId"]], "name": text(r["event"])}
-            for _, r in ball_rows.iterrows()
-            if text(r["event"])
-        ]
-
-        timing = self.timing[(self.timing["gameId"] == game_id) & (self.timing["playId"] == play_id)]
         snap = release = None
-        if not timing.empty:
-            t = timing.iloc[0]
-            snap = frame_pos.get(t["snapFrame"])
-            release = frame_pos.get(t["releaseFrame"])
+        tempos = self._timing_idx.get((game_id, play_id))
+        if tempos is not None:
+            snap = frame_pos.get(tempos[0])      # NaN -> None, como antes
+            release = frame_pos.get(tempos[1])
 
         return {
             "gameId": game_id,
@@ -890,7 +992,7 @@ class NFLData:
         if team:
             p = p[p["team"] == team.upper()]
         p = p.sort_values("rating", ascending=False, na_position="last").head(limit)
-        return [self._player_card(r) for _, r in p.iterrows()]
+        return [self._player_card(r) for r in p.to_dict("records")]
 
     def _player_card(self, r: pd.Series) -> dict:
         return {

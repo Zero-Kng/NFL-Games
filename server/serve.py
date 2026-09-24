@@ -17,8 +17,10 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import json
 import mimetypes
+import os
 import re
 import sys
 import threading
@@ -27,11 +29,14 @@ import traceback
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "etl"))
 
+from build_metrics import ensure_cache  # noqa: E402
 from data_layer import NFLData  # noqa: E402
+from response_cache import CacheDeRespostas, Resposta  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT / "app"
@@ -40,38 +45,69 @@ CACHE_DIR = ROOT / "cache"
 
 GZIP_MIN_BYTES = 2048
 DATA: NFLData | None = None
+# Respostas prontas da API: os dados nao mudam com o servidor de pe.
+CACHE = CacheDeRespostas()
+
+# Requisicoes /api em processamento ao mesmo tempo. Acima disso: 503 imediato,
+# em vez de enfileirar sem limite (protege memoria e CPU numa rajada).
+MAX_PENDENTES = 64
+_vagas = threading.BoundedSemaphore(MAX_PENDENTES)
+
+# So para testes: atraso artificial em cada requisicao /api, para segurar uma
+# vaga e provar o 503 de forma deterministica. Nunca definido em uso normal.
+_ATRASO_TESTE_S = float(os.environ.get("NFL_ATRASO_API_MS", "0")) / 1000
+
+
+class Server(ThreadingHTTPServer):
+    # O padrao do socketserver e 5: acima de 5 conexoes esperando accept(), o
+    # sistema operacional recusa. 128 cobre rajadas bem acima da carga-alvo.
+    request_queue_size = 128
+    daemon_threads = True
 
 
 # --------------------------------------------------------------------------- #
 # roteador minimo
 # --------------------------------------------------------------------------- #
 class Router:
-    def __init__(self):
-        self.routes: list[tuple[re.Pattern, callable]] = []
+    """
+    Cada rota declara os parametros de query que entende. So eles entram na
+    chave do cache de respostas, em ordem fixa: parametros desconhecidos nao
+    geram variacoes e nao conseguem encher o cache.
+    """
 
-    def get(self, pattern: str):
+    def __init__(self):
+        self.routes: list[tuple[re.Pattern, callable, tuple[str, ...]]] = []
+
+    def get(self, pattern: str, params: tuple[str, ...] = ()):
         def deco(fn):
-            self.routes.append((re.compile(f"^{pattern}$"), fn))
+            self.routes.append((re.compile(f"^{pattern}$"), fn, tuple(sorted(params))))
             return fn
 
         return deco
 
     def match(self, path: str):
-        for pattern, fn in self.routes:
+        for pattern, fn, params in self.routes:
             m = pattern.match(path)
             if m:
-                return fn, m.groupdict()
-        return None, None
+                return fn, m.groupdict(), params
+        return None, None, ()
 
 
 router = Router()
 
 
+def chave_cache(path: str, query: dict, conhecidos: tuple[str, ...]) -> str:
+    """Caminho + parametros conhecidos (1o valor, nao vazios), em ordem alfabetica."""
+    pares = [(k, query[k][0]) for k in conhecidos if query.get(k) and query[k][0] != ""]
+    return path + ("?" + urlencode(pares) if pares else "")
+
+
 class ApiError(Exception):
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, headers: dict | None = None):
         super().__init__(message)
         self.status = status
         self.message = message
+        self.headers = headers or {}
 
 
 def _int_param(query: dict, name: str, default=None):
@@ -97,7 +133,7 @@ def api_meta(_q, _p):
     return DATA.meta()
 
 
-@router.get(r"/api/games")
+@router.get(r"/api/games", params=("week", "date"))
 def api_games(q, _p):
     return DATA.games_list(week=_int_param(q, "week"), date=_str_param(q, "date"))
 
@@ -110,7 +146,7 @@ def api_game(_q, p):
     return game
 
 
-@router.get(r"/api/games/(?P<game_id>\d+)/plays")
+@router.get(r"/api/games/(?P<game_id>\d+)/plays", params=("quarter", "team"))
 def api_plays(q, p):
     return DATA.game_plays(
         int(p["game_id"]), quarter=_int_param(q, "quarter"), team=_str_param(q, "team")
@@ -149,7 +185,7 @@ def api_broadcast(_q, p):
     return bc
 
 
-@router.get(r"/api/players")
+@router.get(r"/api/players", params=("q", "position", "role", "team", "rated", "limit"))
 def api_players(q, _p):
     return DATA.players_list(
         q=_str_param(q, "q"),
@@ -169,7 +205,7 @@ def api_player(_q, p):
     return prof
 
 
-@router.get(r"/api/compare")
+@router.get(r"/api/compare", params=("a", "b"))
 def api_compare(q, _p):
     a, b = _int_param(q, "a"), _int_param(q, "b")
     if a is None or b is None:
@@ -180,12 +216,39 @@ def api_compare(q, _p):
     return cmp
 
 
-@router.get(r"/api/leaders")
+@router.get(r"/api/leaders", params=("metric", "role", "limit"))
 def api_leaders(q, _p):
     metric = _str_param(q, "metric")
     if not metric:
         raise ApiError(400, "informe o parametro 'metric'")
     return DATA.leaders(metric, role=_str_param(q, "role"), limit=min(_int_param(q, "limit", 10), 100))
+
+
+# --------------------------------------------------------------------------- #
+# arquivos estaticos
+# --------------------------------------------------------------------------- #
+APP_ROOT = APP_DIR.resolve()
+_static_cache: dict[Path, tuple[int, bytes, str]] = {}
+_static_lock = threading.Lock()
+
+
+def _static_file(target: Path) -> tuple[bytes, str]:
+    """(conteudo, ETag), relendo o arquivo so quando o mtime muda."""
+    mtime = target.stat().st_mtime_ns
+    with _static_lock:
+        hit = _static_cache.get(target)
+    if hit and hit[0] == mtime:
+        return hit[1], hit[2]
+    body = target.read_bytes()
+    etag = '"' + hashlib.sha1(body).hexdigest() + '"'
+    with _static_lock:
+        _static_cache[target] = (mtime, body, etag)
+    return body, etag
+
+
+def _etags(header: str) -> set[str]:
+    """Valores de If-None-Match (aceita lista e o prefixo W/ de ETag fraca)."""
+    return {t.strip().removeprefix("W/") for t in header.split(",") if t.strip()}
 
 
 # --------------------------------------------------------------------------- #
@@ -204,27 +267,52 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 self._handle_static(path)
         except ApiError as e:
-            self._send_json({"error": e.message}, status=e.status)
-        except BrokenPipeError:
-            pass
+            self._send_json({"error": e.message}, status=e.status, extra_headers=e.headers)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass  # o cliente desistiu; nada a responder
         except Exception:
             traceback.print_exc()
             self._send_json({"error": "erro interno no servidor"}, status=500)
 
     def _handle_api(self, path: str, query: dict):
-        fn, params = router.match(path)
+        fn, params, conhecidos = router.match(path)
         if fn is None:
             raise ApiError(404, f"rota desconhecida: {path}")
-        t0 = time.perf_counter()
-        payload = fn(query, params)
-        ms = (time.perf_counter() - t0) * 1000
-        self._send_json(payload, extra_headers={"X-Query-Time": f"{ms:.0f}ms"})
+        if not _vagas.acquire(blocking=False):
+            raise ApiError(503, "servidor ocupado, tente novamente", {"Retry-After": "2"})
+        try:
+            if _ATRASO_TESTE_S:
+                time.sleep(_ATRASO_TESTE_S)
+            t0 = time.perf_counter()
+            # Parametro invalido ou recurso inexistente viram ApiError dentro de
+            # fn: atravessam o cache sem ser guardados.
+            resp, hit = CACHE.get_or_build(chave_cache(path, query, conhecidos), lambda: fn(query, params))
+            ms = (time.perf_counter() - t0) * 1000
+        finally:
+            _vagas.release()
+        self._send_resposta(resp, {"X-Query-Time": f"{ms:.0f}ms", "X-Cache": "HIT" if hit else "MISS"})
+
+    def _send_resposta(self, resp: Resposta, extra_headers: dict):
+        """Envia uma resposta do cache: o gzip pronto, ou descomprimido se o cliente nao aceita."""
+        headers = {"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", **extra_headers}
+        if resp.raw_size >= GZIP_MIN_BYTES and "gzip" in self.headers.get("Accept-Encoding", ""):
+            body = resp.gz
+            headers["Content-Encoding"] = "gzip"
+        else:
+            body = resp.corpo()
+        self.send_response(200)
+        for k, v in headers.items():
+            self.send_header(k, v)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _handle_static(self, path: str):
         rel = "index.html" if path in ("/", "") else path.lstrip("/")
         target = (APP_DIR / rel).resolve()
-        # Impede escapar da pasta app/ via ../
-        if not str(target).startswith(str(APP_DIR.resolve())):
+        # Impede escapar da pasta app/ via ../ -- comparar strings com startswith
+        # deixaria passar uma pasta vizinha como "app2/".
+        if not target.is_relative_to(APP_ROOT):
             self._send_bytes(b"forbidden", "text/plain", HTTPStatus.FORBIDDEN)
             return
         if target.is_dir():
@@ -232,10 +320,20 @@ class Handler(BaseHTTPRequestHandler):
         if not target.is_file():
             self._send_bytes(b"nao encontrado", "text/plain", HTTPStatus.NOT_FOUND)
             return
+        body, etag = _static_file(target)
+        # no-cache = o navegador pode guardar, mas revalida a cada visita (ETag).
+        cache = {"Cache-Control": "no-cache", "ETag": etag, "Vary": "Accept-Encoding"}
+        if etag in _etags(self.headers.get("If-None-Match", "")):
+            self.send_response(HTTPStatus.NOT_MODIFIED)
+            for k, v in cache.items():
+                self.send_header(k, v)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         ctype = mimetypes.guess_type(str(target))[0] or "application/octet-stream"
         if ctype.startswith("text/") or ctype in ("application/javascript", "application/json"):
             ctype += "; charset=utf-8"
-        self._send_bytes(target.read_bytes(), ctype)
+        self._send_bytes(body, ctype, extra_headers=cache)
 
     def _send_json(self, payload, status: int = 200, extra_headers: dict | None = None):
         body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8")
@@ -260,13 +358,47 @@ class Handler(BaseHTTPRequestHandler):
 
 
 # --------------------------------------------------------------------------- #
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+def tarefas_de_aquecimento():
+    """
+    (chave, construtor) das respostas que todo usuario acaba pedindo, na ordem
+    em que a tela as pede: meta, partidas de cada semana e, jogo a jogo (semana 1
+    primeiro, que e a tela padrao), detalhe, jogadas e comentarista. O tracking
+    fica de fora: 8.557 jogadas sao caras de pre-montar e a pre-carga do
+    navegador cobre a navegacao.
+    """
+    urls = ["/api/meta", "/api/players?limit=60"]
+    jogos = DATA.games.sort_values(["week", "gameId"])
+    urls += [f"/api/games?week={int(w)}" for w in jogos["week"].unique()]
+    for g in jogos["gameId"]:
+        urls += [f"/api/games/{g}", f"/api/games/{g}/plays", f"/api/games/{g}/broadcast"]
+    for url in urls:
+        u = urlparse(url)
+        query = parse_qs(u.query)
+        fn, params, conhecidos = router.match(u.path)
+        yield chave_cache(u.path, query, conhecidos), (lambda fn=fn, q=query, p=params: fn(q, p))
+
+
+def parser() -> argparse.ArgumentParser:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8000)
-    args = ap.parse_args()
+    ap.add_argument("--max-pendentes", type=int, default=MAX_PENDENTES,
+                    help="requisicoes /api simultaneas antes de responder 503 (padrao: %(default)s)")
+    return ap
 
-    global DATA
+
+def main() -> int:
+    args = parser().parse_args()
+
+    global DATA, _vagas
+    _vagas = threading.BoundedSemaphore(args.max_pendentes)
+    # Prepara so o que falta (1a execucao, jogo novo ou alterado). Com o cache
+    # completo, e so uma conferencia de tamanhos/datas.
+    try:
+        ensure_cache(DATA_DIR, CACHE_DIR, progress=lambda m: print(m, flush=True))
+    except FileNotFoundError as e:
+        print(f"[erro] {e}")
+        return 1
     print("carregando dataset NFL Big Data Bowl 2023...")
     t0 = time.perf_counter()
     DATA = NFLData(DATA_DIR, CACHE_DIR)
@@ -279,13 +411,14 @@ def main() -> int:
     if not (APP_DIR / "index.html").is_file():
         print(f"[aviso] {APP_DIR / 'index.html'} nao existe; a API funciona, a UI nao.")
 
-    httpd = ThreadingHTTPServer((args.host, args.port), Handler)
-    httpd.daemon_threads = True
+    httpd = Server((args.host, args.port), Handler)
     url = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"
     print(f"\nservindo em {url}")
     if args.host == "0.0.0.0":
         print("[aviso] escutando em todas as interfaces, sem autenticacao. Use so em rede confiavel.")
     print("ctrl+c para parar\n")
+    # O socket ja esta escutando: o app atende enquanto o cache aquece.
+    CACHE.aquecer(tarefas_de_aquecimento(), log=lambda m: print(m, flush=True))
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

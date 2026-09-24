@@ -9,25 +9,21 @@ set PYTHONIOENCODING=utf-8
 echo.
 echo === NFL GAMES ===
 echo.
-
-if not exist "cache\play_timing.csv" (
-    echo Primeira execucao: gerando metricas do tracking ^(~20s^)...
-    python etl\build_metrics.py
-    if errorlevel 1 goto erro
-    echo.
-)
-
-echo Abrindo o navegador em http://127.0.0.1:8000
-start "" http://127.0.0.1:8000
+echo Na primeira execucao o servidor prepara o cache do tracking (~45s).
+echo Nas proximas, sobe direto. O navegador abre em http://127.0.0.1:8000
+echo Feche esta janela (ou Ctrl+C) para parar.
 echo.
-echo Servidor iniciado. Feche esta janela (ou Ctrl+C) para parar.
-echo.
+
+REM Abre o navegador quando o servidor responder (em segundo plano).
+start "" /b powershell -NoProfile -Command "while (-not (Test-NetConnection 127.0.0.1 -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue)) { Start-Sleep 1 }; Start-Process http://127.0.0.1:8000"
+
 python server\serve.py
+if errorlevel 1 goto erro
 goto fim
 
 :erro
 echo.
-echo [ERRO] Falha ao gerar o cache. Confira se o Python e o pandas estao instalados:
+echo [ERRO] O servidor nao subiu. Confira se o Python e o pandas estao instalados:
 echo        python -m pip install pandas
 pause
 

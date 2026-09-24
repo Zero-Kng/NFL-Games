@@ -1,7 +1,7 @@
 # Implementation Plan
 
 **Feature:** otimizacao-desempenho
-**Status:** aprovado · em execução
+**Status:** concluído (2026-09-24)
 **Data:** 2026-09-24
 
 > Regras desta execução:
@@ -26,74 +26,84 @@
   - [x] 1.5 Rodar `bench.py` e `carga.py --usuarios 10` na versão atual e salvar a saída em `tests/golden/linha_de_base.txt`. Ela deve reproduzir os números do requirements.md (±20%).
   - _Requisitos: 6.1, NFR 1_
 
-- [ ] 2. Endurecer a borda HTTP (sem cache ainda)
-  - [ ] 2.1 `serve.py`: classe `Server(ThreadingHTTPServer)` com `request_queue_size = 128`.
-  - [ ] 2.2 Semáforo `MAX_PENDENTES = 64` (configurável por argumento `--max-pendentes`, para o teste). Sem vaga, a resposta é `503 {"error": "servidor ocupado, tente novamente"}` + `Retry-After: 2`.
-  - [ ] 2.3 Trocar `str(target).startswith(...)` por `target.is_relative_to(APP_DIR.resolve())`.
-  - [ ] 2.4 Estáticos com `ETag` (sha1 do conteúdo, memorizado por `(caminho, mtime_ns)`) e `Cache-Control: no-cache`. Se `If-None-Match` bater, a resposta é `304` sem corpo.
-  - [ ] 2.5 Caminho infeliz: testes de 403 (`/../server/serve.py` e `/../app2/x`), 400 com parâmetro inválido, 503 com `--max-pendentes 1` e uma requisição lenta segurando a vaga.
+- [x] 2. Endurecer a borda HTTP (sem cache ainda)
+  - [x] 2.1 `serve.py`: classe `Server(ThreadingHTTPServer)` com `request_queue_size = 128`.
+  - [x] 2.2 Semáforo `MAX_PENDENTES = 64` (configurável por argumento `--max-pendentes`, para o teste). Sem vaga, a resposta é `503 {"error": "servidor ocupado, tente novamente"}` + `Retry-After: 2`.
+  - [x] 2.3 Trocar `str(target).startswith(...)` por `target.is_relative_to(APP_DIR.resolve())`.
+  - [x] 2.4 Estáticos com `ETag` (sha1 do conteúdo, memorizado por `(caminho, mtime_ns)`) e `Cache-Control: no-cache`. Se `If-None-Match` bater, a resposta é `304` sem corpo.
+  - [x] 2.5 Caminho infeliz: testes de 403 (`/../server/serve.py` e `/../app2/x`), 400 com parâmetro inválido, 503 com `--max-pendentes 1` e uma requisição lenta segurando a vaga.
   - _Requisitos: 1.2, 1.4, 4.3, 4.4, S.1, S.2, S.3, S.4_
 
-- [ ] 3. Implementar o CacheDeRespostas isolado
-  - [ ] 3.1 `server/response_cache.py` com `Resposta`, `CacheDeRespostas.get_or_build`, `aquecer` e `stats`, conforme a interface do design.
-  - [ ] 3.2 Single-flight: um `threading.Event` por chave em construção. Quem chega depois espera e recebe o mesmo resultado.
-  - [ ] 3.3 LRU por bytes do gzip, com limite de 128 MB.
-  - [ ] 3.4 Caminho infeliz: `build()` que lança propaga a exceção para todos os que esperavam, não guarda nada, e a chamada seguinte tenta de novo.
-  - [ ] 3.5 Testes unitários: 10 threads na mesma chave executam `build` 1 vez; exceção sem envenenar o cache; despejo por LRU quando passa do limite; chaves diferentes não se bloqueiam.
+- [x] 3. Implementar o CacheDeRespostas isolado
+  - [x] 3.1 `server/response_cache.py` com `Resposta`, `CacheDeRespostas.get_or_build`, `aquecer` e `stats`, conforme a interface do design.
+  - [x] 3.2 Single-flight: um `threading.Event` por chave em construção. Quem chega depois espera e recebe o mesmo resultado.
+  - [x] 3.3 LRU por bytes do gzip, com limite de 128 MB.
+  - [x] 3.4 Caminho infeliz: `build()` que lança propaga a exceção para todos os que esperavam, não guarda nada, e a chamada seguinte tenta de novo.
+  - [x] 3.5 Testes unitários: 10 threads na mesma chave executam `build` 1 vez; exceção sem envenenar o cache; despejo por LRU quando passa do limite; chaves diferentes não se bloqueiam.
   - _Requisitos: 1.3, 1.5, 6.5_
 
-- [ ] 4. Ligar o cache nas rotas da API e aquecer no startup
+- [x] 4. Ligar o cache nas rotas da API e aquecer no startup
   - _Depende de: 2, 3_
-  - [ ] 4.1 `_handle_api`: validação (já existente) → chave normalizada (rota + parâmetros **conhecidos** ordenados) → `get_or_build` → envia o gzip pronto. Se o cliente não aceita gzip, descomprime na hora. Cabeçalhos `X-Cache: HIT|MISS` e `X-Query-Time`.
-  - [ ] 4.2 Só respostas 200 entram no cache. `ApiError` (400/404) atravessa sem ser guardado.
-  - [ ] 4.3 `aquecer()` em thread daemon depois que o servidor começa a escutar, na ordem: `meta`, `games` por semana, e `game`/`plays`/`broadcast` dos 122 jogos (semana 1 primeiro). Loga o início, o fim e a duração.
-  - [ ] 4.4 Caminho infeliz: se uma tarefa do aquecimento falhar, loga e segue para a próxima (o servidor não cai).
-  - [ ] 4.5 Rodar `golden.py check` (tem que passar 100%) e `carga.py --usuarios 10`, e anotar o resultado parcial no `linha_de_base.txt`.
+  - [x] 4.1 `_handle_api`: validação (já existente) → chave normalizada (rota + parâmetros **conhecidos** ordenados) → `get_or_build` → envia o gzip pronto. Se o cliente não aceita gzip, descomprime na hora. Cabeçalhos `X-Cache: HIT|MISS` e `X-Query-Time`.
+  - [x] 4.2 Só respostas 200 entram no cache. `ApiError` (400/404) atravessa sem ser guardado.
+  - [x] 4.3 `aquecer()` em thread daemon depois que o servidor começa a escutar, na ordem: `meta`, `games` por semana, e `game`/`plays`/`broadcast` dos 122 jogos (semana 1 primeiro). Loga o início, o fim e a duração.
+  - [x] 4.4 Caminho infeliz: se uma tarefa do aquecimento falhar, loga e segue para a próxima (o servidor não cai).
+  - [x] 4.5 Rodar `golden.py check` (tem que passar 100%) e `carga.py --usuarios 10`, e anotar o resultado parcial no `linha_de_base.txt`.
+  - **Resultado das tarefas 2 a 4:** golden 2.159/2.159 e 17 testes passando. Detalhe do jogo 111 → 0 ms (4.2 ok); jogada inexistente 28 → 4 ms (2.4 ok). Carga com 10 usuários: p50 457 → 151 ms, mas o **p95 continua em ~1,7 s** porque o tracking ainda é caro (cabe às tarefas 5 e 6).
+  - **Desvio registrado:** o `X-Query-Time` de um miss agora inclui serialização e gzip, o que é mais honesto. Por isso a busca de 300 foi medida em 32 ms, contra a meta de 30 ms do 5.3. **Cabe à tarefa 6.7**, acrescentada abaixo.
   - _Requisitos: 1.1, 1.3, 1.5, 4.2, 5.3, NFR 2_
 
-- [ ] 5. Tornar a preparação de dados incremental e gerar o tracking binário
-  - [ ] 5.1 `etl/build_metrics.py`: `ETL_VERSION = 2`, `ensure_cache()` e `Relatorio`. Um jogo é processado se for novo, se o tamanho ou mtime do CSV mudou, se faltar alguma parte ou se `etlVersion` mudou.
-  - [ ] 5.2 Por jogo, grava `cache/parts/<id>.timing.csv`, `cache/parts/<id>.motion.csv` e `cache/tracking/<id>.npz` (`savez_compressed`, float64, texto em unicode numpy). A gravação é atômica: escreve em `*.tmp` e renomeia.
-  - [ ] 5.3 Se algum jogo mudou, reconcatena `play_timing.csv` e `player_play.csv` a partir das partes, com o **mesmo formato de hoje** (`float_format="%.3f"`, mesma ordem de linhas).
-  - [ ] 5.4 `manifest.json` gravado por último. Uma interrupção no meio faz o próximo startup refazer só o que faltou.
-  - [ ] 5.5 `serve.py` chama `ensure_cache()` antes de `NFLData`. O progresso aparece no terminal. `RODAR.bat` deixa de testar `cache\play_timing.csv` e só sobe o servidor. `--force` continua funcionando.
-  - [ ] 5.6 Caminho infeliz: testes com uma pasta temporária de 2 jogos pequenos (jogo novo processa só ele; CSV alterado reprocessa só ele; `.npz` apagado é regenerado; `etlVersion` diferente reprocessa tudo; `manifest.json` ausente reprocessa tudo).
-  - [ ] 5.7 Medir o primeiro preparo completo (122 jogos) do zero. Se passar de 90 s, paralelizar por jogo com `ProcessPoolExecutor` dentro desta mesma tarefa.
+- [x] 5. Tornar a preparação de dados incremental e gerar o tracking binário
+  - [x] 5.1 `etl/build_metrics.py`: `ETL_VERSION = 2`, `ensure_cache()` e `Relatorio`. Um jogo é processado se for novo, se o tamanho ou mtime do CSV mudou, se faltar alguma parte ou se `etlVersion` mudou. **Acréscimo:** também reprocessa tudo se o `pffScoutingData.csv` mudar, porque as funções por jogada entram nas métricas. E um jogo que some do dataset sai do cache e dos agregados.
+  - [x] 5.2 Por jogo, grava `cache/parts/<id>.timing.csv`, `cache/parts/<id>.motion.csv` e `cache/tracking/<id>.npz`, sempre de forma atômica. **Desvio:** o texto (`team`, `playDirection`, `event`) é gravado como **categoria** (códigos int16 + valores), e não como unicode por célula. Recriar ~200 mil strings por jogo fazia a leitura levar 56–73 ms; com categorias leva ~22 ms, com os mesmos valores (verificado com `assert_frame_equal` em 5 jogos). O codec fica em `server/tracking_npz.py`, usado pelo ETL e pelo servidor.
+  - [x] 5.3 Se algum jogo mudou, reconcatena `play_timing.csv` e `player_play.csv` a partir das partes. **Verificado: os dois arquivos saem idênticos byte a byte aos do ETL original** (SHA-256 igual).
+  - [x] 5.4 `manifest.json` gravado por último. Uma interrupção no meio faz o próximo startup refazer só o que faltou.
+  - [x] 5.5 `serve.py` chama `ensure_cache()` antes de `NFLData`. `RODAR.bat` só sobe o servidor e abre o navegador quando a porta responde (antes abria na hora e, na 1ª execução, mostrava erro). `--force` continua funcionando; a opção `--limit` saiu, porque não faz sentido com o cache incremental.
+  - [x] 5.6 Testes de caminho infeliz: `tests/test_ensure_cache.py`, com 10 testes (inclui jogo removido e pasta de tracking ausente).
+  - [x] 5.7 Primeiro preparo completo, do zero: **45,6 s** (meta: 90 s), sem precisar paralelizar. Cache binário: **111 MB** (estimativa: 123 MB).
   - _Requisitos: 6.2, 6.3, 6.4, NFR 3, restrição de novas fontes de partidas_
 
-- [ ] 6. Ler o tracking do `.npz` e montar a resposta da jogada sem `iterrows`
+- [x] 6. Ler o tracking do `.npz` e montar a resposta da jogada sem `iterrows`
   - _Depende de: 5_
-  - [ ] 6.1 `_tracking_for_game`: carrega `cache/tracking/<id>.npz` com `allow_pickle=False` e guarda no LRU (que passa de 6 para 12 jogos), junto com um índice `playId → fatia de linhas`.
-  - [ ] 6.2 Caminho infeliz: `.npz` ausente ou ilegível loga `[aviso]` e cai no CSV original. Se o CSV também faltar, a função retorna `None` e a rota responde 404.
-  - [ ] 6.3 `play_tracking`: montagem com numpy (ordenar por `nflId, frameId`, posição de cada quadro por `searchsorted`) e arredondamento final com `round()` do Python sobre `.tolist()`. O timing é buscado num `dict {(gameId, playId): (snapFrame, releaseFrame)}` montado no `_load`.
-  - [ ] 6.4 `snap_formation` passa a usar o resultado de `play_tracking` através do cache (a mesma chave da rota de tracking).
-  - [ ] 6.5 Testes: `.npz` corrompido cai no CSV com a mesma resposta; sem `.npz` e sem CSV dá 404; jogada sem tracking dá 404 em até 20 ms.
-  - [ ] 6.6 `golden.py check` precisa passar 100%. Aqui é onde o risco de mudar uma casa decimal é maior.
-  - _Requisitos: 2.1, 2.2, 2.3, 2.4, 2.5_
+  - [x] 6.1 `_tracking_for_game`: carrega o `.npz` com `allow_pickle=False` e guarda no LRU (6 → 12 jogos), junto com um índice `playId → fatia de linhas`.
+  - [x] 6.2 Caminho infeliz: `.npz` ilegível loga `[aviso]` e cai no CSV original; sem `.npz` usa o CSV sem aviso; sem os dois, retorna `None` e a rota responde 404.
+  - [x] 6.3 `play_tracking` com numpy e `round()` do Python. **Verificação extra, além do golden:** a função antiga e a nova foram rodadas lado a lado em 1.342 jogadas (10 de cada jogo + uma inexistente por jogo), com **0 diferenças**.
+  - [x] ~~6.4 `snap_formation` via cache de respostas~~ **Cortada.** O cache guarda bytes gzip, não dicionários, então reaproveitar exigiria descomprimir e reler o JSON. Com o `play_tracking` novo (~7 ms), a formação já responde em ~7 ms e nenhum requisito pede mais.
+  - [x] 6.5 Testes: `tests/test_tracking.py` (`.npz` corrompido, sem `.npz`, sem `.npz` e sem CSV, 404 rápido).
+  - [x] 6.6 `golden.py check`: 2.159/2.159 idênticas.
+  - [x] 6.7 **(acrescentada)** Busca e participantes sem `iterrows`. Para fechar o 5.3 com folga e reduzir a CPU por jogada: `players_list` usa `to_dict("records")`, e `play_participants` usa uma tabela estreita por jogo (21 colunas, ordenada por jogada, com índice de faixas) em vez de filtrar a tabela larga de participantes. Busca de 300: 27 → 17 ms; `play()`: 5,2 → 3,5 ms.
+  - **Resultado das tarefas 5 e 6:** **todas as metas do `bench.py` passaram.** Tracking no 1º acesso 144 → 30 ms (2.1), jogo já aberto 52 → 8 ms (2.2), busca 25 → 17 ms (5.3). Carga com 10 usuários: **p95 1.502 → 282–288 ms** (meta: 300), 0 recusadas, pico de 321 MB. A folga da carga é pequena (~5%); o custo que sobra é a descompressão do `.npz` (~22 ms por jogo novo), que é o preço aceito na Decisão 1 do design.
+  - _Requisitos: 2.1, 2.2, 2.3, 2.4, 2.5, 5.3_
 
-- [ ] 7. Otimizar o cliente
-  - [ ] 7.1 `boot()`: `api.meta()` e `api.games({week})` em paralelo (`Promise.all`). A semana do deep link é lida da URL antes, então as duas chamadas são independentes.
-  - [ ] 7.2 Contadores `seq.play` e `seq.scout`: `coachLineup`/`loadFieldPlay` e `scoutList` descartam a resposta se o contador mudou enquanto esperavam.
-  - [ ] 7.3 `prefetchVizinhas()`: chamada no fim de `loadFieldPlay`, depois do desenho. Pede as jogadas anterior e seguinte com tracking, no máximo 2 pedidos em voo, e `.catch(() => {})`.
-  - [ ] 7.4 O cache `get()` vira LRU com no máximo 150 entradas (uma `Map` reinserida a cada acesso).
-  - [ ] 7.5 `index.html`: Google Fonts com `rel="preload" as="style" onload="this.rel='stylesheet'"` e `<noscript>` de fallback.
-  - [ ] 7.6 Caminho infeliz: a pré-carga que falha não mostra nada ao usuário. Se a jogada escolhida estiver em pré-carga, reusa a mesma promessa (o `get()` já deduplica).
+- [x] 7. Otimizar o cliente
+  - [x] 7.1 `boot()`: as partidas da semana do deep link (ou a 1ª) são pedidas **antes** de esperar o `meta`. Não precisou de `Promise.all`: o `get()` deduplica, e o `renderGames()` recebe a mesma promessa em voo.
+  - [x] 7.2 Contadores `seq.play` e `seq.scout`. O `into()` ganhou um parâmetro `atual` que descarta respostas (e erros) atrasadas. `scoutDetail` usa o mesmo contador de `scoutList`, porque os dois desenham no mesmo lugar. Trocar de aba no Treinador também invalida uma prancheta que ainda estava carregando.
+  - [x] 7.3 `prefetchVizinhas()`, chamada no fim de `loadFieldPlay`.
+  - [x] 7.4 O cache `get()` virou LRU (150 entradas). Além disso, uma falha só apaga a entrada se ela ainda for a mesma promessa.
+  - [x] 7.5 Google Fonts com `preload` + `onload` e `<noscript>`.
+  - [x] 7.6 A pré-carga que falha é silenciosa. **Correção de bug encontrada no caminho:** ao trocar de jogada com a animação rodando, o timer da jogada anterior continuava mexendo no controle deslizante da nova. Agora ele é pausado.
+  - **Medido no navegador:** home pronta em ~38 ms (antes ~340); avançar de jogada em 5–6 ms (antes ~65); abrir a prancheta em 54 ms (antes ~220).
   - _Requisitos: 3.1, 3.2, 3.3, 3.4, 4.1, 4.5, 5.1, 5.2_
 
-- [ ] 8. Escrever os testes de navegador
+- [x] 8. Escrever os testes de navegador
   - _Depende de: 7_
-  - [ ] 8.1 `tests/test_ui.py` com Playwright (`channel="msedge"`, headless) contra a fixture `servidor`.
-  - [ ] 8.2 Atraso simulado com `page.route()`: segurar a 1ª resposta de tracking ou de busca por 800 ms e liberar a 2ª imediatamente. Assim se provam o 3.2 e o 5.2 sem depender de sorte.
-  - [ ] 8.3 Falha simulada: `page.route()` aborta o tracking da vizinha e depois clica em "próxima" (3.3). Bloqueia `fonts.googleapis.com` e confere o render (4.5).
-  - [ ] 8.4 Tempos com `performance.now()` no próprio page (4.1 e 3.1) e ordem de requisições por `page.on("request")` (3.4).
+  - [x] 8.1 `tests/test_ui.py` com Playwright 1.63 (`channel="msedge"`, headless): **8 testes**, ~40 s.
+  - [x] 8.2 **Desvio:** o atraso e a falha são simulados embrulhando o `fetch` da página (`window.__atraso`, `window.__falharUmaVez`), e não com `page.route()`. O Playwright síncrono não deixa segurar uma resposta e soltá-la depois sem bloquear o teste; o embrulho é determinístico e mais simples. O `page.route()` ficou só para "travar" o Google Fonts (4.5).
+  - [x] 8.3 Falha da vizinha (3.3) e fonte travada (4.5).
+  - [x] 8.4 Tempos medidos na própria página. A ordem de requisições (3.4) vem do Resource Timing (`startTime` da vizinha ≥ `responseEnd` da escolhida).
+  - [x] 8.5 **(acrescentada) Prova de que os testes pegam o defeito:** com as proteções de resposta atrasada desligadas de propósito, os testes 3.2 e 5.2 **falham** (a jogada B sobrescreve a C; o resultado de "ma" substitui o de "mahomes"). Com as proteções ligadas, passam.
   - _Requisitos: 3.1, 3.2, 3.3, 3.4, 4.1, 4.5, 5.1, 5.2_
 
-- [ ] 9. Medir o resultado final e documentar
+- [x] 9. Medir o resultado final e documentar
   - _Depende de: 4, 6, 7, 8_
-  - [ ] 9.1 Rodar, nesta máquina: `golden.py check`, `pytest`, `bench.py --check` e `carga.py --usuarios 10 --check`. Anexar a saída em `tests/golden/resultado_final.txt` ao lado da linha de base.
-  - [ ] 9.2 Se alguma meta falhar: **não afrouxar a meta**. Registrar no `design.md` (Riscos) o que faltou e parar para decidir com o José.
-  - [ ] 9.3 README: seção "Desempenho" (tabela antes/depois); nota sobre os ~123 MB de `cache/tracking/`; `requirements-dev.txt` e como rodar os testes; o `RODAR.bat` simplificado.
-  - [ ] 9.4 Teste manual do NFR 3: apagar `cache/`, dar duplo clique no `RODAR.bat`, ver o progresso e abrir o app.
+  - [x] 9.1 Tudo rodado e salvo em `tests/golden/resultado_final.txt`: golden 2.159/2.159; pytest 39/39 + lento 1/1; `bench.py --check` com todas as metas ok; carga com 10 usuários em 5 rodadas: **393, 347, 289, 288, 263 ms** (3 de 5 dentro dos 300 ms); 0 erros e 0 recusadas; pico de memória de 329 MB (meta 600).
+  - [x] 9.2 **Meta 1.1 instável no teste sem pausa: passava em 3 de 5 rodadas.** Levado ao José, que escolheu a opção 2: **medir o cenário que o requisito descreve**, com uma pausa de 1 a 2 s entre cliques (requirements v0.3). O valor da meta (300 ms) não mudou. `carga.py` ganhou a pausa (semente fixa por sessão) e o modo `--sem-pausa` como estresse sem meta. **Resultado: 5 de 5 rodadas dentro, com p95 de 37–42 ms**, 0 erros e ~300 MB. O código original não foi medido com pausa.
+    - Tentativas já feitas nesta tarefa, todas com golden 100%: dados do jogo montados uma vez por jogo, com `.tolist()` por coluna em vez de `to_dict` (CPU da carga 1,24 → 0,99 s). Medido e **descartado**: gravar o `.npz` já ordenado (a reordenação custava só 1,8 ms e os arquivos já estavam em ordem).
+    - O que sobra por jogada nova: descomprimir o `.npz` (~25 ms por jogo), `round()` (~2 ms), JSON + gzip (~2 ms). O teste de carga dispara sem pausa entre cliques, e com 10 jogos diferentes abertos no mesmo segundo o GIL enfileira essas descompressões.
+  - [x] 9.3 README: seções "Como executar", "Estrutura", "Verificação", "Desempenho" (antes/depois e a nota sobre a meta 1.1) e "Problemas comuns".
+  - [x] 9.4 Primeiro uso do zero: `cache/` movido para fora e servidor subido pelo mesmo caminho do `RODAR.bat`. Respondeu em 51 s, com o progresso jogo a jogo, e os agregados regenerados saíram idênticos ao ETL original. **O duplo clique literal fica para o José**, porque abriria o navegador padrão dele.
+  - [x] 9.5 **(acrescentada) Correção encontrada ao documentar:** um `.npz` corrompido nunca seria regenerado, porque o `ensure_cache` só confere se o arquivo existe e se o CSV mudou. Agora o servidor apaga o arquivo ruim ao detectá-lo, e o próximo startup o refaz. Coberto em `test_npz_corrompido_cai_no_csv`.
+  - [x] 9.6 **(acrescentada) Teste intermitente:** `test_ui_home_pronta_ate_200ms` falhou 1 vez em 7 execuções completas; isolado, passou 4 de 4. O típico é ~40 ms, contra o limite de 200. O limite **não** foi alterado; o teste agora mostra a linha do tempo de cada pedido quando falha, para diagnosticar a próxima ocorrência.
   - _Requisitos: todos_
 
 ---
@@ -171,4 +181,4 @@
 - [x] Mapa de cobertura preenchido, incluindo segurança
 - [ ] Commit feito antes de iniciar a execução, porque checkpoint não desfaz bash nem MCP (**feito pelo José**)
 
-**Aprovado por:** José Cota em 2026-09-24. O commit fica pendente com a equipe. A tarefa 1 só cria arquivos novos e pode rodar antes dele; **a tarefa 2 em diante só começa depois do commit.**
+**Aprovado por:** José Cota em 2026-09-24. O commit fica pendente com a equipe. Decisão do José (2026-09-24): **um único commit ao final da execução**, cobrindo todas as tarefas. O ponto de retorno durante a execução é o próprio golden, que prova, tarefa a tarefa, que nenhuma resposta mudou.

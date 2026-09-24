@@ -2,25 +2,35 @@
 ETL: deriva metricas de tracking do NFL Big Data Bowl 2023.
 
 Varre os arquivos data/tracking/tracking_<gameId>.csv (122 jogos, ~810 MB) e
-gera caches compactos que a API carrega na inicializacao:
+gera caches que a API usa:
 
-  cache/play_timing.csv   -> 1 linha por jogada  (snap, release, tempo de passe,
-                             tempo ate a primeira pressao, duracao)
-  cache/player_play.csv   -> 1 linha por jogador/jogada (velocidade maxima,
-                             distancia percorrida)
+  cache/tracking/<gameId>.npz   -> tracking do jogo em binario (a prancheta le daqui)
+  cache/parts/<gameId>.*.csv    -> metricas de cada jogo (fonte da verdade por jogo)
+  cache/play_timing.csv         -> 1 linha por jogada  (snap, release, tempo de passe,
+                                   tempo ate a primeira pressao, duracao)
+  cache/player_play.csv         -> 1 linha por jogador/jogada (velocidade maxima,
+                                   distancia percorrida)
+  cache/manifest.json           -> o que ja foi processado, de qual versao do CSV
+
+E incremental: so processa jogos novos, alterados ou com arquivo faltando. Uma
+partida nova (por exemplo, vinda de outra fonte) nao reprocessa as demais. O
+servidor chama ensure_cache() ao subir, entao rodar este script e opcional.
 
 Uso:
-    python etl/build_metrics.py                 # todos os jogos
-    python etl/build_metrics.py --limit 3       # amostra rapida p/ validacao
-    python etl/build_metrics.py --force         # ignora cache existente
+    python etl/build_metrics.py                 # prepara o que faltar
+    python etl/build_metrics.py --force         # reprocessa todos os jogos
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import sys
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -29,6 +39,12 @@ ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "nfl-big-data-bowl-regional-event-data-main" / "data"
 TRACKING = DATA / "tracking"
 CACHE = ROOT / "cache"
+
+sys.path.insert(0, str(ROOT / "server"))
+import tracking_npz  # noqa: E402
+
+# Suba este numero quando mudar o que o ETL calcula ou grava: forca reprocessar tudo.
+ETL_VERSION = 2
 
 FPS = 10.0  # tracking a 10 quadros por segundo
 
@@ -185,8 +201,11 @@ def player_play_motion(
 
 
 def process_game(path: Path, roles_by_game: dict[int, pd.DataFrame]):
-    game_id = int(path.stem.split("_")[1])
-    track = pd.read_csv(path, usecols=TRACK_COLS)
+    """Le o CSV do jogo uma vez: calcula as metricas e devolve o tracking para o .npz."""
+    game_id = game_id_of(path)
+    cols = list(dict.fromkeys(TRACK_COLS + tracking_npz.COLUNAS))
+    raw = pd.read_csv(path, usecols=cols)
+    track = raw[TRACK_COLS]
     roles = roles_by_game.get(game_id, pd.DataFrame(columns=["playId", "nflId", "pff_role"]))
 
     timing, per_rusher = play_timing(track, roles)
@@ -196,58 +215,154 @@ def process_game(path: Path, roles_by_game: dict[int, pd.DataFrame]):
 
     timing.insert(0, "gameId", game_id)
     motion["nflId"] = motion["nflId"].astype("int64")
-    return timing, motion
+    return timing, motion, raw
+
+
+# --------------------------------------------------------------------------- #
+# preparacao incremental
+# --------------------------------------------------------------------------- #
+FLOAT_FORMAT = "%.3f"
+
+
+@dataclass
+class Relatorio:
+    processados: list[int] = field(default_factory=list)
+    removidos: list[int] = field(default_factory=list)
+    reaproveitados: int = 0
+    segundos: float = 0.0
+
+    @property
+    def mudou(self) -> bool:
+        return bool(self.processados or self.removidos)
+
+
+def game_id_of(path: Path) -> int:
+    return int(path.stem.split("_")[1])
+
+
+def _assinatura(path: Path) -> dict:
+    st = path.stat()
+    return {"size": st.st_size, "mtimeNs": st.st_mtime_ns}
+
+
+def _arquivos_do_jogo(cache_dir: Path, gid: int) -> list[Path]:
+    return [cache_dir / "parts" / f"{gid}.timing.csv", cache_dir / "parts" / f"{gid}.motion.csv",
+            cache_dir / "tracking" / f"{gid}.npz"]
+
+
+def _gravar_atomico(df: pd.DataFrame, destino: Path) -> None:
+    tmp = destino.with_name(destino.name + ".tmp")
+    df.to_csv(tmp, index=False, float_format=FLOAT_FORMAT)
+    os.replace(tmp, destino)
+
+
+def _ler_manifesto(cache_dir: Path) -> dict:
+    try:
+        return json.loads((cache_dir / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _gravar_manifesto(cache_dir: Path, manifesto: dict) -> None:
+    destino = cache_dir / "manifest.json"
+    tmp = destino.with_name("manifest.json.tmp")
+    tmp.write_text(json.dumps(manifesto, indent=1), encoding="utf-8")
+    os.replace(tmp, destino)
+
+
+def ensure_cache(data_dir: Path = DATA, cache_dir: Path = CACHE, force: bool = False,
+                 progress: Callable[[str], None] = print) -> Relatorio:
+    """
+    Garante que o cache esteja completo e de acordo com o dataset, processando
+    so o necessario. Um jogo e (re)processado se for novo, se o CSV mudou
+    (tamanho/mtime), se faltar algum arquivo dele, se a versao do ETL mudou ou
+    se o pffScoutingData mudou (as funcoes por jogada entram nas metricas).
+    Os agregados play_timing.csv/player_play.csv sao remontados a partir das
+    partes quando algo muda. O manifest.json e gravado por ultimo: se o
+    processo for interrompido, a proxima execucao refaz so o que faltou.
+    """
+    t0 = time.perf_counter()
+    tracking_dir = Path(data_dir) / "tracking"
+    pff = Path(data_dir) / "pffScoutingData.csv"
+    cache_dir = Path(cache_dir)
+    if not tracking_dir.is_dir():
+        raise FileNotFoundError(f"pasta de tracking nao encontrada: {tracking_dir}")
+    (cache_dir / "parts").mkdir(parents=True, exist_ok=True)
+    (cache_dir / "tracking").mkdir(parents=True, exist_ok=True)
+
+    antigo = _ler_manifesto(cache_dir)
+    entradas = {"pffScoutingData.csv": _assinatura(pff)}
+    tudo = (force or antigo.get("etlVersion") != ETL_VERSION or antigo.get("entradas") != entradas)
+    feitos = {} if tudo else antigo.get("jogos", {})
+
+    arquivos = {game_id_of(p): p for p in sorted(tracking_dir.glob("tracking_*.csv"))}
+    pendentes = [
+        gid for gid, p in arquivos.items()
+        if feitos.get(str(gid)) != _assinatura(p)
+        or not all(f.exists() for f in _arquivos_do_jogo(cache_dir, gid))
+    ]
+    rel = Relatorio(reaproveitados=len(arquivos) - len(pendentes))
+
+    # Jogos que sumiram do dataset saem do cache (senao continuariam nos agregados).
+    for gid_txt in set(feitos) - {str(g) for g in arquivos}:
+        for f in _arquivos_do_jogo(cache_dir, int(gid_txt)):
+            f.unlink(missing_ok=True)
+        rel.removidos.append(int(gid_txt))
+
+    agregados = [cache_dir / "play_timing.csv", cache_dir / "player_play.csv"]
+    if not pendentes and not rel.removidos and all(a.exists() for a in agregados):
+        rel.segundos = time.perf_counter() - t0
+        return rel
+
+    if pendentes:
+        motivo = "reprocessando tudo" if tudo else "jogos novos ou alterados"
+        progress(f"preparando cache: {len(pendentes)} de {len(arquivos)} jogos ({motivo})...")
+        roles = pd.read_csv(pff, usecols=["gameId", "playId", "nflId", "pff_role"])
+        roles_by_game = {gid: df for gid, df in roles.groupby("gameId")}
+        for i, gid in enumerate(pendentes, start=1):
+            timing, motion, raw = process_game(arquivos[gid], roles_by_game)
+            f_timing, f_motion, f_npz = _arquivos_do_jogo(cache_dir, gid)
+            tracking_npz.salvar(raw, f_npz)
+            _gravar_atomico(timing, f_timing)
+            _gravar_atomico(motion, f_motion)
+            rel.processados.append(gid)
+            passado = time.perf_counter() - t0
+            falta = passado / i * (len(pendentes) - i)
+            progress(f"  {i:3d}/{len(pendentes)}  jogo {gid}  {len(timing):4d} jogadas  "
+                     f"({passado:5.1f}s decorridos, ~{falta:5.1f}s restantes)")
+
+    # Remonta os agregados na ordem dos arquivos, igual ao ETL original.
+    for nome, sufixo in (("play_timing.csv", "timing"), ("player_play.csv", "motion")):
+        partes = [pd.read_csv(cache_dir / "parts" / f"{gid}.{sufixo}.csv") for gid in arquivos]
+        _gravar_atomico(pd.concat(partes, ignore_index=True), cache_dir / nome)
+
+    _gravar_manifesto(cache_dir, {
+        "etlVersion": ETL_VERSION,
+        "entradas": entradas,
+        "jogos": {str(gid): _assinatura(p) for gid, p in arquivos.items()},
+    })
+    rel.segundos = time.perf_counter() - t0
+    progress(f"cache pronto em {rel.segundos:.1f}s ({len(rel.processados)} processados, "
+             f"{rel.reaproveitados} reaproveitados)")
+    return rel
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--limit", type=int, default=0, help="processa apenas N jogos")
-    ap.add_argument("--force", action="store_true", help="recalcula mesmo se o cache existir")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--force", action="store_true", help="reprocessa todos os jogos")
     args = ap.parse_args()
 
-    if not TRACKING.is_dir():
-        print(f"[erro] pasta de tracking nao encontrada: {TRACKING}", file=sys.stderr)
+    try:
+        rel = ensure_cache(force=args.force, progress=lambda m: print(m, flush=True))
+    except FileNotFoundError as e:
+        print(f"[erro] {e}", file=sys.stderr)
         return 1
+    if not rel.mudou:
+        print(f"[ok] cache ja estava completo ({rel.reaproveitados} jogos). use --force para recalcular.")
 
-    CACHE.mkdir(exist_ok=True)
     out_timing = CACHE / "play_timing.csv"
     out_motion = CACHE / "player_play.csv"
-    if out_timing.exists() and out_motion.exists() and not args.force and not args.limit:
-        print("[skip] cache ja existe. use --force para recalcular.")
-        return 0
-
-    print("[1/3] lendo pffScoutingData (funcoes por jogada)...")
-    roles = pd.read_csv(
-        DATA / "pffScoutingData.csv", usecols=["gameId", "playId", "nflId", "pff_role"]
-    )
-    roles_by_game = {gid: df for gid, df in roles.groupby("gameId")}
-
-    files = sorted(TRACKING.glob("tracking_*.csv"))
-    if args.limit:
-        files = files[: args.limit]
-    print(f"[2/3] processando {len(files)} arquivos de tracking...")
-
-    timings, motions = [], []
-    t0 = time.perf_counter()
-    for i, path in enumerate(files, start=1):
-        timing, motion = process_game(path, roles_by_game)
-        timings.append(timing)
-        motions.append(motion)
-        elapsed = time.perf_counter() - t0
-        eta = elapsed / i * (len(files) - i)
-        print(
-            f"  {i:3d}/{len(files)}  {path.name}  "
-            f"{len(timing):4d} jogadas  ({elapsed:5.1f}s decorridos, ~{eta:5.1f}s restantes)",
-            flush=True,
-        )
-
-    all_timing = pd.concat(timings, ignore_index=True)
-    all_motion = pd.concat(motions, ignore_index=True)
-
-    print("[3/3] gravando cache...")
-    all_timing.to_csv(out_timing, index=False, float_format="%.3f")
-    all_motion.to_csv(out_motion, index=False, float_format="%.3f")
-
+    all_timing = pd.read_csv(out_timing)
     tt = all_timing["timeToThrow"].dropna()
     tp = all_timing["timeToPressure"].dropna()
     print(

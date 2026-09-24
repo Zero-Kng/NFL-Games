@@ -45,14 +45,16 @@ class Servidor:
 
 
 @contextmanager
-def servidor(args: tuple[str, ...] = (), esperar_aquecimento: bool = True, timeout_s: float = 180):
+def servidor(args: tuple[str, ...] = (), esperar_aquecimento: bool = True, timeout_s: float = 180,
+             env: dict | None = None):
     """
     Inicia o servidor e espera /api/meta responder. Se o servidor anunciar que
     esta aquecendo o cache, espera tambem o fim do aquecimento (as medicoes
     devem refletir o regime normal, nao os primeiros segundos).
+    `env` acrescenta variaveis de ambiente (ex.: NFL_ATRASO_API_MS nos testes).
     """
     porta = porta_livre()
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}
+    env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1", **(env or {})}
     t0 = time.perf_counter()
     proc = subprocess.Popen(
         [sys.executable, str(SERVE), "--port", str(porta), *args],
