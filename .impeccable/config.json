@@ -13,8 +13,8 @@
         "rule": "repeating-stripes-gradient",
         "value": "*",
         "files": [
-          "app/css/novo.css",
-          "app/novo.html"
+          "app/css/app.css",
+          "app/index.html"
         ],
         "createdAt": "2026-09-26T06:35:11.129Z",
         "reason": "Linhas de jarda do slide de notícias (rascunho aprovado pelo José): textura de campo de futebol americano, não listra genérica"

@@ -1,5 +1,5 @@
 """
-Spec novo-visual: a interface nova (app/novo.html), num Edge headless real.
+Spec novo-visual: a interface (app/index.html), num Edge headless real.
 
 Tarefa 2 (casca): identidade do rascunho, cabeçalho, moldura, movimento
 reduzido, fontes externas, barra inferior, menu lateral, links antigos,
@@ -74,7 +74,7 @@ def api(base, caminho):
 
 
 def abrir(pg, base, query=""):
-    pg.goto(base + "/novo.html" + query)
+    pg.goto(base + "/" + query)
     esperar(pg, "document.querySelector('.screen.active') && document.querySelectorAll('#seasonChips .chip').length > 0"
                 " || document.querySelector('.screen.active .state')")
 
@@ -147,7 +147,7 @@ def test_ui_sem_fontes_externas_renderiza(servidor, contexto):
     """1.5: sem o Google Fonts, a página desenha com a fonte do sistema, sem esperar."""
     contexto.route(re.compile(r"https://fonts\.(googleapis|gstatic)\.com/.*"), lambda r: r.abort())
     pg = contexto.new_page()
-    pg.goto(servidor.url + "/novo.html", wait_until="commit")
+    pg.goto(servidor.url + "/", wait_until="commit")
     esperar(pg, "document.querySelectorAll('#seasonChips .chip').length > 0", 5000)
 
 
@@ -924,15 +924,16 @@ def test_ui_prancheta_cores_dos_lados(servidor, pagina):
     abrir(pagina, servidor.url)
     r = pagina.evaluate("""async () => {
         const m = await import('/js/prancheta.js');
+        const ui = await import('/js/ui.js');
         const meta = await (await fetch('/api/meta')).json();
         const t = (a) => meta.teams[a];
         return [m.coresDosLados({ offense: 'SEA', defense: 'NE' }, t), m.coresDosLados({ offense: 'TB', defense: 'DAL' }, t),
-                m.coresDosLados({}, t), m.fundoClaro('#FFB612'), m.fundoClaro('#002244')];
+                m.coresDosLados({}, t), ui.corDoTexto('#FFB612'), ui.corDoTexto('#002244'), ui.corDoTexto('#FB4F14')];
     }""")
     meta = api(servidor.url, "/api/meta")["teams"]
     assert r[0] == {"offense": meta["SEA"]["primary"], "defense": meta["NE"]["secondary"]}
     assert r[1] == {"offense": meta["TB"]["primary"], "defense": meta["DAL"]["primary"]}
-    assert r[2] == {} and r[3] is True and r[4] is False
+    assert r[2] == {} and r[3] == "#0b1322" and r[4] == "#ffffff" and r[5] == "#0b1322"   # CIN: 3,0:1 com branco
 
 
 # ================================================================ Tarefa 6: Jogadores
@@ -1318,3 +1319,241 @@ def test_ui_sobre_mostra_fontes_e_ultima_atualizacao(servidor, pagina):
     assert pagina.eval_on_selector_all("#sobreDados .fonte", "fs => fs.length") == len(meta["fontes"])
     anos = [s["season"] for s in meta["seasons"]]
     assert f"Temporadas {min(anos)} a {max(anos)}" in t
+
+
+# ================================================================ Tarefa 9: troca, nomes antigos e acessibilidade
+PERCURSO = [
+    # (nome, query, preparo em JS depois de abrir, condição de pronto)
+    ("inicio", "?season=2021&week=1", None, "document.querySelector('#jogosLista .match') && document.querySelector('#heroTrack .slide')"),
+    ("prancheta", "?season=2021&week=1&game=2021090900&screen=jogo&play=55", None,
+     "document.querySelectorAll('#field .player-dot').length > 20"),
+    ("jogadas", "?season=2021&week=1&game=2021090900&screen=jogo&aba=jogadas", None, "document.querySelector('.play-row')"),
+    ("replay", "?season=2021&week=1&game=2021090900&screen=jogo&aba=replay", None, "document.querySelector('.tl-item')"),
+    ("estatisticas", "?season=2021&week=1&game=2021090900&screen=jogo&aba=estatisticas", None, "document.querySelector('#jogoCorpo .cmp')"),
+    ("playbook", "?season=2021&week=1&game=2021090900&screen=jogo&aba=playbook", None, "document.querySelector('#jogoCorpo .tend')"),
+    ("jogadores", "?season=2021&week=1&game=2021090900&screen=jogadores", None,
+     "document.querySelector('#scoutBody .row-card') && document.querySelector('.watch-card')"),
+    ("perfil", "?season=2021&week=1&screen=jogadores&jogador=00-0019596", None, "document.querySelector('#radarSlot svg')"),
+    ("noticias", "?season=2021&week=1&screen=noticias", None, "document.querySelector('.news-item')"),
+    ("config", "?screen=config", None, "document.getElementById('cfgAvanco')"),
+    ("sobre", "?screen=sobre", None, "document.querySelector('#sobreDados .fonte')"),
+    ("menu", "?season=2021&week=1", "document.getElementById('btnMenu').click()",
+     "document.getElementById('sidebar').classList.contains('open')"),
+    ("busca", "?season=2021&week=1", """(() => { document.getElementById('btnSearch').click();
+        const i = document.getElementById('searchInput'); i.value = 'buc';
+        i.dispatchEvent(new Event('input', { bubbles: true })); })()""",
+     "document.querySelector('[data-busca-jogador]') && document.querySelector('#searchResults [data-game]')"),
+]
+
+
+def percorrer(pg, base, nome):
+    _, q, preparo, pronto = next(p for p in PERCURSO if p[0] == nome)
+    abrir(pg, base, q)
+    if preparo:
+        pg.evaluate(preparo)
+    esperar(pg, pronto)
+    pg.wait_for_timeout(350)                                           # fim das transições
+
+
+ALVOS_PEQUENOS = """() => {
+  const sel = 'button, a[href], input, select, [role=button], [tabindex="0"]';
+  return [...document.querySelectorAll(sel)].filter((e) => {
+    const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+    return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && !e.closest('[hidden], [inert]');
+  }).map((e) => {
+    const r = e.getBoundingClientRect();
+    let w = r.width, h = r.height;
+    if (e.classList.contains('player-dot')) {          // o ponto de 26 px tem a área de toque no ::after
+      const a = getComputedStyle(e, '::after');
+      w = Math.max(w, parseFloat(a.width) || 0); h = Math.max(h, parseFloat(a.height) || 0);
+    }
+    return { w: Math.round(w), h: Math.round(h), e: e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + '.' +
+      String(e.className).replace(/ /g, '.') + ' "' + (e.textContent || '').trim().slice(0, 24) + '"' };
+  }).filter((x) => x.w < 44 || x.h < 44);
+}"""
+
+CONTRASTE_BAIXO = """(minimo) => {
+  const cor = (c) => { const m = /rgba?\\(([^)]+)\\)/.exec(c || ''); if (!m) return null;
+    const p = m[1].split(/[ ,\\/]+/).filter(Boolean).map(Number); return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1]; };
+  const mistura = (a, b) => [0, 1, 2].map((i) => a[i] * a[3] + b[i] * (1 - a[3])).concat(1);
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+  const razao = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  // Fundo efetivo: as camadas de cima para baixo até uma opaca. De um gradiente vale a 1ª cor
+  // (a mais clara nos do app: o pior caso para texto claro).
+  const fundo = (el) => {
+    const camadas = [];
+    for (let e = el; e; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (cs.backgroundImage.includes('gradient')) { const m = /rgba?\\([^)]+\\)/.exec(cs.backgroundImage); if (m) camadas.push(cor(m[0])); }
+      const bc = cor(cs.backgroundColor);
+      if (bc && bc[3] > 0) camadas.push(bc);
+      if (camadas.length && camadas[camadas.length - 1][3] >= 1) break;
+    }
+    let base = [3, 6, 12, 1];
+    for (let i = camadas.length - 1; i >= 0; i--) base = mistura(camadas[i], base);
+    return base;
+  };
+  const ruins = [];
+  document.querySelectorAll('body *').forEach((el) => {
+    if (el.closest('svg, [hidden], [inert], [aria-hidden="true"], script, style')) return;
+    const temTexto = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+    if (!temTexto) return;
+    const r = el.getBoundingClientRect(), cs = getComputedStyle(el);
+    if (!r.width || !r.height || cs.visibility === 'hidden') return;
+    let op = 1;
+    for (let e = el; e; e = e.parentElement) op *= Number(getComputedStyle(e).opacity);
+    const c = cor(cs.color); c[3] *= op;
+    const bg = fundo(el);
+    const k = razao(mistura(c, bg), bg);
+    if (k < minimo) ruins.push(el.tagName.toLowerCase() + '.' + String(el.className).replace(/ /g, '.') + ' "' +
+      el.textContent.trim().slice(0, 24) + '" ' + k.toFixed(2));
+  });
+  return ruins;
+}"""
+
+
+@pytest.mark.parametrize("tela", ["inicio", "jogo", "jogadores", "noticias", "config", "sobre"])
+def test_ui_nomes_antigos_ausentes(servidor, pagina, tela):
+    """2.4 e 9.2: nenhuma tela (nem o menu) mostra Treinador, Olheiro ou Comentarista."""
+    abrir(pagina, servidor.url, f"?season=2021&week=1&game=2021090900&screen={tela}")
+    esperar(pagina, "!document.querySelector('.screen.active .state.loading')")
+    pagina.click("#btnMenu")
+    esperar(pagina, "document.getElementById('sidebar').classList.contains('open')")
+    corpo = pagina.inner_text("body")
+    for antigo in ("Treinador", "Olheiro", "Comentarista", "TREINADOR", "OLHEIRO", "COMENTARISTA"):
+        assert antigo not in corpo, antigo
+
+
+def test_ui_sem_sugestoes_de_tatica(servidor, pagina):
+    """9.1: nem o título, nem o conteúdo (o campo insights segue na API, ignorado)."""
+    for nome in ("inicio", "prancheta", "jogadores"):
+        percorrer(pagina, servidor.url, nome)
+        assert "Sugestões de tática".upper() not in pagina.inner_text("body").upper()
+        assert pagina.query_selector("#insightsSec, .tip-card") is None
+
+
+def test_ui_sem_bastidores(servidor, pagina):
+    """9.2."""
+    for nome in ("inicio", "prancheta", "noticias"):
+        percorrer(pagina, servidor.url, nome)
+        assert "Bastidores".upper() not in pagina.inner_text("body").upper()
+        assert pagina.query_selector("#notesSec, .news-card") is None
+
+
+@pytest.mark.parametrize("nome", [p[0] for p in PERCURSO])
+def test_ui_alvos_de_toque_44px(servidor, pagina, nome):
+    """NFR 3."""
+    percorrer(pagina, servidor.url, nome)
+    assert pagina.evaluate(ALVOS_PEQUENOS) == []
+
+
+@pytest.mark.parametrize("nome", [p[0] for p in PERCURSO])
+def test_ui_contraste_minimo(servidor, pagina, nome):
+    """NFR 4: todo texto com pelo menos 4,5:1 sobre o fundo efetivo."""
+    percorrer(pagina, servidor.url, nome)
+    assert pagina.evaluate(CONTRASTE_BAIXO, 4.5) == []
+
+
+def test_ui_contraste_dos_escudos_de_todos_os_times(servidor, pagina):
+    """NFR 4 nos escudos: o texto (branco ou escuro) contrasta 4,5:1 com a cor de cada um dos 32 times."""
+    abrir(pagina, servidor.url)
+    ruins = pagina.evaluate("""async () => {
+        const ui = await import('/js/ui.js');
+        const meta = await (await fetch('/api/meta')).json();
+        return Object.values(meta.teams).filter((t) => { const c = ui.corLegivel(t.primary); return ui.contraste(c.fundo, c.texto) < 4.5; })
+            .map((t) => t.abbr + ' ' + t.primary);
+    }""")
+    assert ruins == []
+
+
+FOCO = """() => { const e = document.activeElement, cs = getComputedStyle(e);
+  return { id: e.id, cls: String(e.className), texto: (e.textContent || '').trim().slice(0, 20),
+           visivel: cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 2 }; }"""
+
+
+def test_ui_navegacao_por_teclado(servidor, pagina):
+    """NFR 5: da barra ao destino só com o teclado, e o foco sempre visível."""
+    abrir(pagina, servidor.url, "?season=2021&week=1")
+    esperar(pagina, "document.querySelector('#jogosLista .match')")
+    vistos = []
+    for _ in range(60):                                                # o começo da página, pelo Tab
+        pagina.keyboard.press("Tab")
+        f = pagina.evaluate(FOCO)
+        vistos.append(f)
+        assert f["visivel"], f"foco sem contorno visível em {f}"
+    assert any("match" in f["cls"] for f in vistos), [f["cls"] for f in vistos]
+    # uma partida pelo teclado abre a página Jogo; as abas vão pelas setas
+    pagina.focus("#jogosLista .match")
+    pagina.keyboard.press("Enter")
+    esperar(pagina, "document.getElementById('jogo').classList.contains('active') && document.getElementById('aba-prancheta')")
+    pagina.focus("#aba-prancheta")
+    pagina.keyboard.press("ArrowRight")
+    esperar(pagina, "document.activeElement.id === 'aba-jogadas'")
+    assert pagina.evaluate(FOCO)["visivel"]
+    # um jogador da prancheta pelo teclado
+    pagina.keyboard.press("ArrowLeft")
+    esperar(pagina, "document.querySelectorAll('#field .player-dot:not(.ball)').length > 20")
+    pagina.focus("#field .player-dot:not(.ball)")
+    assert pagina.evaluate(FOCO)["visivel"]
+    pagina.keyboard.press("Enter")
+    esperar(pagina, "document.querySelector('#dotInfo .row-card')")
+    # menu lateral e Configurações pelo teclado
+    pagina.focus("#btnMenu")
+    pagina.keyboard.press("Enter")
+    esperar(pagina, "document.activeElement.closest('#sidebar')")
+    for _ in range(8):
+        if pagina.evaluate("document.activeElement.dataset.go") == "config":
+            break
+        pagina.keyboard.press("Tab")
+    pagina.keyboard.press("Enter")
+    esperar(pagina, "document.getElementById('cfgAvanco')")
+    pagina.focus("#cfgAvanco")
+    pagina.keyboard.press("Space")
+    assert pagina.get_attribute("#cfgAvanco", "aria-checked") == "false"
+    assert pagina.evaluate(FOCO)["visivel"]
+
+
+XSS = '<img src=x onerror="window.__xss=1">'
+
+
+def test_ui_texto_do_dado_nao_vira_html(servidor, pagina):
+    """S.1: nomes, manchetes e descrições com marcação aparecem como texto em todas as telas."""
+    jogos = api(servidor.url, "/api/games?season=2021&week=1")
+    jogos[0]["home"]["nick"] = XSS + "Bucs"
+    news = api(servidor.url, "/api/news?season=2021&week=1")
+    news[0]["titulo"] = XSS + "Manchete"
+    news[0]["texto"] = "<b>texto</b>"
+    jogadores = api(servidor.url, "/api/players?season=2021&limit=60")
+    jogadores[0]["name"] = XSS + "Jogador"
+    plays = api(servidor.url, "/api/games/2021090900/plays")
+    for p in plays:
+        p["description"] = XSS + p["description"]
+    jogo = api(servidor.url, "/api/games/2021090900")
+    jogo["stadium"] = XSS + "Estádio"
+    jogo["watch"][0]["name"] = XSS + "Destaque"
+
+    def responder(corpo):
+        return lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(corpo))
+
+    pagina.route("**/api/games?season=2021&week=1", responder(jogos))
+    pagina.route("**/api/news?season=2021&week=1", responder(news))
+    pagina.route("**/api/players?season=2021&limit=60", responder(jogadores))
+    pagina.route("**/api/games/2021090900/plays", responder(plays))
+    pagina.route("**/api/games/2021090900", responder(jogo))
+    abrir(pagina, servidor.url, "?season=2021&week=1&game=2021090900")
+    esperar(pagina, "document.querySelector('#jogosLista .match') && document.querySelector('#heroTrack .slide')")
+    ir_para(pagina, "noticias")
+    esperar(pagina, "document.querySelector('.news-item')")
+    ir_para(pagina, "jogo")
+    pagina.click("#jogoAbas [data-aba=jogadas]")
+    esperar(pagina, "document.querySelector('.play-row') && document.querySelector('#jogoCab .jogo-cab')")
+    ir_para(pagina, "jogadores")
+    esperar(pagina, "document.querySelector('#scoutBody .row-card') && document.querySelector('.watch-card')")
+    corpo = pagina.text_content("body")                                # as telas visitadas guardam o HTML
+    for marca in ("Bucs", "Manchete", "Jogador", "Destaque", "Estádio"):
+        assert XSS + marca in corpo, marca
+    assert "<b>texto</b>" in corpo
+    assert pagina.query_selector(".screen img") is None
+    assert pagina.eval_on_selector_all(".screen b", "bs => bs.filter(b => b.textContent === 'texto').length") == 0
+    assert pagina.evaluate("window.__xss") is None

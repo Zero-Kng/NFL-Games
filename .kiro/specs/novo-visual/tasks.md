@@ -138,12 +138,23 @@
     - Sem título repetido: o cabeçalho já diz "Configurações" e "Sobre os dados".
     - `tests/test_ui_novo.py`: +6 testes (11.1–11.4, a nota de movimento reduzido e o "Sobre" da `test_ui_dados.py`, adaptado). Suíte: 263. Verificador de design: limpo.
 
-- [ ] 9. Trocar a interface e remover o código antigo
+- [x] 9. Trocar a interface e remover o código antigo
   - _Depende de: 3, 4, 5, 6, 7, 8_
-  - [ ] 9.1 `novo.html` vira `index.html`; saem o `app.js` e o `app.css` antigos. `tests/test_ui.py` e `tests/test_ui_dados.py` passam a rodar sobre as telas novas (ao vivo, matéria, prancheta e "Sobre" continuam cobertos).
-  - [ ] 9.2 Conferir que "Sugestões de tática", "Bastidores", "Treinador", "Olheiro" e "Comentarista" não aparecem em nenhuma tela.
-  - [ ] 9.3 Passada de acessibilidade: alvos ≥ 44 px, contraste ≥ 4,5:1, uso completo pelo teclado com foco visível, e todo texto dos dados passando por `esc()`.
+  - [x] 9.1 `novo.html` vira `index.html`; saem o `app.js` e o `app.css` antigos. `tests/test_ui.py` e `tests/test_ui_dados.py` passam a rodar sobre as telas novas (ao vivo, matéria, prancheta e "Sobre" continuam cobertos).
+  - [x] 9.2 Conferir que "Sugestões de tática", "Bastidores", "Treinador", "Olheiro" e "Comentarista" não aparecem em nenhuma tela.
+  - [x] 9.3 Passada de acessibilidade: alvos ≥ 44 px, contraste ≥ 4,5:1, uso completo pelo teclado com foco visível, e todo texto dos dados passando por `esc()`.
   - _Requisitos: 2.4, 9.1, 9.2, NFR 3–5, S.1_
+  - **Feito (2026-09-26):**
+    - `app/novo.html` virou `app/index.html`, e `css/novo.css` virou `css/app.css` (como no design); saíram o `index.html`, o `js/app.js` e o `css/app.css` antigos. A mensagem de "API indisponível" aponta para a raiz; a exceção do verificador de design aponta para os nomes novos; `test_borda_http.py` revalida o `js/main.js` no lugar do `app.js`.
+    - `tests/test_ui.py` (desempenho, pré-carga, troca rápida de jogada e busca de jogadores) roda sobre as telas novas pelos links antigos (`?screen=coach|scout`): a Início pronta passou a ser "partidas, carrossel e os dois cartões preenchidos". Home ≤ 200 ms e próxima jogada ≤ 50 ms passam.
+    - **Decisão (Claude):** `tests/test_ui_dados.py` ficou só com o que atravessa telas (temporadas, rodadas de playoff, as quatro áreas com os dados novos, perfil e telas sem resto do dataset antigo). Os testes de cartão, placar ao vivo, matéria, prancheta, "formação indisponível" e "Sobre" já tinham sido adaptados em `test_ui_novo.py`, nas tarefas 3, 4, 5 e 8; duplicar seria manter duas cópias.
+    - 9.2: `test_ui_nomes_antigos_ausentes` (as 6 telas com o menu aberto), `test_ui_sem_sugestoes_de_tatica` e `test_ui_sem_bastidores`.
+    - 9.3, com 13 situações percorridas (as 6 telas, as 5 abas, o perfil, o menu e a busca):
+      - Alvos ≥ 44 px: os pontos do carrossel passaram de 28 × 44 para 44 × 44; os pontos da prancheta (26 px) ganharam uma área de toque de 44 px no `::after`.
+      - Contraste ≥ 4,5:1 sobre o fundo efetivo (camadas e gradientes compostos, no pior caso): o texto dos escudos, avatares e pontos da prancheta passou a ser branco ou escuro, o que contrastar mais (`corDoTexto`); antes, CIN, DEN, MIA e CAR ficavam em ~3:1. **Decisão (Claude):** para a cor em que nenhum dos dois chega a 4,5:1 (o azul do LAC, `#0080C6`: 4,34), o fundo escurece só o necessário (`corLegivel`).
+      - Teclado: foco visível (contorno dourado) em cada parada do Tab; partida pelo Enter, abas pelas setas, jogador da prancheta pelo Enter, menu e interruptor das Configurações pelo teclado.
+      - `esc()`: respostas simuladas com `<img onerror>` em nome de time, manchete, jogador, destaque, estádio e descrição de jogada; tudo aparece como texto.
+    - `tests/test_ui_novo.py`: +40 testes (parametrizados). Suíte: 286. Verificador de design: limpo no app inteiro.
 
 - [ ] 10. Verificação final e documentação
   - _Depende de: 9_

@@ -5,7 +5,7 @@
    a mesma lógica e o mesmo "só o último vence"; mudam o HTML e as classes.
    ========================================================================== */
 import { api, ultimo } from '../api.js';
-import { $, esc, isNum, pct, nm, badge, rateChip, spin, oops, none, into, icone } from '../ui.js';
+import { $, esc, isNum, pct, nm, badge, rateChip, spin, oops, none, into, icone, corLegivel } from '../ui.js';
 import { S, ir, sincronizarUrl } from '../main.js';
 
 const POS_GROUPS = [
@@ -172,7 +172,7 @@ async function scoutDetail() {
     let html = voltar +
       '<div class="card perfil">' +
         '<div class="perfil-topo">' +
-          '<span class="avatar" style="background:' + esc(t.primary) + '">' + esc(p.position || '') + '</span>' +
+          '<span class="avatar" style="background:' + corLegivel(t.primary).fundo + ';color:' + corLegivel(t.primary).texto + '">' + esc(p.position || '') + '</span>' +
           '<span class="grow"><h3>' + esc(p.name) + '</h3>' +
             '<span class="perfil-meta">' + esc(p.position) + ' · ' + esc(t.name) + ' · ' + p.season +
             (isNum(p.age) ? ' · ' + p.age + ' anos' : '') + '</span>' +

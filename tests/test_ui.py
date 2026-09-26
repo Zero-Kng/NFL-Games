@@ -1,5 +1,8 @@
 """
-Tarefa 8: comportamento do navegador (3.x, 4.1, 4.5, 5.x) num Edge headless real.
+Spec otimizacao-desempenho, tarefa 8: comportamento do navegador (3.x, 4.1, 4.5,
+5.x) num Edge headless real. Desde a spec novo-visual (tarefa 9), roda sobre a
+interface nova: os links antigos (?screen=coach|scout) abrem a pagina Jogo e a
+tela Jogadores.
 
 Latencia e falha sao simuladas embrulhando o fetch da pagina (window.__atraso e
 window.__falharUmaVez), o que deixa cada cenario deterministico. Os tempos sao
@@ -104,8 +107,9 @@ DESCRICAO = "document.querySelector('.play-desc') && document.querySelector('.pl
 MARCAR_PRONTA = """
 // Registra o instante (desde o inicio da navegacao) em que a home fica pronta.
 new MutationObserver((_m, obs) => {
-  // Pronta = partidas + destaques do jogo (insights e bastidores ficam ocultos: sem fonte).
-  if (document.querySelector('#watchList > *') && document.querySelector('.match')) {
+  // Pronta = partidas, notícias do carrossel e os dois cartões preenchidos.
+  if (document.querySelector('#jogosLista .match') && document.querySelector('#heroTrack .slide') &&
+      /\d/.test((document.getElementById('tileAvaliados') || {}).textContent || '')) {
     window.__prontaEm = performance.now();
     obs.disconnect();
   }
@@ -141,7 +145,7 @@ def test_ui_sem_fontes_externas_renderiza(servidor, pagina):
     pagina.route("**/fonts.googleapis.com/**", lambda route: None)
     pagina.route("**/fonts.gstatic.com/**", lambda route: None)
     pagina.goto(servidor.url + "/?week=1", wait_until="commit")
-    esperar(pagina, "document.querySelectorAll('.match').length > 0", 3000)
+    esperar(pagina, "document.querySelectorAll('#jogosLista .match').length > 0", 3000)
     pronta = pagina.evaluate("performance.now()")
     assert pronta <= 1000, f"com a fonte travada a home levou {pronta:.0f} ms"
 
@@ -215,17 +219,17 @@ def test_ui_prefetch_so_depois_da_jogada_escolhida(servidor, pagina):
 # ------------------------------------------------------------ 5.1 / 5.2 ----
 def _abrir_olheiro(pg, base):
     pg.goto(base + "/?screen=scout")
-    esperar(pg, "document.querySelectorAll('.p-row').length > 0")
+    esperar(pg, "document.querySelectorAll('#scoutBody .row-card').length > 0")
 
 
 def _nomes(pg):
-    return pg.evaluate("[...document.querySelectorAll('.p-row .nm b')].map((b) => b.textContent)")
+    return pg.evaluate("[...document.querySelectorAll('#scoutBody .row-card b')].map((b) => b.textContent)")
 
 
 def test_ui_busca_mostra_texto_final(servidor, pagina):
     _abrir_olheiro(pagina, servidor.url)
     pagina.type("#scoutSearch", "mahomes", delay=30)
-    esperar(pagina, "[...document.querySelectorAll('.p-row .nm b')].some((b) => /mahomes/i.test(b.textContent))")
+    esperar(pagina, "[...document.querySelectorAll('#scoutBody .row-card b')].some((b) => /mahomes/i.test(b.textContent))")
     assert all("mahomes" in n.lower() for n in _nomes(pagina))
 
 
@@ -236,7 +240,7 @@ def test_ui_busca_resposta_antiga_descartada(servidor, pagina):
     pagina.type("#scoutSearch", "ma")
     pagina.wait_for_timeout(400)   # passa o debounce de 280 ms: "ma" sai
     pagina.type("#scoutSearch", "homes")
-    esperar(pagina, "[...document.querySelectorAll('.p-row .nm b')].some((b) => /mahomes/i.test(b.textContent))")
+    esperar(pagina, "[...document.querySelectorAll('#scoutBody .row-card b')].some((b) => /mahomes/i.test(b.textContent))")
     pagina.wait_for_timeout(1000)  # a resposta velha de "ma" ja chegou
     nomes = _nomes(pagina)
     assert nomes and all("mahomes" in n.lower() for n in nomes), nomes

@@ -4,13 +4,11 @@
    tarefas 4 e 5): recebe teamOf, que antes era global, e perdeu a animação
    (play/pause/velocidade), que não tem uso sem tracking (Q7).
    ========================================================================== */
-import { isNum } from './ui.js';
+import { isNum, corLegivel } from './ui.js';
 
 const FIELD_W = 53.3;
 
 const rgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return null; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
-// fundo claro (secundárias douradas, prateadas): número escuro para ser legível
-export const fundoClaro = (h) => { const c = rgb(h); return !!c && (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) > 150; };
 const distancia = (a, b) => { const x = rgb(a), y = rgb(b); return x && y ? Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) : 999; };
 
 /**
@@ -109,9 +107,9 @@ Field.prototype._dots = function () {
     const def = p.side === 'defense';
     const d = document.createElement('div');
     d.className = 'player-dot' + (p.role === 'Pass' ? ' qb' : '') + (def ? ' def' : '');
-    const cor = self.cores[def ? 'defense' : 'offense'] || self.teamOf(p.team).primary;
-    d.style.background = cor;
-    if (fundoClaro(cor)) d.classList.add('claro');
+    const cor = corLegivel(self.cores[def ? 'defense' : 'offense'] || self.teamOf(p.team).primary);
+    d.style.background = cor.fundo;
+    d.style.color = cor.texto;            // secundárias claras (douradas, prateadas) pedem número escuro
     d.setAttribute('role', 'button');
     d.setAttribute('tabindex', '0');
     d.title = [p.name || 'Posição genérica', p.linedUp || p.position, p.jersey ? '#' + p.jersey : '',
