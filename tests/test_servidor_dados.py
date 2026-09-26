@@ -161,7 +161,7 @@ def test_meta_fontes_creditos_ultima_atualizacao_e_rodadas(servidor):
     assert [t["season"] for t in meta["seasons"]] == sorted(ANOS, reverse=True)
     rodadas = {w["rodada"] for w in next(t for t in meta["seasons"] if t["season"] == 2024)["weeks"]}
     assert {"Wild Card", "Divisional", "Final de Conferência", "Super Bowl"} <= rodadas
-    assert meta["dataset"]["caveats"] == []                     # 3.3: sem os avisos do dataset antigo
+    assert "dataset" not in meta                                 # 3.3: sem os avisos do dataset antigo
 
 
 def test_subida_com_copia_local_ate_10s(servidor):

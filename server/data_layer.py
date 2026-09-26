@@ -352,10 +352,6 @@ class NFLData:
             "roleLabels": {g: GRUPO_LABELS[g] for g in ORDEM_GRUPOS},
             "ultimaAtualizacao": ultima,
             "fontes": FONTES,
-            # O front atual lê este bloco; os avisos do dataset antigo deixaram de valer (3.3).
-            "dataset": {"name": "nflverse", "scope": f"Temporadas {min(self.temporadas)} a {self.atual}, "
-                                                     "temporada regular e playoffs, com todas as jogadas",
-                        "caveats": []},
         }
 
     # --------------------------------- jogos ------------------------------- #
@@ -498,6 +494,11 @@ class NFLData:
         return [self._play_card(r) for r in _registros(plays)]
 
     @staticmethod
+    def _eh_timeout(r: dict) -> bool:
+        """O nflverse marca os pedidos de tempo como no_play, como as jogadas anuladas por falta."""
+        return text(r.get("play_type")) == "no_play" and "timeout" in (text(r.get("desc")) or "").lower()
+
+    @staticmethod
     def _pass_result(r: dict) -> str | None:
         if text(r.get("play_type")) != "pass":
             return None
@@ -554,7 +555,8 @@ class NFLData:
             "result": result,
             "epa": num(r.get("epa"), 3),
             "passResult": pr,
-            "passResultLabel": PASS_RESULT_LABELS.get(pr or "") or TIPO_LABELS.get(tipo or "", "—"),
+            "passResultLabel": PASS_RESULT_LABELS.get(pr or "") or
+                               ("Tempo técnico" if self._eh_timeout(r) else TIPO_LABELS.get(tipo or "", "—")),
             "formation": text(r.get("formacao")) or prancheta.NOME_QB.get(text(r.get("qb_local")) or ""),
             "personnelO": text(r.get("pessoal_of")),
             "personnelD": text(r.get("pessoal_def")),
@@ -569,7 +571,6 @@ class NFLData:
             "penaltyYards": num(r.get("penalty_yards"), 0),
             "score": {"home": num(r.get("total_home_score"), 0), "away": num(r.get("total_away_score"), 0)},
             "hasFormation": tem_formacao,
-            "hasTracking": tem_formacao,   # nome antigo, lido pelo front até a tarefa 7
             "semFormacao": not tem_formacao,
             "tags": tags,
         }
@@ -903,12 +904,15 @@ class NFLData:
         elif tipo == "extra_point":
             ok = text(r.get("extra_point_result")) == "good"
             icon, tone, headline = "🎯", "normal", "Ponto extra" + ("" if ok else " perdido")
-        elif tipo == "punt":
-            icon, tone, headline = "🦶", "normal", "Punt"
-        elif tipo == "kickoff":
-            icon, tone, headline = "🦶", "normal", "Kickoff"
+        elif tipo in ("punt", "kickoff"):
+            # a posse no chute é do time que recebe: sem o prefixo do time
+            off = ""
+            icon, tone, headline = "🦶", "normal", "Punt" if tipo == "punt" else "Kickoff"
+        elif NFLData._eh_timeout(r):
+            off = ""
+            icon, tone, headline = "⏱️", "normal", "Tempo técnico"
         elif tipo == "no_play":
-            icon, tone, headline = "⚑", "normal", "Jogada anulada"
+            icon, tone, headline = "⚑", "normal", "Jogada anulada por falta"
         else:
             icon, tone, headline = "🏈", "normal", TIPO_LABELS.get(tipo or "", "Jogada")
         bits = []

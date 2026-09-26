@@ -77,14 +77,18 @@
     - Detalhes em "Como ficou (tarefa 6)" no design.
   - _Requisitos: 1.3, 2.1, 3.1–3.4, 4.1, 5.3, 5.6, 7.1–7.4, 7.6, 8.3, 9.1, NFR 2, NFR 5_
 
-- [ ] 7. Adaptar as telas atuais
+- [x] 7. Adaptar as telas atuais
   - _Depende de: 6_
-  - [ ] 7.1 Seletor de temporada; chips de playoff com os nomes das rodadas; id de jogador em texto em todas as telas.
-  - [ ] 7.2 Cartões de jogo com os estados "a jogar", "resultado ainda não disponível", encerrado e **AO VIVO** (módulo de placar ao vivo: a cada 30 s só enquanto houver jogo em andamento na semana; para ao encerrar; mensagem na falha; o nflverse prevalece depois).
-  - [ ] 7.3 Bloco da matéria do jogo na Home (título, data, fonte e link, só `*.espn.com`, `http` → `https`); some se falhar.
-  - [ ] 7.4 Prancheta com o aviso "Esquema ilustrativo" e sem os controles de animação quando `frameCount == 1`; "formação indisponível" quando não houver esquema.
-  - [ ] 7.5 Blocos sem dado ocultos (velocidade, insights, bastidores); avisos antigos do dataset removidos; "Sobre os dados" com as fontes, os créditos e a última atualização.
-  - [ ] 7.6 Testes de navegador com a ESPN simulada (`page.route`): `pre` → `in` → `post`, erro, matéria presente, ausente e com link estranho.
+  - [x] 7.1 Seletor de temporada; chips de playoff com os nomes das rodadas; id de jogador em texto em todas as telas.
+  - [x] 7.2 Cartões de jogo com os estados "a jogar", "resultado ainda não disponível", encerrado e **AO VIVO** (módulo de placar ao vivo: a cada 30 s só enquanto houver jogo em andamento na semana; para ao encerrar; mensagem na falha; o nflverse prevalece depois).
+  - [x] 7.3 Bloco da matéria do jogo na Home (título, data, fonte e link, só `*.espn.com`, `http` → `https`); some se falhar.
+  - [x] 7.4 Prancheta com o aviso "Esquema ilustrativo" e sem os controles de animação quando `frameCount == 1`; "formação indisponível" quando não houver esquema.
+  - [x] 7.5 Blocos sem dado ocultos (velocidade, insights, bastidores); avisos antigos do dataset removidos; "Sobre os dados" com as fontes, os créditos e a última atualização.
+  - [x] 7.6 Testes de navegador com a ESPN simulada (`page.route`): `pre` → `in` → `post`, erro, matéria presente, ausente e com link estranho.
+    - `tests/test_ui_dados.py` (22 testes, Edge headless): seletor de temporada, chips de playoff, "a jogar" e "sem resultado", ao vivo (placar, quarto e relógio; a cada 30 s com `page.clock`; para ao encerrar; não consulta sem jogo em andamento; começa na hora do jogo; falha mantém o último placar; o nflverse prevalece), matéria (título, resumo, data, fonte, `http`→`https`; some com erro e sem matéria; link fora da ESPN e `javascript:` barrados; HTML como texto), prancheta ilustrativa e "formação indisponível", as 4 telas com dados novos, blocos sem dado ocultos, sem avisos do dataset antigo e "Sobre os dados".
+    - `tests/test_ui.py`: "home pronta" passa a ser partidas + destaques (os insights ficam ocultos).
+    - Golden recapturado (saíram `hasTracking` e `dataset`; mudou a narração de chutes e pedidos de tempo). Suíte: 152 testes; `bench.py --check` e `carga.py --usuarios 10 --check` OK (p95 29 ms, pico de 495 MB).
+    - Detalhes em "Como ficou (tarefa 7)" no design.
   - _Requisitos: 1.4, 1.5, 3.3, 3.4, 4.3, 4.5, 6.1–6.3, 8.1–8.3, 9.1, 9.2, 10.1–10.6, S.1, S.4_
 
 - [ ] 8. Aposentar o dataset do Big Data Bowl

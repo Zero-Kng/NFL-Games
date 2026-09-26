@@ -227,6 +227,13 @@ def atualizar(forcar_subida: bool) -> None
 - Blocos sem dado (velocidade, insights, bastidores) ficam ocultos, em vez de mostrar "—" ou "0".
 - "Sobre os dados": fontes, créditos e a hora da última atualização.
 
+**Como ficou (tarefa 7):**
+- **Temporada:** seletor acima das semanas e `?season=` no link. A semana padrão é a mais recente já começada (`currentWeek`): na temporada atual, a da rodada; numa encerrada, o Super Bowl. O Olheiro segue a temporada escolhida.
+- **Placar ao vivo:** consulta o `scoreboard` da ESPN pela semana (`dates={ano}&seasontype=2|3&week=`; nos playoffs, WC=1, DIV=2, CON=3, SB=5) só enquanto houver jogo já começado, sem o placar oficial e ainda não encerrado na ESPN. Sem jogo assim, dorme até o próximo início da semana. O status vem da API (`agendado`/`sem_resultado`/`encerrado`), e o início, de `kickoffUtc`, no fuso de quem vê.
+- **Matéria:** verificada em 2026-09-25 na `summary` da ESPN: `article.headline`, `description` (o resumo), `published`, `source` ("AP") e `links.web.href` (`http://www.espn.com/nfl/recap?...`). **Os jogos mais recentes (e o último Super Bowl) ainda não têm `article`**: aí o bloco some, como previsto em 6.3. A mesma resposta traz o placar da ESPN, usado para o aviso de divergência (2.4, `console.warn`).
+- **Prancheta:** o seletor lista todas as jogadas (as sem formação marcadas); "anterior/próxima" andam só entre as com formação. Com esquema genérico (2026), o aviso diz que a fonte ainda não publicou os jogadores.
+- **API:** saíram os campos de transição `hasTracking` e `dataset`. Os pedidos de tempo (o nflverse os marca como `no_play`) viram "Tempo técnico", e chutes não levam o time na narração (a posse no kickoff é de quem recebe).
+
 > **Teste de corte aplicado:**
 > - (a) **Next Gen Stats** como fonte: cortado. O CPOE já vem nas estatísticas por jogador, e os NGS só cobrem quem passa dos mínimos da NFL.
 > - (b) Um **proxy no servidor para a ESPN**: cortado, porque a ESPN bloqueia chamadas de servidor.

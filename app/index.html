@@ -21,7 +21,7 @@
     <div class="shield">NFL</div>
     <div>
       <div class="title" id="hdrTitle">NFL GAMES</div>
-      <div class="sub" id="hdrSub">Carregando dataset...</div>
+      <div class="sub" id="hdrSub">Carregando os dados...</div>
     </div>
     <div class="spacer"></div>
     <button class="icon-btn" id="btnInfo" aria-label="Sobre os dados">ℹ️</button>
@@ -29,7 +29,11 @@
 
   <!-- ============ HOME ============ -->
   <section class="screen active" id="home">
-    <div class="weeks" id="weekChips" role="tablist" aria-label="Semanas da temporada"></div>
+    <div class="season-bar">
+      <label for="seasonPick">Temporada</label>
+      <select id="seasonPick" aria-label="Temporada"></select>
+    </div>
+    <div class="weeks" id="weekChips" role="tablist" aria-label="Semanas e rodadas da temporada"></div>
 
     <div class="persona-wrap">
       <div class="persona-lead" id="personaLead">Escolha seu modo</div>
@@ -37,12 +41,12 @@
         <button class="persona coach" data-go="coach">
           <div class="emoji">🎯</div>
           <h3>TREINADOR</h3>
-          <p>Prancheta com o tracking real das jogadas</p>
+          <p>Prancheta com a formação e os jogadores de cada jogada</p>
         </button>
         <button class="persona scout" data-go="scout">
           <div class="emoji">🔍</div>
           <h3>OLHEIRO</h3>
-          <p>Ratings e atributos por percentil</p>
+          <p>Ratings por grupo de posição, com estatísticas públicas</p>
         </button>
         <button class="persona commentator" data-go="commentator">
           <div class="emoji">🎙️</div>
@@ -57,16 +61,26 @@
     <div class="sec-title">Partidas <span class="sec-sub" id="gamesCount"></span></div>
     <div id="gamesList"></div>
 
-    <div class="sec-title">Sugestões de tática <span class="mini-emoji">🎯</span></div>
-    <div id="insightsList"></div>
+    <!-- Matéria do jogo selecionado (ESPN, pelo navegador); some se não houver. -->
+    <div id="materia" hidden></div>
 
-    <div class="sec-title">Jogadores a observar <span class="mini-emoji">🔍</span></div>
-    <div id="watchList"></div>
+    <!-- Blocos sem fonte de dados ficam ocultos (hidden) enquanto a lista vier vazia. -->
+    <div id="insightsSec" hidden>
+      <div class="sec-title">Sugestões de tática <span class="mini-emoji">🎯</span></div>
+      <div id="insightsList"></div>
+    </div>
 
-    <div class="sec-title">Bastidores do jogo <span class="mini-emoji">🎬</span></div>
-    <div id="notesList"></div>
+    <div id="watchSec" hidden>
+      <div class="sec-title">Jogadores a observar <span class="mini-emoji">🔍</span></div>
+      <div id="watchList"></div>
+    </div>
 
-    <div class="disclaimer" id="datasetNote"></div>
+    <div id="notesSec" hidden>
+      <div class="sec-title">Bastidores do jogo <span class="mini-emoji">🎬</span></div>
+      <div id="notesList"></div>
+    </div>
+
+    <div class="disclaimer" id="sobreDados" aria-label="Sobre os dados"></div>
   </section>
 
   <!-- ============ COACH ============ -->
@@ -93,7 +107,7 @@
       <span class="ph-emoji">🔍</span>
       <div>
         <div class="ph-title">MODO OLHEIRO</div>
-        <div class="ph-sub">Avaliação a partir de PFF + tracking</div>
+        <div class="ph-sub" id="scoutSub">Avaliação a partir de estatísticas públicas (nflverse)</div>
       </div>
     </div>
     <div class="search">🔎 <input id="scoutSearch" placeholder="Buscar jogador..." aria-label="Buscar jogador" /></div>

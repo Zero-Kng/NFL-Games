@@ -81,7 +81,7 @@ def esperar(pg, cond: str, limite_ms: int = 10000) -> float:
 
 def jogadas_com_tracking(base):
     with urllib.request.urlopen(f"{base}/api/games/{jogo(base)}/plays") as r:
-        return [p["playId"] for p in json.load(r) if p["hasTracking"]]
+        return [p["playId"] for p in json.load(r) if p["hasFormation"]]
 
 
 def abrir_prancheta(pg, base):
@@ -104,7 +104,8 @@ DESCRICAO = "document.querySelector('.play-desc') && document.querySelector('.pl
 MARCAR_PRONTA = """
 // Registra o instante (desde o inicio da navegacao) em que a home fica pronta.
 new MutationObserver((_m, obs) => {
-  if (document.querySelector('#insightsList > *') && document.querySelector('.match')) {
+  // Pronta = partidas + destaques do jogo (insights e bastidores ficam ocultos: sem fonte).
+  if (document.querySelector('#watchList > *') && document.querySelector('.match')) {
     window.__prontaEm = performance.now();
     obs.disconnect();
   }
