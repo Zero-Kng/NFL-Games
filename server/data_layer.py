@@ -30,6 +30,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
+import noticias
 import prancheta
 import tabela_npz
 from teams import team_info as _team_info
@@ -280,6 +281,8 @@ class NFLData:
         if not self.temporadas:
             raise FileNotFoundError(f"nenhuma temporada montada em {self.dados / 'temporadas'}")
         self.atual = max(self.temporadas)
+        self._noticias: dict[int, list[dict]] = {}
+        self._lock_noticias = threading.Lock()
 
     # ------------------------------ auxiliares ---------------------------- #
     def hoje(self) -> datetime:
@@ -831,6 +834,25 @@ class NFLData:
                 card["gameSnaps"] = int(snaps[jj["playerId"].tolist().index(r["playerId"])])
                 out.append(card)
         return out
+
+    # -------------------------------- notícias ---------------------------- #
+    def news(self, season: int | None = None, week: int | None = None) -> list[dict]:
+        """Notícias geradas dos dados (novo-visual, Requisito 7), da mais incomum para a menos."""
+        ano = self.atual if season is None else season
+        t = self.temporadas.get(ano)
+        if t is None:
+            return []
+        with self._lock_noticias:          # uma vez por temporada; depois vem da memória
+            if ano not in self._noticias:
+                nomes = dict(zip(self.bio["playerId"].tolist(), self.bio["nome"].tolist()))
+                self._noticias[ano] = noticias.gerar(self.jogos[self.jogos["season"] == ano], t.jogadas, t.jj, nomes)
+        todas = self._noticias[ano]
+        return [n for n in todas if n["week"] == week] if week is not None else list(todas)
+
+    def summary(self, season: int | None = None) -> dict:
+        ano = self.atual if season is None else season
+        t = self.temporadas[ano]
+        return {"season": ano, "ratedPlayers": int(t.jogadores["avaliado"].sum())}
 
     # ------------------------------ comentarista -------------------------- #
     def broadcast(self, game_id: int) -> dict | None:
