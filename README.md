@@ -1,4 +1,4 @@
-# NFL Games — Treinador · Olheiro · Comentarista
+# NFL Games — Início · Jogo · Jogadores · Notícias
 
 Protótipo de UI ligado a dados reais e públicos da NFL, da **temporada 2021 em diante**
 (temporada regular e playoffs, com todas as jogadas: passes, corridas, chutes e retornos).
@@ -88,44 +88,101 @@ lista de fontes, os créditos e a hora da última atualização saem em `/api/me
 
 ---
 
-## As quatro telas
+## As telas
+
+Layout de celular (centralizado numa moldura em telas largas), fundo escuro, com o
+visual do `rascunho/`. Uma barra inferior leva aos quatro destinos; o menu lateral
+repete os quatro e traz **Sobre os dados** e **Configurações**. A lupa do cabeçalho
+abre a busca em qualquer tela.
 
 | Tela | O que mostra | De onde vem |
 |---|---|---|
-| **Jogos** | Partidas da semana (a jogar, sem resultado ou encerradas), destaques do jogo | calendário e placar do nflverse + ratings |
-| **Treinador** | Prancheta com a formação da jogada, lista de jogadas, estatísticas e tendências (formação, pessoal, cobertura) | play-by-play + participação + FTN |
-| **Olheiro** | Busca de jogadores, rating 40–99, radar de atributos por percentil, jogo a jogo, comparação | estatísticas por jogador e jogo + PFR + snaps |
-| **Comentarista** | Replay cronológico com o placar oficial de cada momento, narração e estatísticas acumuladas | play-by-play em ordem |
+| **Início** | Carrossel com as 4 principais notícias da semana, os cartões "partidas na semana" e "jogadores avaliados" e os jogos da semana (a jogar, sem resultado, encerrado ou **AO VIVO**) | calendário e placar do nflverse + notícias + ESPN no navegador |
+| **Jogo** | Placar da partida, matéria da ESPN e 5 abas: **Prancheta** (formação da jogada), **Jogadas** (por quarto), **Replay** (narração com o placar de cada momento e estatísticas acumuladas), **Estatísticas** e **Playbook** (formações, coberturas e pessoal) | play-by-play + participação + FTN |
+| **Jogadores** | Os destaques ("a observar") da partida selecionada, busca, filtro por posição, lista por rating 40–99, perfil com radar de percentis e jogo a jogo, comparação | estatísticas por jogador e jogo + PFR + snaps |
+| **Notícias** | Os fatos marcantes da semana, do mais incomum ao menos | geradas no servidor a partir dos dados (abaixo) |
+| **Configurações** | Avanço automático das notícias e velocidade do Replay (0,5×, 1× ou 2×), salvos no aparelho | `localStorage` |
+| **Sobre os dados** | Fontes, créditos das licenças e a hora da última atualização | `/api/meta` |
 
-Deep link opcional: `?season=2021&week=1&game=2021090900&screen=coach`. Sem `season`,
-abre a temporada atual; sem `week`, a semana mais recente já começada (numa temporada
-encerrada, o Super Bowl).
+Tocar numa partida, numa notícia ou num resultado de busca abre a página Jogo;
+tocar numa jogada (em Jogadas ou no Replay) abre a Prancheta com ela.
 
-- **Temporada e rodadas:** seletor de 2021 até a atual; nos playoffs, as rodadas
-  aparecem pelo nome (Wild Card, Divisional, Final de Conferência, Super Bowl). O
-  Olheiro segue a temporada escolhida.
+### Mapa de rotas
+
+Cada tela tem link próprio, e a URL acompanha o que está na tela:
+
+```
+/?season=2021&week=1&game=2021090900&screen=jogo&aba=replay
+/?season=2021&week=1&game=2021090900&screen=jogo&play=55
+/?season=2021&screen=jogadores&jogador=00-0019596
+```
+
+| Parâmetro | Valores |
+|---|---|
+| `screen` | `inicio` (padrão), `jogo`, `jogadores`, `noticias`, `config`, `sobre` |
+| `aba` | `prancheta` (padrão), `jogadas`, `replay`, `estatisticas`, `playbook` |
+| `season`, `week`, `game`, `play`, `jogador` | temporada, semana, partida, jogada e jogador (id gsis) |
+
+Sem `season`, abre a temporada atual; sem `week`, a semana mais recente já começada
+(numa temporada encerrada, o Super Bowl). Na página Jogo sem `game`, abre a primeira
+partida da semana.
+
+**Os links antigos continuam funcionando:** `?screen=coach` abre a Prancheta,
+`?screen=commentator` abre o Replay e `?screen=scout` abre Jogadores, com a mesma
+temporada, semana e partida.
+
+### Notícias geradas dos dados
+
+Não há texto livre: cada notícia é montada só com números do dado (placar oficial,
+jardas, TDs, sacks) e aponta para a partida. Tipos e limiares (medidos em 2021–2025):
+
+| Tipo | Quando vira notícia |
+|---|---|
+| Resultado | todo jogo disputado ("X vence Y por A–B", com a prorrogação) |
+| Virada | o vencedor reverteu 10+ pontos de desvantagem |
+| Prorrogação | jogo decidido na prorrogação |
+| Goleada | margem de 28+ pontos |
+| Maior jogada | a jogada de mais jardas da semana |
+| Atuação | 400+ jd de passe, 5+ TD de passe, 175+ jd correndo ou recebendo, 4+ TD ou 3,5+ sacks |
+| Defesa | time com 6+ sacks ou 3+ interceptações |
+
+A ordem é pelo quanto o fato foge do comum na temporada (percentil), então o
+carrossel mostra primeiro o que é raro, e a lista traz também os resultados. Dá ~21
+notícias por semana; semana ainda sem jogos mostra "Sem notícias para esta semana".
+
+### Detalhes
+
+- **Temporada e rodadas:** chips de 2021 até a atual; nos playoffs, as rodadas
+  aparecem pelo nome (Wild Card, Divisional, Final de Conferência, Super Bowl).
+  Jogadores segue a temporada escolhida.
 - **Cartão do jogo:** "A JOGAR" com dia e hora no seu fuso, "resultado ainda não
   disponível" (o jogo começou e o nflverse ainda não publicou), placar final (com
   prorrogação) ou **AO VIVO**.
-- **Placar ao vivo:** enquanto a semana exibida tem jogo em andamento, o navegador
-  consulta a ESPN a cada 30 s e mostra placar, quarto e relógio. Começa sozinho na hora
-  do jogo, para quando ele termina e não consulta nada quando não há jogo rolando. Se a
-  ESPN falhar, fica o último placar com o aviso "atualização ao vivo indisponível".
-- **Matéria do jogo:** abaixo da partida selecionada, a matéria da ESPN (título,
-  resumo, data, fonte e link). Só links de `*.espn.com` são exibidos. Jogos muito
-  recentes ainda não têm matéria na ESPN: nesse caso o bloco não aparece.
-- **Sobre os dados** (botão ℹ️): as fontes, os créditos e a hora da última
-  atualização.
+- **Placar ao vivo:** enquanto a semana exibida no Início tem jogo em andamento, o
+  navegador consulta a ESPN a cada 30 s e mostra placar, quarto e relógio. Começa
+  sozinho na hora do jogo, para quando ele termina e não consulta nada quando não há
+  jogo rolando. Se a ESPN falhar, fica o último placar com o aviso "atualização ao
+  vivo indisponível".
+- **Matéria do jogo:** logo abaixo do placar da página Jogo, a matéria da ESPN
+  (título, resumo, data, fonte e link). Só links de `*.espn.com` são exibidos. Jogos
+  muito recentes ainda não têm matéria: nesse caso o bloco não aparece.
+- **Busca:** Times (sigla, nome ou apelido), Jogadores (pela API, até 8) e Notícias da
+  temporada (também pelo nome dos times). O time abre o Início só com os jogos dele,
+  com um chip para tirar o filtro.
+- **Acessibilidade:** alvos de toque de 44 px, texto com contraste de 4,5:1 (inclusive
+  sobre as cores dos times), uso completo pelo teclado com o foco visível, e sem
+  animação quando o sistema pede menos movimento.
 
-### Sobre a prancheta do Treinador
+### Sobre a prancheta
 
 Não há tracking nas fontes públicas, então a prancheta é um **esquema ilustrativo**
 da formação, com um quadro só: os 22 jogadores reais da jogada (nome, número e
 posição) em posições-modelo da formação informada. O ataque joga sempre no mesmo
-sentido; o QB fica mais fundo no shotgun do que sob o center; a defesa se distribui
-pelo número de defensores no box. Quando a jogada não tem a lista de jogadores (caso
-de 2026), o esquema é genérico, sem nomes. Sem formação, aparece "formação
-indisponível".
+sentido e usa a cor do seu time (círculos); a defesa, a do dela (quadrados), ou a
+secundária quando as duas cores se parecem. O QB fica mais fundo no shotgun do que
+sob o center; a defesa se distribui pelo número de defensores no box. Quando a jogada
+não tem a lista de jogadores (caso de 2026), o esquema é genérico, sem nomes. Sem
+formação, aparecem os dados da jogada e "formação indisponível para esta jogada".
 
 ---
 
@@ -135,9 +192,14 @@ indisponível".
 Projeto/
 ├─ RODAR.bat                  inicia tudo (Windows)
 ├─ app/                       a página
-│  ├─ index.html              markup
-│  ├─ css/app.css             design system do protótipo + componentes
-│  └─ js/app.js               toda a lógica (JS puro, sem dependências)
+│  ├─ index.html              cabeçalho, filtros, barra inferior, menu lateral e as 6 telas
+│  ├─ css/app.css             tokens e componentes do visual novo
+│  └─ js/                     módulos ES, sem build e sem dependências
+│     ├─ main.js              estado, roteador, filtros, menu e busca
+│     ├─ api.js · ui.js       cache de respostas, "só o último vence", formatadores e HTML seguro
+│     ├─ config.js            Configurações (localStorage, com padrões)
+│     ├─ prancheta.js         o campo com a formação
+│     └─ telas/               inicio · jogo · jogadores · noticias · extras (Configurações e Sobre)
 ├─ etl/
 │  ├─ fontes.py               baixa e valida os arquivos do nflverse (só o que mudou)
 │  ├─ montar.py               monta as tabelas do servidor a partir dos brutos
@@ -145,6 +207,7 @@ Projeto/
 ├─ server/
 │  ├─ serve.py                servidor HTTP + API JSON + atualização diária
 │  ├─ data_layer.py           consultas sobre as tabelas montadas
+│  ├─ noticias.py             notícias geradas dos dados, ordenadas pelo "incomum"
 │  ├─ prancheta.py            esquema ilustrativo da formação
 │  ├─ response_cache.py       respostas prontas da API em memória (calcula cada uma 1 vez)
 │  ├─ tabela_npz.py           formato binário das tabelas
@@ -152,6 +215,7 @@ Projeto/
 │  └─ smoke_test.py           roda todas as consultas e imprime amostras
 ├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários)
 ├─ tests/                     pytest + testes de navegador (Playwright com o Edge)
+├─ rascunho/                  o protótipo do visual (referência, não é servido)
 ├─ .kiro/specs/               specs SDD (requirements, design, tasks)
 └─ dados/                     gerado automaticamente (não versionar)
    ├─ manifest.json           o que foi baixado, quando, e a última sincronização
@@ -206,7 +270,9 @@ dela são do time, nos jogos em que o jogador atuou (marcado como `baseReduzida`
 - **Formação e charting do FTN existem de 2022 em diante.** Em 2021 a formação vem só
   da participação.
 - **Leituras táticas e bastidores** da primeira versão dependiam do dataset antigo:
-  a API os devolve vazios (`insights` e `notes`) e a tela esconde os blocos.
+  a API os devolve vazios (`insights` e `notes`, para não mudar as respostas) e a
+  interface não tem mais essas seções. Os fatos que os bastidores traziam viraram
+  as notícias.
 
 ---
 
@@ -228,6 +294,8 @@ Todos os endpoints são `GET` e devolvem JSON. Sem `season`, vale a temporada at
 | `/api/players/{id}?season=` | perfil completo com radar e jogo a jogo (id gsis, ex.: `00-0034857`) |
 | `/api/compare?season=&a=&b=` | comparação entre dois jogadores do mesmo grupo e temporada |
 | `/api/leaders?season=&metric=&role=&limit=` | ranking por eixo do rating (ex.: `metric=pressao_snap&role=EDGE`) |
+| `/api/news?season=&week=` | notícias da semana (sem `week`, da temporada inteira), da mais incomum para a menos |
+| `/api/summary?season=` | `{ratedPlayers, season}`: jogadores com rating na temporada |
 
 Exemplo:
 
@@ -262,13 +330,15 @@ dia. Só refaça a foto (`capture`) quando a mudança de dados for intencional.
 
 ## Desempenho
 
-Meta das specs `.kiro/specs/otimizacao-desempenho/` e `dados-externos/`: uma banca de
-10 pessoas usando ao mesmo tempo. Medido nesta máquina, na semana mais recente
-disputada:
+Meta das specs `.kiro/specs/otimizacao-desempenho/`, `dados-externos/` e
+`novo-visual/`: uma banca de 10 pessoas usando ao mesmo tempo. Medido nesta máquina,
+na semana mais recente disputada:
 
 | Medida | Resultado |
 |---|---|
-| 10 usuários, pausa de 1–2 s entre cliques, p95 | 27 ms (meta 300) |
+| 10 usuários, pausa de 1–2 s entre cliques, p95 | 28 ms (meta 300) |
+| Início pronta (partidas, carrossel e cartões) | ≤ 200 ms (teste de navegador) |
+| Próxima jogada na prancheta | ≤ 50 ms (teste de navegador) |
 | Subida com a cópia local | ~4 s (meta 10) |
 | Primeira carga completa (download + montagem) | 103 s (meta 5 min) |
 | Disco em `dados/` | ~50 MB (meta 1 GB) |

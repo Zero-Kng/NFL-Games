@@ -46,9 +46,41 @@ export function dataHora(iso) {
   return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 }
 
+/* Contraste (WCAG) entre duas cores #rrggbb. */
+function luminancia(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return null;
+  const n = parseInt(m[1], 16);
+  const c = [n >> 16, (n >> 8) & 255, n & 255].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+}
+export function contraste(a, b) {
+  const x = luminancia(a), y = luminancia(b);
+  if (x === null || y === null) return 21;
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}
+/** Texto sobre a cor de um time: branco ou escuro, o que contrastar mais (NFR 4). */
+export const TEXTO_ESCURO = '#0b1322';
+export const corDoTexto = (fundo) => (contraste(fundo, '#ffffff') >= contraste(fundo, TEXTO_ESCURO) ? '#ffffff' : TEXTO_ESCURO);
+
+/**
+ * Fundo e texto legíveis para a cor de um time. Quando nem branco nem escuro
+ * chegam a 4,5:1 (o azul do LAC, #0080C6, dá 4,34), o fundo escurece só o
+ * necessário para o branco passar.
+ */
+export function corLegivel(cor) {
+  let fundo = /^#[0-9a-f]{6}$/i.test(cor || '') ? cor : '#013369';
+  for (let i = 0; i < 10 && contraste(fundo, corDoTexto(fundo)) < 4.5; i++) {
+    const n = parseInt(fundo.slice(1), 16);
+    fundo = '#' + [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(v * 0.92).toString(16).padStart(2, '0')).join('');
+  }
+  return { fundo, texto: corDoTexto(fundo) };
+}
+
 export function badge(t, size) {
   t = t || {};
-  return '<span class="badge' + (size ? ' ' + size : '') + '" style="background:' + esc(t.primary || '#013369') +
+  const c = corLegivel(t.primary);
+  return '<span class="badge' + (size ? ' ' + size : '') + '" style="background:' + c.fundo + ';color:' + c.texto +
     '" title="' + esc(t.name || t.abbr || '') + '">' + esc(t.abbr || '?') + '</span>';
 }
 export function rateCls(r) {
@@ -74,7 +106,8 @@ const ICONES = {
   carregando: '<path d="M12 4a8 8 0 1 1-8 8"/>',
   vazio: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 13h4l1.5 2h5L16 13h4"/>',
   erro: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16.2v.2"/>',
-  obra: '<path d="M4 20h16M6 20l3-11h6l3 11M9.5 13h5"/><path d="M12 9V4"/>',
+  fechar: '<path d="M7 7l10 10M17 7 7 17"/>',
+  lupa: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
 };
 export function icone(nome) {
   return '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICONES[nome] || '') + '</svg>';

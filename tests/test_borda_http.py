@@ -57,11 +57,11 @@ def test_parametro_invalido_400(servidor):
 
 # --------------------------------------------------------------- 4.3 / 4.4 ----
 def test_estatico_revalidado_com_304(servidor):
-    status, h, corpo = http_get(servidor.url + "/js/app.js")
+    status, h, corpo = http_get(servidor.url + "/js/main.js")
     assert status == 200 and corpo
     assert h["Cache-Control"] == "no-cache"
     etag = h["ETag"]
-    status, h2, corpo2 = http_get(servidor.url + "/js/app.js", {"If-None-Match": etag})
+    status, h2, corpo2 = http_get(servidor.url + "/js/main.js", {"If-None-Match": etag})
     assert status == 304
     assert corpo2 == b""
     assert h2["ETag"] == etag

@@ -2,142 +2,130 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>NFL Games — Treinador · Olheiro · Comentarista</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#060b14" />
+<title>NFL Games</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <!-- Fontes sem bloquear a primeira pintura: a página desenha com a fonte do
-     sistema e troca quando (e se) o Google Fonts responder. -->
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" /></noscript>
+     sistema e troca quando (e se) o Google Fonts responder (1.5). -->
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" /></noscript>
 <link rel="stylesheet" href="css/app.css" />
+<link rel="modulepreload" href="js/api.js" />
+<link rel="modulepreload" href="js/ui.js" />
+<link rel="modulepreload" href="js/config.js" />
+<link rel="modulepreload" href="js/telas/inicio.js" />
+<link rel="modulepreload" href="js/telas/jogo.js" />
+<link rel="modulepreload" href="js/prancheta.js" />
+<link rel="modulepreload" href="js/telas/jogadores.js" />
+<link rel="modulepreload" href="js/telas/noticias.js" />
+<link rel="modulepreload" href="js/telas/extras.js" />
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
 
-  <!-- ============ HEADER ============ -->
-  <div class="topbar">
-    <button class="back-btn" id="backBtn" style="display:none" aria-label="Voltar">‹</button>
-    <div class="shield">NFL</div>
-    <div>
-      <div class="title" id="hdrTitle">NFL GAMES</div>
-      <div class="sub" id="hdrSub">Carregando os dados...</div>
+  <!-- ============ CABEÇALHO ============ -->
+  <header class="topbar">
+    <button class="icon-btn" id="btnMenu" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+    </button>
+
+    <div class="brand">
+      <span class="shield" aria-hidden="true">NFL</span>
+      <h1 class="brand-title" id="pageTitle">Início</h1>
     </div>
-    <div class="spacer"></div>
-    <button class="icon-btn" id="btnInfo" aria-label="Sobre os dados">ℹ️</button>
+
+    <button class="icon-btn" id="btnSearch" aria-label="Pesquisar" aria-controls="searchbar" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+    </button>
+
+    <!-- barra de pesquisa: abre por cima do cabeçalho ao tocar na lupa -->
+    <div class="searchbar" id="searchbar" role="search" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input id="searchInput" type="search" maxlength="100" autocomplete="off" spellcheck="false"
+             placeholder="Buscar times, jogadores, notícias…" aria-label="Buscar times, jogadores e notícias" />
+      <button class="searchbar-close" id="btnSearchClose">Cancelar</button>
+    </div>
+  </header>
+
+  <!-- resultados da pesquisa: Times, Jogadores e Notícias -->
+  <div class="search-results" id="searchResults" aria-live="polite" hidden></div>
+
+  <!-- ============ FILTROS: TEMPORADA + SEMANA ============ -->
+  <div class="filters" id="filters">
+    <div class="filter-row" id="seasonRow">
+      <span class="filter-label" id="seasonLabel">Temporada</span>
+      <div class="chips" id="seasonChips" role="group" aria-labelledby="seasonLabel"></div>
+    </div>
+    <div class="filter-row" id="weekRow">
+      <span class="filter-label" id="weekLabel">Semana</span>
+      <div class="chips" id="weekChips" role="group" aria-labelledby="weekLabel"></div>
+    </div>
   </div>
 
-  <!-- ============ HOME ============ -->
-  <section class="screen active" id="home">
-    <div class="season-bar">
-      <label for="seasonPick">Temporada</label>
-      <select id="seasonPick" aria-label="Temporada"></select>
-    </div>
-    <div class="weeks" id="weekChips" role="tablist" aria-label="Semanas e rodadas da temporada"></div>
+  <!-- ============ TELAS ============ -->
+  <main class="screen" id="inicio" data-tela="inicio" tabindex="-1"></main>
+  <main class="screen" id="jogo" data-tela="jogo" tabindex="-1"></main>
+  <main class="screen" id="jogadores" data-tela="jogadores" tabindex="-1"></main>
+  <main class="screen" id="noticias" data-tela="noticias" tabindex="-1"></main>
+  <main class="screen" id="config" data-tela="config" tabindex="-1"></main>
+  <main class="screen" id="sobre" data-tela="sobre" tabindex="-1"></main>
 
-    <div class="persona-wrap">
-      <div class="persona-lead" id="personaLead">Escolha seu modo</div>
-      <div class="personas">
-        <button class="persona coach" data-go="coach">
-          <div class="emoji">🎯</div>
-          <h3>TREINADOR</h3>
-          <p>Prancheta com a formação e os jogadores de cada jogada</p>
-        </button>
-        <button class="persona scout" data-go="scout">
-          <div class="emoji">🔍</div>
-          <h3>OLHEIRO</h3>
-          <p>Ratings por grupo de posição, com estatísticas públicas</p>
-        </button>
-        <button class="persona commentator" data-go="commentator">
-          <div class="emoji">🎙️</div>
-          <div>
-            <h3>COMENTARISTA</h3>
-            <p>Replay jogada a jogada com placar e narração</p>
-          </div>
-        </button>
-      </div>
-    </div>
-
-    <div class="sec-title">Partidas <span class="sec-sub" id="gamesCount"></span></div>
-    <div id="gamesList"></div>
-
-    <!-- Matéria do jogo selecionado (ESPN, pelo navegador); some se não houver. -->
-    <div id="materia" hidden></div>
-
-    <!-- Blocos sem fonte de dados ficam ocultos (hidden) enquanto a lista vier vazia. -->
-    <div id="insightsSec" hidden>
-      <div class="sec-title">Sugestões de tática <span class="mini-emoji">🎯</span></div>
-      <div id="insightsList"></div>
-    </div>
-
-    <div id="watchSec" hidden>
-      <div class="sec-title">Jogadores a observar <span class="mini-emoji">🔍</span></div>
-      <div id="watchList"></div>
-    </div>
-
-    <div id="notesSec" hidden>
-      <div class="sec-title">Bastidores do jogo <span class="mini-emoji">🎬</span></div>
-      <div id="notesList"></div>
-    </div>
-
-    <div class="disclaimer" id="sobreDados" aria-label="Sobre os dados"></div>
-  </section>
-
-  <!-- ============ COACH ============ -->
-  <section class="screen" id="coach">
-    <div class="persona-head coach">
-      <span class="ph-emoji">🎯</span>
-      <div>
-        <div class="ph-title">MODO TREINADOR</div>
-        <div class="ph-sub" id="coachSub">—</div>
-      </div>
-    </div>
-    <div class="subtabs" id="coachTabs" role="tablist">
-      <button class="subtab active" data-tab="lineup">Escalação</button>
-      <button class="subtab" data-tab="plays">Jogadas</button>
-      <button class="subtab" data-tab="stats">Estatísticas</button>
-      <button class="subtab" data-tab="book">Playbook</button>
-    </div>
-    <div id="coachBody"></div>
-  </section>
-
-  <!-- ============ SCOUT ============ -->
-  <section class="screen" id="scout">
-    <div class="persona-head scout">
-      <span class="ph-emoji">🔍</span>
-      <div>
-        <div class="ph-title">MODO OLHEIRO</div>
-        <div class="ph-sub" id="scoutSub">Avaliação a partir de estatísticas públicas (nflverse)</div>
-      </div>
-    </div>
-    <div class="search">🔎 <input id="scoutSearch" placeholder="Buscar jogador..." aria-label="Buscar jogador" /></div>
-    <div class="filters" id="scoutFilters"></div>
-    <div id="scoutBody"></div>
-  </section>
-
-  <!-- ============ COMMENTATOR ============ -->
-  <section class="screen" id="commentator">
-    <div class="persona-head commentator">
-      <span class="ph-emoji">🎙️</span>
-      <div>
-        <div class="ph-title">MODO COMENTARISTA</div>
-        <div class="ph-sub" id="bcSub">—</div>
-      </div>
-      <div class="spacer"></div>
-      <div class="live-mini"><span class="dot"></span>REPLAY</div>
-    </div>
-    <div id="bcBody"></div>
-  </section>
-
-  <!-- ============ BOTTOM NAV ============ -->
-  <nav class="bottom-nav">
-    <button class="nav-item active" data-go="home"><span class="ic">🏈</span>Jogos</button>
-    <button class="nav-item" data-go="coach"><span class="ic">🎯</span>Treinador</button>
-    <button class="nav-item" data-go="scout"><span class="ic">📊</span>Olheiro</button>
-    <button class="nav-item" data-go="commentator"><span class="ic">🎙️</span>Narração</button>
+  <!-- ============ BARRA INFERIOR ============ -->
+  <nav class="bottom-nav" aria-label="Navegação principal">
+    <button class="nav-item" data-go="inicio">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>
+      <span>Início</span>
+    </button>
+    <button class="nav-item" data-go="jogo">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M12 5v14"/><circle cx="12" cy="12" r="2.4"/><path d="M3.5 9.5h2.5v5H3.5M20.5 9.5H18v5h2.5"/></svg>
+      <span>Jogo</span>
+    </button>
+    <button class="nav-item" data-go="jogadores">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.6-.2 4.5 1.3 5 4.3"/></svg>
+      <span>Jogadores</span>
+    </button>
+    <button class="nav-item" data-go="noticias">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="13" height="16" rx="2"/><path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2H6M7.5 8.5h6M7.5 12h6M7.5 15.5h4"/></svg>
+      <span>Notícias</span>
+    </button>
   </nav>
+
+  <!-- ============ MENU LATERAL ============ -->
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="sidebar" id="sidebar" aria-label="Menu" aria-hidden="true" inert>
+    <div class="sidebar-head">
+      <span class="shield" aria-hidden="true">NFL</span>
+      <div>
+        <div class="sidebar-title">NFL Games</div>
+        <div class="sidebar-sub" id="sidebarSub">Carregando os dados…</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav" aria-label="Menu lateral">
+      <button class="side-item" data-go="inicio">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>Início
+      </button>
+      <button class="side-item" data-go="jogo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M12 5v14"/><circle cx="12" cy="12" r="2.4"/></svg>Jogo
+      </button>
+      <button class="side-item" data-go="jogadores">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.5"/></svg>Jogadores
+      </button>
+      <button class="side-item" data-go="noticias">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="13" height="16" rx="2"/><path d="M7.5 8.5h6M7.5 12h6M7.5 15.5h4"/></svg>Notícias
+      </button>
+      <div class="side-sep" role="presentation"></div>
+      <button class="side-item" data-go="sobre">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/></svg>Sobre os dados
+      </button>
+      <button class="side-item" data-go="config">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h9M18 7h1M5 17h3M12 17h7"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Configurações
+      </button>
+    </nav>
+  </aside>
 </div>
 
-<script src="js/app.js"></script>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
