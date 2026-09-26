@@ -91,7 +91,7 @@
     - Detalhes em "Como ficou (tarefa 7)" no design.
   - _Requisitos: 1.4, 1.5, 3.3, 3.4, 4.3, 4.5, 6.1–6.3, 8.1–8.3, 9.1, 9.2, 10.1–10.6, S.1, S.4_
 
-- [ ] 8. Aposentar o dataset do Big Data Bowl
+- [x] 8. Aposentar o dataset do Big Data Bowl
   - _Depende de: 6, 7_
   - [x] 8.1 Remover a leitura do dataset e do `cache/` antigo: `etl/build_metrics.py`, `server/tracking_npz.py` (substituído pelo `tabela_npz.py`) e os testes que dependiam deles (`test_tracking.py`, `test_ensure_cache.py`), trocados pelos testes das tarefas 1–6.
     - Saiu também o marcador `lento` do `pytest.ini` (só o `test_ensure_cache` o usava) e os `.pyc` versionados por engano em `tests/__pycache__/`.
@@ -100,7 +100,8 @@
     - **Desvio:** `ui_test.py` e `ui_test_all.py` foram apagados em vez de adaptados. Conferiam textos e jogos do dataset antigo ("Big Data Bowl", jogo `2021092300`, animação) e são cobertos pelo `tests/test_ui.py` (Playwright), que clica, mede e simula atrasos.
   - [x] 8.3 `.gitignore`: `dados/` e `nfl-big-data-bowl-regional-event-data-main/`.
     - A regra do dataset só passa a valer depois da 8.4: enquanto os 127 arquivos estiverem versionados, o git continua rastreando a pasta.
-  - [ ] 8.4 **Feito pelo José:** tirar o dataset do versionamento: `git rm -r --cached nfl-big-data-bowl-regional-event-data-main` (e o `cache/` antigo, se ainda houver algo rastreado).
+  - [x] 8.4 **Feito pelo José:** tirar o dataset do versionamento: `git rm -r --cached nfl-big-data-bowl-regional-event-data-main` (e o `cache/` antigo, se ainda houver algo rastreado).
+    - Rodado a pedido do José em 2026-09-26: 127 arquivos saíram do versionamento e continuam no disco (ignorados pelo `.gitignore`). O `cache/` não tinha nada rastreado. Os 826 MB seguem no histórico do git; encolher o repositório exigiria reescrevê-lo (fora desta spec).
   - _Requisitos: 3.3, 8.1, NFR 4_
 
 - [x] 9. Medição final e documentação
