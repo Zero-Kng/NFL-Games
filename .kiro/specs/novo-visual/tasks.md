@@ -35,14 +35,21 @@
     - `tests/test_news.py`: 17 testes. Os limiares, o placar e a maior jogada são conferidos recalculando direto das tabelas; TB 31 x 29 DAL (2021) sai "TB vence DAL por 31–29". Golden 2.116/2.116; suíte com 169 testes.
   - _Requisitos: 4.3, 7.1, 7.3, 7.6, NFR 2_
 
-- [ ] 2. Montar a casca da interface nova
-  - [ ] 2.1 `app/novo.html` com o cabeçalho (menu, escudo, título, busca), os filtros de temporada e semana, a barra inferior com 4 destinos e o menu lateral (4 destinos + Sobre os dados + Configurações), no HTML do rascunho.
-  - [ ] 2.2 `app/css/novo.css` com os tokens e componentes do rascunho, sem os padrões apontados pelo verificador de design (borda lateral no item ativo, ponto pulsante, texto < 12 px, sombra com brilho).
-  - [ ] 2.3 `js/api.js` e `js/ui.js`: `get()` (LRU e dedupe; `games()` fora do cache), `ultimo()`, `into()` e os formatadores (incluindo `inicioLocal` e `dataHora`), **extraídos** do `app.js`.
-  - [ ] 2.4 `js/main.js`: estado `S`, `ir()`, `selecionarJogo()`, menu lateral (abre, fecha com Esc e com toque fora), filtros de temporada e semana vindos de `meta.seasons` (rodadas de playoff pelo nome; padrão: a semana mais recente já começada), deep link `?season=&week=&game=&screen=`, rotas legadas (`?screen=coach|commentator|scout`) e boot. As telas ainda são esqueletos.
-  - [ ] 2.5 `js/config.js` (Requisito 11, sem a tela ainda): `ler`, `gravar`, `aoMudar`, `reduzirMovimento`, com padrões se o `localStorage` falhar.
-  - [ ] 2.6 Fontes com `preload` sem bloquear (mesmo mecanismo do `index.html` atual).
+- [x] 2. Montar a casca da interface nova
+  - [x] 2.1 `app/novo.html` com o cabeçalho (menu, escudo, título, busca), os filtros de temporada e semana, a barra inferior com 4 destinos e o menu lateral (4 destinos + Sobre os dados + Configurações), no HTML do rascunho.
+  - [x] 2.2 `app/css/novo.css` com os tokens e componentes do rascunho, sem os padrões apontados pelo verificador de design (borda lateral no item ativo, ponto pulsante, texto < 12 px, sombra com brilho).
+  - [x] 2.3 `js/api.js` e `js/ui.js`: `get()` (LRU e dedupe; `games()` fora do cache), `ultimo()`, `into()` e os formatadores (incluindo `inicioLocal` e `dataHora`), **extraídos** do `app.js`.
+  - [x] 2.4 `js/main.js`: estado `S`, `ir()`, `selecionarJogo()`, menu lateral (abre, fecha com Esc e com toque fora), filtros de temporada e semana vindos de `meta.seasons` (rodadas de playoff pelo nome; padrão: a semana mais recente já começada), deep link `?season=&week=&game=&screen=`, rotas legadas (`?screen=coach|commentator|scout`) e boot. As telas ainda são esqueletos.
+  - [x] 2.5 `js/config.js` (Requisito 11, sem a tela ainda): `ler`, `gravar`, `aoMudar`, `reduzirMovimento`, com padrões se o `localStorage` falhar.
+  - [x] 2.6 Fontes com `preload` sem bloquear (mesmo mecanismo do `index.html` atual).
   - _Requisitos: 1.1–1.5, 2.1–2.6, 3.1–3.5, 11.5_
+  - **Feito (2026-09-26):** `app/novo.html`, `app/css/novo.css`, `app/js/{api,ui,config,main}.js`. As 6 telas são esqueletos registrados em `TELAS` (main.js); cada tarefa seguinte troca o `render` da sua tela.
+    - Ajustes do rascunho contra o verificador: item ativo do menu com fundo e ícone vermelho (sem borda lateral), escudo com borda em vez de halo, nenhum texto abaixo de 12 px, chips e itens com 44 px. Ícones de estado em SVG (sem emoji).
+    - Filtros por tela: Início e Notícias usam temporada e semana; Jogadores só temporada; Jogo, Configurações e Sobre, nenhum. A URL acompanha o estado (`?season=&week=&game=&screen=&aba=`).
+    - `serve.py` passa a servir `.js` sempre como `text/javascript` (módulos ES; o registro do Windows às vezes diz `text/plain`).
+    - Verificador de design: só o aviso da fonte Inter, que é a exceção já registrada em `rascunho/.impeccable/config.json`.
+    - **Pendente para a tarefa 3/7:** o rascunho põe um rótulo curto (tag/kicker) acima do título das notícias; a skill de design proíbe esse padrão. Decidir com o José ao montar o carrossel.
+    - `tests/test_ui_novo.py`: 24 testes (1.1–1.5, 2.1–2.3, 2.5, 2.6, 3.1, 3.2, 3.5, 11.5 e filtros por tela). Suíte: 193.
 
 - [ ] 3. Tela Início
   - _Depende de: 1, 2_

@@ -51,6 +51,9 @@ APP_DIR = ROOT / "app"
 DADOS_DIR = Path(os.environ.get("NFL_DADOS") or fontes.DADOS)
 
 GZIP_MIN_BYTES = 2048
+# Os modulos ES (app/js/*.js) so carregam com tipo JavaScript. No Windows o
+# mimetypes le o registro, que em algumas maquinas mapeia .js para text/plain.
+mimetypes.add_type("text/javascript", ".js")
 # Os dados em uso. A atualizacao diaria troca a referencia inteira de uma vez;
 # cada requisicao pega a sua no inicio e termina com ela.
 DATA: NFLData | None = None
