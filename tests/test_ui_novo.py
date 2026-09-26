@@ -1220,3 +1220,101 @@ def test_ui_busca_corta_em_100_caracteres(servidor, pagina):
     esperar(pagina, "document.querySelector('#searchResults .sr-empty, #searchResults [data-busca-jogador]')")
     q = urllib.parse.parse_qs(urllib.parse.urlparse(pedidos[-1]).query)["q"][0]
     assert q == "a" * 100
+
+
+# ================================================================ Tarefa 8: Configurações e Sobre
+def abrir_config(pg, base):
+    abrir(pg, base)
+    ir_para(pg, "config")
+    esperar(pg, "document.getElementById('cfgAvanco')")
+
+
+def config_salva(pg):
+    return pg.evaluate("JSON.parse(localStorage.getItem('nfl.config.v2') || 'null')")
+
+
+def test_ui_menu_abre_configuracoes(servidor, pagina):
+    """11.1."""
+    abrir_config(pagina, servidor.url)
+    assert pagina.inner_text("#pageTitle").strip().lower() == "configurações"
+    assert "config" in pagina.url
+
+
+def test_ui_configuracoes_dois_controles(servidor, pagina):
+    """11.2: avanço automático das notícias e velocidade do Replay (0,5×, 1× ou 2×), com os padrões."""
+    abrir_config(pagina, servidor.url)
+    assert pagina.get_attribute("#cfgAvanco", "role") == "switch"
+    assert pagina.get_attribute("#cfgAvanco", "aria-checked") == "true"
+    vels = pagina.eval_on_selector_all("[data-vel]", "rs => rs.map(r => [r.innerText, r.getAttribute('aria-checked')])")
+    assert vels == [["0,5×", "false"], ["1×", "true"], ["2×", "false"]]
+    pagina.click("[data-vel='0.5']")
+    assert config_salva(pagina) == {"avancoNoticias": True, "velocidadeReplay": 0.5}
+    pagina.focus("[data-vel='0.5']")                                    # setas no grupo
+    pagina.keyboard.press("ArrowRight")
+    pagina.keyboard.press("ArrowRight")
+    assert config_salva(pagina)["velocidadeReplay"] == 2
+    assert pagina.evaluate("document.activeElement.dataset.vel") == "2"
+    pagina.click("#cfgAvanco")
+    assert pagina.get_attribute("#cfgAvanco", "aria-checked") == "false"
+    assert config_salva(pagina) == {"avancoNoticias": False, "velocidadeReplay": 2}
+
+
+def test_ui_configuracao_aplica_sem_recarregar(servidor, pagina):
+    """11.3: o Replay passa a 0,5× (2,8 s por jogada) e o carrossel para, sem recarregar."""
+    pagina.clock.install(time=AGORA)
+    abrir_jogo(pagina, servidor.url, JOGO + "&aba=replay")
+    esperar(pagina, "document.getElementById('bcPlay')")
+    pagina.click("#bcPlay")
+    pagina.clock.fast_forward(1500)
+    esperar(pagina, "document.getElementById('bcPos').textContent.startsWith('2/')")
+    pagina.evaluate("import('/js/config.js').then((m) => m.gravar({ velocidadeReplay: 0.5 }))")   # com o Replay andando
+    pagina.clock.fast_forward(2000)
+    assert pagina.inner_text("#bcPos").startswith("2/")
+    pagina.clock.fast_forward(1000)
+    esperar(pagina, "document.getElementById('bcPos').textContent.startsWith('3/')")
+    pagina.click("#bcPlay")
+    ir_para(pagina, "config")
+    pagina.click("#cfgAvanco")                                         # desliga o avanço
+    ir_para(pagina, "inicio")
+    esperar(pagina, "document.querySelectorAll('#heroDots button').length > 1")
+    pagina.clock.fast_forward(12000)
+    assert ponto_ativo(pagina) == 0
+    ir_para(pagina, "config")
+    pagina.click("#cfgAvanco")                                         # liga de novo
+    ir_para(pagina, "inicio")
+    esperar(pagina, "document.querySelectorAll('#heroDots button').length > 1")
+    pagina.clock.fast_forward(5200)
+    assert ponto_ativo(pagina) == 1
+
+
+def test_ui_configuracao_persiste_ao_recarregar(servidor, pagina):
+    """11.4."""
+    abrir_config(pagina, servidor.url)
+    pagina.click("[data-vel='2']")
+    pagina.click("#cfgAvanco")
+    pagina.reload()
+    esperar(pagina, "document.getElementById('cfgAvanco')")
+    assert pagina.get_attribute("#cfgAvanco", "aria-checked") == "false"
+    assert pagina.get_attribute("[data-vel='2']", "aria-checked") == "true"
+
+
+def test_ui_configuracao_avisa_movimento_reduzido(servidor, navegador):
+    ctx = navegador.new_context(viewport={"width": 430, "height": 860}, reduced_motion="reduce")
+    pg = ctx.new_page()
+    abrir(pg, servidor.url, "?screen=config")
+    esperar(pg, "document.getElementById('cfgAvanco')")
+    assert pg.is_visible("#cfgMovimento")
+    ctx.close()
+
+
+def test_ui_sobre_mostra_fontes_e_ultima_atualizacao(servidor, pagina):
+    """2.3 e o "Sobre" da dados-externos, adaptado."""
+    abrir(pagina, servidor.url)
+    ir_para(pagina, "sobre")
+    t = pagina.inner_text("#sobreDados")
+    assert "nflverse" in t and "CC-BY-4.0" in t and "ESPN" in t and "FTN Data" in t
+    assert "Última atualização:" in t and "sem registro" not in t
+    meta = api(servidor.url, "/api/meta")
+    assert pagina.eval_on_selector_all("#sobreDados .fonte", "fs => fs.length") == len(meta["fontes"])
+    anos = [s["season"] for s in meta["seasons"]]
+    assert f"Temporadas {min(anos)} a {max(anos)}" in t

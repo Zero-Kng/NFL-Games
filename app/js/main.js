@@ -2,15 +2,16 @@
    NFL GAMES — casca da interface nova (spec novo-visual, tarefa 2).
    Estado compartilhado, cabeçalho, menu lateral, busca, filtros de temporada
    e semana, barra inferior e roteador. Cada tela registra um render() (e,
-   se precisar, um sair()); as de Configurações e Sobre entram na tarefa 8.
+   se precisar, um sair()).
    ========================================================================== */
 import { api, ultimo } from './api.js';
-import { $, esc, icone, oops, badge, rateChip } from './ui.js';
+import { $, esc, oops, badge, rateChip } from './ui.js';
 import { reduzirMovimento, aoMudarMovimento } from './config.js';
 import * as inicio from './telas/inicio.js';
 import * as jogo from './telas/jogo.js';
 import * as jogadores from './telas/jogadores.js';
 import * as noticias from './telas/noticias.js';
+import * as extras from './telas/extras.js';
 
 /* ------------------------------- estado ------------------------------- */
 export const S = {
@@ -32,19 +33,13 @@ const ABAS = ['prancheta', 'jogadas', 'replay', 'estatisticas', 'playbook'];
 /* ------------------------------ as telas ------------------------------ */
 // filtros: quais linhas de filtro a tela usa ('temporada', 'semana'); sair(), se houver,
 // roda quando o usuário deixa a tela (para timers como o do carrossel).
-function esqueleto(titulo, tarefa) {
-  return (el) => {
-    el.innerHTML = '<section class="block"><div class="block-head"><h2>' + esc(titulo) + '</h2></div>' +
-      '<div class="state">' + icone('obra') + 'Esta tela entra na tarefa ' + tarefa + ' da spec novo-visual.</div></section>';
-  };
-}
 export const TELAS = {
   inicio: { titulo: 'Início', filtros: ['temporada', 'semana'], render: inicio.render, sair: inicio.sair },
   jogo: { titulo: 'Jogo', filtros: [], render: jogo.render, sair: jogo.sair },
   jogadores: { titulo: 'Jogadores', filtros: ['temporada'], render: jogadores.render },
   noticias: { titulo: 'Notícias', filtros: ['temporada', 'semana'], render: noticias.render },
-  config: { titulo: 'Configurações', filtros: [], render: esqueleto('Configurações', 8) },
-  sobre: { titulo: 'Sobre os dados', filtros: [], render: esqueleto('Sobre os dados', 8) },
+  config: { titulo: 'Configurações', filtros: [], render: extras.renderConfig },
+  sobre: { titulo: 'Sobre os dados', filtros: [], render: extras.renderSobre },
 };
 
 /* ------------------------------ filtros ------------------------------- */

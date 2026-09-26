@@ -127,11 +127,16 @@
     - **Decisão (Claude):** a notícia também é encontrada pelo nome e pelo apelido dos times dela, porque a manchete usa só a sigla ("TB vence DAL"): sem isso, "buccaneers" não achava nenhuma notícia do TB.
     - `tests/test_ui_novo.py`: +11 testes (7.1, 7.2, 7.5, 7.6, troca de semana, 8.1–8.6 com o `fetch` embrulhado da spec anterior no 8.5, S.2 e o termo escapado no "Nada encontrado"). Suíte: 257. Verificador de design: limpo.
 
-- [ ] 8. Configurações e Sobre os dados
+- [x] 8. Configurações e Sobre os dados
   - _Depende de: 2, 4_
-  - [ ] 8.1 Tela Configurações: avanço automático das notícias (liga/desliga) e velocidade do Replay narrado (0,5×, 1× ou 2×), aplicados na hora via `aoMudar`.
-  - [ ] 8.2 Tela Sobre os dados com `meta.fontes` (fontes e créditos das licenças) e `meta.ultimaAtualizacao`: **mover** o `renderSobre` da `dados-externos`.
+  - [x] 8.1 Tela Configurações: avanço automático das notícias (liga/desliga) e velocidade do Replay narrado (0,5×, 1× ou 2×), aplicados na hora via `aoMudar`.
+  - [x] 8.2 Tela Sobre os dados com `meta.fontes` (fontes e créditos das licenças) e `meta.ultimaAtualizacao`: **mover** o `renderSobre` da `dados-externos`.
   - _Requisitos: 2.3, 11.1–11.4_
+  - **Feito (2026-09-26):** `app/js/telas/extras.js` (`renderConfig` e `renderSobre`, registrados em `TELAS`). Com isso, nenhuma tela é mais esqueleto: saíram o `esqueleto()` do `main.js` e o ícone "obra".
+    - Configurações: um interruptor (`role="switch"`) para o avanço das notícias e um grupo de 3 opções (`role="radiogroup"`, com setas) para a velocidade do Replay. Cada toque grava e vale na hora pelo `aoMudar`, que o carrossel (tarefa 3) e o Replay (tarefa 4) já escutavam. Com movimento reduzido no sistema, uma nota avisa que o carrossel fica parado.
+    - Sobre os dados: `renderSobre` movido, com as fontes em cartões (nome, crédito da licença e para que é usada), a última atualização e o "como ler" (prancheta ilustrativa, ratings por grupo e notícias geradas dos dados).
+    - Sem título repetido: o cabeçalho já diz "Configurações" e "Sobre os dados".
+    - `tests/test_ui_novo.py`: +6 testes (11.1–11.4, a nota de movimento reduzido e o "Sobre" da `test_ui_dados.py`, adaptado). Suíte: 263. Verificador de design: limpo.
 
 - [ ] 9. Trocar a interface e remover o código antigo
   - _Depende de: 3, 4, 5, 6, 7, 8_

@@ -74,7 +74,6 @@ const ICONES = {
   carregando: '<path d="M12 4a8 8 0 1 1-8 8"/>',
   vazio: '<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 13h4l1.5 2h5L16 13h4"/>',
   erro: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5.5M12 16.2v.2"/>',
-  obra: '<path d="M4 20h16M6 20l3-11h6l3 11M9.5 13h5"/><path d="M12 9V4"/>',
   fechar: '<path d="M7 7l10 10M17 7 7 17"/>',
   lupa: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
 };
