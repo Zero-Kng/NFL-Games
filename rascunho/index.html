@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NFL Games — Home (rascunho)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ HEADER ============ -->
+  <header class="topbar">
+    <button class="icon-btn" id="btnMenu" aria-label="Abrir menu" aria-controls="sidebar" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+    </button>
+
+    <div class="brand">
+      <span class="shield">NFL</span>
+      <span class="brand-title" id="pageTitle">Home</span>
+    </div>
+
+    <button class="icon-btn" id="btnSearch" aria-label="Pesquisar" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+    </button>
+
+    <!-- barra de pesquisa: abre por cima do header ao tocar na lupa -->
+    <div class="searchbar" id="searchbar" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+      <input id="searchInput" type="search" placeholder="Buscar times, jogadores, notícias…" aria-label="Pesquisar" />
+      <button class="searchbar-close" id="btnSearchClose" aria-label="Fechar pesquisa">Cancelar</button>
+    </div>
+  </header>
+
+  <!-- resultados da pesquisa -->
+  <div class="search-results" id="searchResults" hidden></div>
+
+  <!-- ============ FILTROS: TEMPORADAS + SEMANAS ============ -->
+  <div class="filters">
+    <div class="filter-row">
+      <span class="filter-label">Temporada</span>
+      <div class="chips" id="seasonChips" role="tablist" aria-label="Temporadas"></div>
+    </div>
+    <div class="filter-row">
+      <span class="filter-label">Semana</span>
+      <div class="chips" id="weekChips" role="tablist" aria-label="Semanas"></div>
+    </div>
+  </div>
+
+  <!-- ============ HOME ============ -->
+  <main class="screen active" id="home">
+
+    <section class="block">
+      <div class="block-head">
+        <h2>Principais notícias</h2>
+        <button class="link-btn" data-go="news">Ver todas</button>
+      </div>
+      <div class="hero" id="hero">
+        <div class="hero-track" id="heroTrack"></div>
+        <div class="hero-dots" id="heroDots"></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="duo">
+        <button class="tile tile-red" data-go="games">
+          <span class="tile-ic">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="12" rx="9" ry="5.5" transform="rotate(-35 12 12)"/><path d="m9.5 14.5 5-5M10.5 11l2.5 2.5M12 9.5l2.5 2.5"/></svg>
+          </span>
+          <span class="tile-num" id="tileGames">16</span>
+          <span class="tile-label">Partidas na semana</span>
+        </button>
+        <button class="tile tile-blue" data-go="players">
+          <span class="tile-ic">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/></svg>
+          </span>
+          <span class="tile-num">1.679</span>
+          <span class="tile-label">Jogadores avaliados</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="block" id="gamesBlock">
+      <div class="block-head">
+        <h2>Jogos da semana</h2>
+        <span class="muted" id="gamesCount"></span>
+      </div>
+      <div id="gamesList" class="list"></div>
+    </section>
+  </main>
+
+  <!-- ============ JOGADORES ============ -->
+  <main class="screen" id="players">
+    <section class="block">
+      <div class="block-head"><h2>Jogadores em destaque</h2></div>
+      <div id="playersList" class="list"></div>
+    </section>
+  </main>
+
+  <!-- ============ NOTÍCIAS ============ -->
+  <main class="screen" id="news">
+    <section class="block">
+      <div class="block-head"><h2>Notícias</h2></div>
+      <div id="newsList" class="list"></div>
+    </section>
+  </main>
+
+  <!-- ============ BOTTOM NAV ============ -->
+  <nav class="bottom-nav" aria-label="Navegação principal">
+    <button class="nav-item active" data-go="home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg>
+      <span>Início</span>
+    </button>
+    <button class="nav-item" data-go="players">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M3 19c.6-3.2 3-5 6-5s5.4 1.8 6 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.2c2.6-.2 4.5 1.3 5 4.3"/></svg>
+      <span>Jogadores</span>
+    </button>
+    <button class="nav-item" data-go="news">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="13" height="16" rx="2"/><path d="M17 8h2a1 1 0 0 1 1 1v9a2 2 0 0 1-2 2H6M7.5 8.5h6M7.5 12h6M7.5 15.5h4"/></svg>
+      <span>Notícias</span>
+    </button>
+  </nav>
+
+  <!-- ============ SIDEBAR ============ -->
+  <div class="scrim" id="scrim" hidden></div>
+  <aside class="sidebar" id="sidebar" aria-label="Menu" aria-hidden="true">
+    <div class="sidebar-head">
+      <span class="shield">NFL</span>
+      <div>
+        <div class="sidebar-title">NFL Games</div>
+        <div class="sidebar-sub">Temporada 2021 · semanas 1–8</div>
+      </div>
+    </div>
+    <nav class="sidebar-nav">
+      <button class="side-item active" data-go="home">Início</button>
+      <button class="side-item" data-go="players">Jogadores</button>
+      <button class="side-item" data-go="news">Notícias</button>
+      <div class="side-sep">Modos</div>
+      <button class="side-item"><i class="dot red"></i>Treinador</button>
+      <button class="side-item"><i class="dot blue"></i>Olheiro</button>
+      <button class="side-item"><i class="dot navy"></i>Comentarista</button>
+      <div class="side-sep">Mais</div>
+      <button class="side-item">Sobre os dados</button>
+      <button class="side-item">Configurações</button>
+    </nav>
+  </aside>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
