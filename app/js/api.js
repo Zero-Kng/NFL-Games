@@ -22,7 +22,9 @@ export function get(path) {
       if (!res.ok) {
         let msg = 'HTTP ' + res.status;
         try { const b = await res.json(); if (b.error) msg = b.error; } catch (e) { /* corpo sem JSON */ }
-        throw new Error(msg);
+        const erro = new Error(msg);
+        erro.status = res.status;          // 503 = o servidor ainda esta carregando os dados
+        throw erro;
       }
       return res.json();
     });

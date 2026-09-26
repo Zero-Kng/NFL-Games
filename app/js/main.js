@@ -12,6 +12,7 @@ import * as jogo from './telas/jogo.js';
 import * as jogadores from './telas/jogadores.js';
 import * as noticias from './telas/noticias.js';
 import * as extras from './telas/extras.js';
+import { esperarDados } from './carregamento.js';
 
 /* ------------------------------- estado ------------------------------- */
 export const S = {
@@ -290,6 +291,11 @@ async function boot() {
   try {
     S.meta = await api.meta();
   } catch (e) {
+    // O servidor ja esta no ar, mas ainda carregando os dados: tela de carregamento e, pronto, de novo.
+    if (e.status === 503) {
+      if (await esperarDados()) boot();
+      return;
+    }
     $('inicio').classList.add('active');
     $('inicio').innerHTML = '<section class="block">' + oops(
       'API indisponível. Abra o NFL-Games (ou rode python rodar.py) e acesse http://127.0.0.1:8000. ' +

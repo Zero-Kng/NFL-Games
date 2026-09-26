@@ -1580,3 +1580,84 @@ def test_ui_texto_do_dado_nao_vira_html(servidor, pagina):
     assert pagina.query_selector(".screen img") is None
     assert pagina.eval_on_selector_all(".screen b", "bs => bs.filter(b => b.textContent === 'texto').length") == 0
     assert pagina.evaluate("window.__xss") is None
+
+
+# ================================================================ Tela de carregamento
+def _simular_carga(pg, estados, metas_503=2):
+    """/api/meta responde 503 ("carregando") nas primeiras `metas_503` vezes; /api/estado
+    devolve os `estados` em sequência (o último se repete; um int vira falha de rede)."""
+    chamadas = {"meta": 0, "estado": 0}
+
+    def meta(route):
+        chamadas["meta"] += 1
+        if chamadas["meta"] <= metas_503:
+            return route.fulfill(status=503, content_type="application/json", headers={"Retry-After": "1"},
+                                 body=json.dumps({"error": "carregando os dados"}))
+        return route.fallback()
+
+    def estado(route):
+        e = estados[min(chamadas["estado"], len(estados) - 1)]
+        chamadas["estado"] += 1
+        if isinstance(e, int):
+            return route.abort()
+        return route.fulfill(status=200, content_type="application/json", body=json.dumps(e))
+
+    pg.route("**/api/meta", meta)
+    pg.route("**/api/estado", estado)
+    return chamadas
+
+
+PREPARANDO = {"pronto": False, "fase": "preparando", "mensagem": "montando temporada 2023...", "primeiraCarga": True}
+CARREGANDO = {"pronto": False, "fase": "carregando", "mensagem": "carregando os dados...", "primeiraCarga": False}
+PRONTO = {"pronto": True, "fase": "pronto", "mensagem": "pronto", "primeiraCarga": True}
+
+
+def test_ui_tela_de_carregamento_ate_os_dados_ficarem_prontos(servidor, pagina):
+    chamadas = _simular_carga(pagina, [PREPARANDO, PREPARANDO, PRONTO])
+    pagina.goto(servidor.url + "/?season=2021&week=1")
+    esperar(pagina, "!document.getElementById('carregando').hidden")
+    tela = pagina.text_content("#carregando")
+    assert "Preparando os dados" in tela and "montando temporada 2023" in tela
+    assert "alguns minutos" in tela                                     # primeira carga: avisa que demora
+    assert pagina.eval_on_selector("#carregando img", "i => i.complete && i.naturalWidth > 0")
+    esperar(pagina, "document.getElementById('carregando').hidden && document.querySelector('#jogosLista .match')", 15000)
+    assert chamadas["estado"] >= 3 and "season=2021" in pagina.url   # abre na tela do link, sem recarregar
+
+
+def test_ui_carregamento_da_copia_local_sem_aviso_de_minutos(servidor, pagina):
+    _simular_carga(pagina, [CARREGANDO, PRONTO], metas_503=1)
+    pagina.goto(servidor.url + "/")
+    esperar(pagina, "!document.getElementById('carregando').hidden")
+    assert "carregando os dados" in pagina.inner_text("#carregandoFase")
+    assert pagina.is_hidden("#carregandoNota")
+    esperar(pagina, "document.getElementById('carregando').hidden && document.querySelector('.screen.active')", 15000)
+
+
+def test_ui_carregamento_mostra_o_erro(servidor, pagina):
+    erro = {"pronto": False, "fase": "erro", "primeiraCarga": True,
+            "mensagem": "Sem dados para subir o app: <b>sem internet</b>"}
+    _simular_carga(pagina, [PREPARANDO, erro], metas_503=99)
+    pagina.goto(servidor.url + "/")
+    esperar(pagina, "document.getElementById('carregando').classList.contains('erro')", 15000)
+    tela = pagina.text_content("#carregando")
+    assert "Não foi possível carregar os dados" in tela and "<b>sem internet</b>" in tela   # texto, não HTML
+    assert "janela do terminal" in tela
+    assert pagina.query_selector("#carregando b") is None
+
+
+def test_ui_carregamento_com_o_servidor_encerrado(servidor, pagina):
+    _simular_carga(pagina, [PREPARANDO, 0], metas_503=99)                 # 0 = a conexão cai
+    pagina.goto(servidor.url + "/")
+    esperar(pagina, "document.getElementById('carregando').classList.contains('erro')", 15000)
+    tela = pagina.text_content("#carregando")
+    assert "O app foi encerrado" in tela and "janela do terminal" in tela
+
+
+def test_ui_carregamento_sem_animacao_com_movimento_reduzido(servidor, navegador):
+    ctx = navegador.new_context(viewport={"width": 430, "height": 860}, reduced_motion="reduce")
+    pg = ctx.new_page()
+    _simular_carga(pg, [PREPARANDO], metas_503=99)
+    pg.goto(servidor.url + "/")
+    esperar(pg, "!document.getElementById('carregando').hidden")
+    assert pg.eval_on_selector("#carregando .carregando-logo", "e => getComputedStyle(e).animationName") == "none"
+    ctx.close()

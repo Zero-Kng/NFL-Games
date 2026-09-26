@@ -37,9 +37,11 @@ No Linux e no macOS, `./rodar.sh` faz o mesmo (usa o `python3`).
 
 ### O que acontece ao abrir
 
-Na **primeira execução** o servidor baixa e monta os dados do nflverse: **~330 MB**,
-alguns minutos, com o progresso no terminal. Precisa de internet. O navegador abre
-sozinho quando o app estiver no ar, em **<http://127.0.0.1:8000>**. Nas próximas, sobe
+O navegador abre na hora, em **<http://127.0.0.1:8000>**, com uma tela de carregamento
+que mostra o progresso enquanto os dados são preparados; quando ficam prontos, o app
+abre sozinho. Na **primeira execução** o servidor baixa e monta os dados do nflverse:
+**~330 MB**, alguns minutos (a tela avisa), e precisa de internet. Se a primeira carga
+for interrompida, a próxima abertura continua de onde parou. Nas próximas, sobe
 em ~4 s com a cópia local (o executável leva ~7 s, porque se descompacta antes). A
 janela do terminal fica aberta enquanto o app roda: feche-a (ou Ctrl+C) para parar.
 
@@ -314,6 +316,7 @@ Todos os endpoints são `GET` e devolvem JSON. Sem `season`, vale a temporada at
 
 | Rota | Retorno |
 |---|---|
+| `/api/estado` | a carga dos dados: `pronto`, `fase` (`preparando`, `carregando`, `pronto` ou `erro`), `mensagem` e `primeiraCarga`. Responde desde o primeiro segundo; as outras rotas respondem 503 até `pronto` |
 | `/api/meta` | temporadas, semanas e rodadas, 32 times, médias da liga, fontes, créditos e última atualização |
 | `/api/games?season=&week=&date=` | partidas, com status (`agendado`, `sem_resultado`, `encerrado`) |
 | `/api/games/{id}` | detalhe + estatísticas + tendências + destaques |
