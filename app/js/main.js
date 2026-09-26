@@ -7,6 +7,7 @@
 import { api } from './api.js';
 import { $, esc, icone, oops } from './ui.js';
 import { reduzirMovimento, aoMudarMovimento } from './config.js';
+import * as inicio from './telas/inicio.js';
 
 /* ------------------------------- estado ------------------------------- */
 export const S = {
@@ -19,12 +20,15 @@ export const S = {
   jogoAba: 'prancheta',
   playerId: null,
   filtroTime: null,
+  live: {},
+  liveFalha: false,
 };
 
 const ABAS = ['prancheta', 'jogadas', 'replay', 'estatisticas', 'playbook'];
 
 /* ------------------------------ as telas ------------------------------ */
-// filtros: quais linhas de filtro a tela usa ('temporada', 'semana').
+// filtros: quais linhas de filtro a tela usa ('temporada', 'semana'); sair(), se houver,
+// roda quando o usuário deixa a tela (para timers como o do carrossel).
 function esqueleto(titulo, tarefa) {
   return (el) => {
     el.innerHTML = '<section class="block"><div class="block-head"><h2>' + esc(titulo) + '</h2></div>' +
@@ -32,7 +36,7 @@ function esqueleto(titulo, tarefa) {
   };
 }
 export const TELAS = {
-  inicio: { titulo: 'Início', filtros: ['temporada', 'semana'], render: esqueleto('Início', 3) },
+  inicio: { titulo: 'Início', filtros: ['temporada', 'semana'], render: inicio.render, sair: inicio.sair },
   jogo: { titulo: 'Jogo', filtros: [], render: esqueleto('Jogo', 4) },
   jogadores: { titulo: 'Jogadores', filtros: ['temporada'], render: esqueleto('Jogadores', 6) },
   noticias: { titulo: 'Notícias', filtros: ['temporada', 'semana'], render: esqueleto('Notícias', 7) },
@@ -108,6 +112,7 @@ export function ir(tela, opcoes) {
   if (!TELAS[tela]) tela = 'inicio';
   opcoes = opcoes || {};
   if (tela === 'jogo' && ABAS.includes(opcoes.aba)) S.jogoAba = opcoes.aba;
+  if (S.tela !== tela && TELAS[S.tela].sair) TELAS[S.tela].sair();
   S.tela = tela;
   document.querySelectorAll('.screen').forEach((s) => s.classList.toggle('active', s.id === tela));
   document.querySelectorAll('[data-go]').forEach((b) => {

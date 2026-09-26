@@ -48,16 +48,25 @@
     - Filtros por tela: Início e Notícias usam temporada e semana; Jogadores só temporada; Jogo, Configurações e Sobre, nenhum. A URL acompanha o estado (`?season=&week=&game=&screen=&aba=`).
     - `serve.py` passa a servir `.js` sempre como `text/javascript` (módulos ES; o registro do Windows às vezes diz `text/plain`).
     - Verificador de design: só o aviso da fonte Inter, que é a exceção já registrada em `rascunho/.impeccable/config.json`.
-    - **Pendente para a tarefa 3/7:** o rascunho põe um rótulo curto (tag/kicker) acima do título das notícias; a skill de design proíbe esse padrão. Decidir com o José ao montar o carrossel.
+    - **Decidido na tarefa 3 (José, 2026-09-26):** o rótulo curto (tag/kicker) que o rascunho punha acima do título das notícias sai; o tipo vai no rodapé, junto com o jogo ("[BAL] × [LV] · Virada"). Vale também para a lista da tarefa 7.
     - `tests/test_ui_novo.py`: 24 testes (1.1–1.5, 2.1–2.3, 2.5, 2.6, 3.1, 3.2, 3.5, 11.5 e filtros por tela). Suíte: 193.
 
-- [ ] 3. Tela Início
+- [x] 3. Tela Início
   - _Depende de: 1, 2_
-  - [ ] 3.1 Carrossel com as 4 primeiras notícias da semana (slides do rascunho), com os pontos de navegação. Avança sozinho a cada 5 s, pausa com o mouse em cima ou durante o toque, e não avança com movimento reduzido ou com o avanço desligado nas Configurações. Semana sem notícias oculta o carrossel.
-  - [ ] 3.2 Dois cartões: partidas na semana (`games(week).length`) e jogadores avaliados (`summary.ratedPlayers`).
-  - [ ] 3.3 Lista de jogos da semana (cartão de partida do rascunho), com os estados e o placar ao vivo **movidos** da `dados-externos` (`gameCard`, `estadoDoJogo`, `aoVivo`). Tocar abre a página Jogo com a partida. Filtro por time vindo da busca, com chip "TIME ×".
-  - [ ] 3.4 Caminho infeliz: erro ao carregar a semana mostra a mensagem na lista, e os filtros continuam utilizáveis.
+  - [x] 3.1 Carrossel com as 4 primeiras notícias da semana (slides do rascunho), com os pontos de navegação. Avança sozinho a cada 5 s, pausa com o mouse em cima ou durante o toque, e não avança com movimento reduzido ou com o avanço desligado nas Configurações. Semana sem notícias oculta o carrossel.
+  - [x] 3.2 Dois cartões: partidas na semana (`games(week).length`) e jogadores avaliados (`summary.ratedPlayers`).
+  - [x] 3.3 Lista de jogos da semana (cartão de partida do rascunho), com os estados e o placar ao vivo **movidos** da `dados-externos` (`gameCard`, `estadoDoJogo`, `aoVivo`). Tocar abre a página Jogo com a partida. Filtro por time vindo da busca, com chip "TIME ×".
+  - [x] 3.4 Caminho infeliz: erro ao carregar a semana mostra a mensagem na lista, e os filtros continuam utilizáveis.
   - _Requisitos: 3.3, 3.4, 4.1–4.8, 7.4, 7.5_
+  - **Feito (2026-09-26):** `app/js/telas/inicio.js` (registrado em `TELAS.inicio`) e os componentes do Início em `novo.css`.
+    - Slide: título, texto e rodapé com os escudos dos dois times e o tipo (7.2). Sem rótulo acima do título (decisão acima). Os tons vermelho e azul ficaram um pouco mais escuros que no rascunho para o texto branco passar de 4,5:1.
+    - Carrossel: avança a cada 5 s; pausa com o mouse em cima, durante o toque e com o foco dentro; tocar num ponto recomeça a contagem. Parado com movimento reduzido ou com o avanço desligado, e volta na hora quando a configuração muda (`aoMudar`). Pontos com área de toque de 28 × 44 px.
+    - Cartões: "Partidas na semana" rola até a lista; "Jogadores avaliados" abre Jogadores.
+    - `estadoDoJogo`, `gameCard`, `relogioAoVivo` e `aoVivo` **movidos** do `app.js` com a mesma lógica; o cartão virou `<button>` (teclado sem código extra). `S.live`/`S.liveFalha` foram para o `S` do `main.js`.
+    - `ir()` chama `sair()` da tela anterior: fora do Início, o carrossel e o placar ao vivo param.
+    - Filtro por time: `filtrarPorTime(abbr)` (a busca da tarefa 7 vai chamar), chip "TIME ×", e o filtro continua ao trocar de semana. Semana sem jogo do time: "{time} não joga nesta semana."
+    - Verificador de design: as linhas de jarda do slide (do rascunho) foram registradas como exceção em `.impeccable/config.json`; fora isso, limpo.
+    - `tests/test_ui_novo.py`: +24 testes (4.1–4.8, 3.3, 3.4, 7.2, 7.4, 7.5, S.1 no carrossel, filtro por time e os 7 testes de cartão e ao vivo da `test_ui_dados.py` adaptados). Suíte: 217.
 
 - [ ] 4. Página Jogo: cabeçalho, abas e conteúdo movido
   - _Depende de: 2_
