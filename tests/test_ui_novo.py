@@ -932,3 +932,119 @@ def test_ui_prancheta_cores_dos_lados(servidor, pagina):
     assert r[0] == {"offense": meta["SEA"]["primary"], "defense": meta["NE"]["secondary"]}
     assert r[1] == {"offense": meta["TB"]["primary"], "defense": meta["DAL"]["primary"]}
     assert r[2] == {} and r[3] is True and r[4] is False
+
+
+# ================================================================ Tarefa 6: Jogadores
+JOGADORES = "?season=2021&week=1&game=2021090900&screen=jogadores"
+
+
+def abrir_jogadores(pg, base, query=JOGADORES):
+    abrir(pg, base, query)
+    esperar(pg, "document.getElementById('jogadores').classList.contains('active') && "
+                "document.querySelector('#scoutBody .row-card, #scoutBody .state:not(.loading), #radarSlot')")
+
+
+def nomes_da_lista(pg):
+    return pg.eval_on_selector_all("#scoutBody .row-card b", "bs => bs.map(b => b.textContent)")
+
+
+def test_ui_jogadores_busca_filtro_perfil_comparacao(servidor, pagina):
+    """6.1: lista por rating, filtro por posição, busca, perfil com radar e jogo a jogo, e comparação."""
+    abrir_jogadores(pagina, servidor.url)
+    lista = api(servidor.url, "/api/players?season=2021&limit=60")
+    assert nomes_da_lista(pagina) == [p["name"] for p in lista]
+    pagina.click("#scoutFilters [data-pos=QB]")
+    qbs = api(servidor.url, "/api/players?season=2021&position=QB&limit=60")
+    esperar(pagina, f"document.querySelector('#scoutBody .row-card b') && "
+                    f"document.querySelector('#scoutBody .row-card b').textContent === {json.dumps(qbs[0]['name'])}")
+    assert nomes_da_lista(pagina) == [p["name"] for p in qbs]
+    pagina.fill("#scoutSearch", "brady")
+    esperar(pagina, "document.querySelectorAll('#scoutBody .row-card').length === 1")
+    assert nomes_da_lista(pagina) == ["Tom Brady"]
+    pagina.click("#scoutBody .row-card")
+    esperar(pagina, "document.querySelector('#radarSlot svg.radar')")
+    assert "jogador=00-0019596" in pagina.url
+    perfil = pagina.inner_text("#scoutBody")
+    assert "TOM BRADY" in perfil.upper() and "JOGO A JOGO" in perfil.upper() and "Michigan" in perfil
+    assert pagina.is_hidden("#scoutControles")
+    pagina.select_option("#cmpPick", index=1)
+    esperar(pagina, "document.querySelectorAll('#cmpSlot .cmp').length > 3")
+    assert "Tom Brady" in pagina.inner_text("#cmpSlot .cmp-nomes")
+    pagina.click("#backList")                                          # volta com o filtro e a busca mantidos
+    esperar(pagina, "document.querySelectorAll('#scoutBody .row-card').length === 1")
+    assert pagina.input_value("#scoutSearch") == "brady"
+    assert pagina.eval_on_selector("#scoutFilters [aria-pressed=true]", "b => b.dataset.pos") == "QB"
+    assert "jogador=" not in pagina.url
+
+
+def test_ui_jogadores_na_temporada_escolhida(servidor, pagina):
+    abrir_jogadores(pagina, servidor.url)
+    pagina.click("#seasonChips [data-season='2024']")
+    lista = api(servidor.url, "/api/players?season=2024&limit=60")
+    esperar(pagina, "document.querySelector('#scoutBody .row-card b') && "
+                    f"document.querySelector('#scoutBody .row-card b').textContent === {json.dumps(lista[0]['name'])}")
+    assert "Temporada 2024" in pagina.inner_text("#jogadoresBlock .block-head")
+
+
+def test_ui_jogadores_a_observar_da_partida(servidor, pagina):
+    """6.2: os destaques da partida selecionada; o link leva à partida."""
+    abrir_jogadores(pagina, servidor.url)
+    esperar(pagina, "!document.getElementById('observarBlock').hidden")
+    watch = api(servidor.url, "/api/games/2021090900")["watch"]
+    ids = pagina.eval_on_selector_all("#observarLista .watch-card", "cs => cs.map(c => c.dataset.player)")
+    assert ids == [p["nflId"] for p in watch]
+    assert pagina.inner_text("#observarJogo") == "DAL @ TB"
+    pagina.click("#observarLista .watch-card:nth-child(2)")
+    esperar(pagina, "document.querySelector('#radarSlot')")
+    assert f"jogador={watch[1]['nflId']}" in pagina.url
+    pagina.click("#observarJogo")
+    esperar(pagina, "document.getElementById('jogo').classList.contains('active')")
+    assert "game=2021090900" in pagina.url
+
+
+def test_ui_a_observar_atualiza_ao_trocar_partida(servidor, pagina):
+    """6.3."""
+    abrir_jogadores(pagina, servidor.url)
+    esperar(pagina, "!document.getElementById('observarBlock').hidden")
+    outro = api(servidor.url, "/api/games?season=2021&week=1")[3]
+    ir_para(pagina, "inicio")
+    pagina.click(f"#jogosLista .match[data-game='{outro['gameId']}']")
+    esperar(pagina, "document.getElementById('jogo').classList.contains('active')")
+    ir_para(pagina, "jogadores")
+    watch = api(servidor.url, f"/api/games/{outro['gameId']}")["watch"]
+    esperar(pagina, f"document.querySelector('#observarLista .watch-card') && "
+                    f"document.querySelector('#observarLista .watch-card').dataset.player === {json.dumps(watch[0]['nflId'])}")
+    assert pagina.inner_text("#observarJogo") == f"{outro['away']['abbr']} @ {outro['home']['abbr']}"
+
+
+def test_ui_a_observar_sem_partida_usa_a_primeira_da_semana(servidor, pagina):
+    abrir_jogadores(pagina, servidor.url, "?season=2021&week=2&screen=jogadores")
+    primeiro = api(servidor.url, "/api/games?season=2021&week=2")[0]
+    esperar(pagina, "!document.getElementById('observarBlock').hidden")
+    assert pagina.inner_text("#observarJogo") == f"{primeiro['away']['abbr']} @ {primeiro['home']['abbr']}"
+
+
+def test_ui_a_observar_oculto_sem_avaliados(servidor, pagina):
+    """6.4: resposta simulada sem ninguém com amostra suficiente."""
+    real = api(servidor.url, "/api/games/2021090900")
+    pagina.route("**/api/games/2021090900", lambda r: r.fulfill(
+        status=200, content_type="application/json", body=json.dumps({**real, "watch": []})))
+    abrir_jogadores(pagina, servidor.url)
+    pagina.wait_for_timeout(300)
+    assert pagina.eval_on_selector("#observarBlock", "e => e.hidden") is True
+    assert len(nomes_da_lista(pagina)) == 60                           # a lista segue
+
+
+def test_ui_jogador_da_prancheta_abre_o_perfil(servidor, pagina):
+    abrir_jogo(pagina, servidor.url, JOGO + "&play=55")
+    esperar_prancheta(pagina)
+    pagina.eval_on_selector_all("#field .player-dot:not(.ball)", "ds => ds[8].click()")
+    pagina.click("#dotInfo [data-player]")
+    esperar(pagina, "document.getElementById('jogadores').classList.contains('active') && document.querySelector('#radarSlot')")
+    assert "CHRIS GODWIN" in pagina.inner_text("#scoutBody").upper()
+
+
+def test_ui_perfil_por_link(servidor, pagina):
+    abrir_jogadores(pagina, servidor.url, "?season=2021&screen=jogadores&jogador=00-0019596")
+    esperar(pagina, "document.querySelector('#radarSlot')")
+    assert "TOM BRADY" in pagina.inner_text("#scoutBody").upper()

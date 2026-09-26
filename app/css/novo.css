@@ -470,6 +470,67 @@ button.row-card:hover { border-color: var(--line-strong); }
 .tl-item .ev b { display: block; margin-bottom: 2px; font-size: 14px; color: var(--text); }
 .tl-item .ctx { display: block; margin-top: 4px; font-size: 12px; color: var(--text-3); }
 
+/* ---------- Jogadores: a observar ---------- */
+.watch-scroll {
+  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; margin: 0 -16px; padding-left: 16px; padding-right: 16px;
+  scroll-snap-type: x proximity; scrollbar-width: none;
+}
+.watch-scroll::-webkit-scrollbar { display: none; }
+.watch-card {
+  flex: 0 0 148px; display: flex; flex-direction: column; gap: 4px; padding: 12px; text-align: left;
+  scroll-snap-align: start; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line);
+  transition: border-color .2s, background .2s;
+}
+.watch-card:hover { background: var(--surface-2); border-color: var(--line-strong); }
+.watch-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.watch-nome { font: 700 17px/1.1 var(--font-display); letter-spacing: .2px; }
+.watch-pos { font-size: 12px; color: var(--text-2); }
+
+/* ---------- Jogadores: busca, filtro e lista ---------- */
+.campo {
+  display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; margin-bottom: 10px;
+  border-radius: 14px; background: var(--surface); border: 1px solid var(--line-strong);
+}
+.campo:focus-within { border-color: var(--text-3); }
+.campo svg { width: 20px; height: 20px; color: var(--text-3); }
+.campo input { flex: 1; min-width: 0; height: 46px; background: none; border: 0; outline: none; font-size: 16px; }
+.campo input::placeholder { color: var(--text-3); }
+.campo input::-webkit-search-cancel-button { display: none; }
+.pos-chips { margin: 0 -16px 12px; padding-left: 16px; }
+.lista-sub { margin-bottom: 10px; }
+#scoutBody .row-card { background: var(--surface); }
+.rank { width: 24px; flex-shrink: 0; font: 700 16px var(--font-display); color: var(--text-3); text-align: center; }
+
+/* ---------- Jogadores: perfil ---------- */
+.voltar { flex: none; margin-bottom: 12px; }
+.perfil-topo { display: flex; align-items: center; gap: 14px; }
+.perfil-topo .grow { flex: 1; min-width: 0; }
+.perfil-topo h3 { font: 700 26px/1.05 var(--font-display); text-transform: uppercase; letter-spacing: .2px; }
+.perfil-meta { display: block; font-size: 13px; color: var(--text-2); }
+.perfil-topo .rate { font-size: 26px; padding: 6px 10px; }
+.avatar {
+  width: 56px; height: 56px; flex-shrink: 0; border-radius: 16px; display: grid; place-items: center;
+  font: 800 18px var(--font-display); color: #fff; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25);
+}
+.bio { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+.bio > div { padding: 8px; border-radius: 10px; background: var(--surface-2); min-width: 0; }
+.bio .k { font-size: 12px; color: var(--text-3); }
+.bio .v { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radar-wrap { display: grid; place-items: center; margin-bottom: 8px; }
+.radar { width: 380px; height: auto; max-width: 100%; stroke: none; }  /* vence o svg de 22 px (e o traço) dos ícones */
+.attr-list { display: flex; flex-direction: column; gap: 8px; }
+.attr { display: grid; grid-template-columns: minmax(0, 1.4fr) 1fr auto auto; align-items: center; gap: 10px; font-size: 13px; }
+.attr .name { color: var(--text-2); }
+.attr .track { height: 8px; border-radius: 5px; background: var(--surface-3); overflow: hidden; }
+.attr .val-fill { display: block; height: 100%; border-radius: 5px; background: var(--red); }
+.attr .val { font-weight: 600; text-align: right; }
+.attr .pctl { width: 36px; text-align: right; color: var(--text-3); font-size: 12px; }
+.motivo { margin-top: 8px; font-size: 13px; color: var(--text-3); }
+.radar-nota { margin-top: 10px; font-size: 12px; }
+.cmp-nomes { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 14px 0 10px; font-size: 14px; }
+.cmp-nomes .l { color: var(--blue-soft); }
+.cmp-nomes .r { color: var(--red-soft); text-align: right; }
+
 /* ---------- Barra inferior ---------- */
 .bottom-nav {
   position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 25;

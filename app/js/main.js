@@ -9,6 +9,7 @@ import { $, esc, icone, oops } from './ui.js';
 import { reduzirMovimento, aoMudarMovimento } from './config.js';
 import * as inicio from './telas/inicio.js';
 import * as jogo from './telas/jogo.js';
+import * as jogadores from './telas/jogadores.js';
 
 /* ------------------------------- estado ------------------------------- */
 export const S = {
@@ -39,7 +40,7 @@ function esqueleto(titulo, tarefa) {
 export const TELAS = {
   inicio: { titulo: 'Início', filtros: ['temporada', 'semana'], render: inicio.render, sair: inicio.sair },
   jogo: { titulo: 'Jogo', filtros: [], render: jogo.render, sair: jogo.sair },
-  jogadores: { titulo: 'Jogadores', filtros: ['temporada'], render: esqueleto('Jogadores', 6) },
+  jogadores: { titulo: 'Jogadores', filtros: ['temporada'], render: jogadores.render },
   noticias: { titulo: 'Notícias', filtros: ['temporada', 'semana'], render: esqueleto('Notícias', 7) },
   config: { titulo: 'Configurações', filtros: [], render: esqueleto('Configurações', 8) },
   sobre: { titulo: 'Sobre os dados', filtros: [], render: esqueleto('Sobre os dados', 8) },
@@ -148,6 +149,7 @@ export function sincronizarUrl() {
   if (S.tela !== 'inicio') u.set('screen', S.tela);
   if (S.tela === 'jogo' && S.jogoAba !== 'prancheta') u.set('aba', S.jogoAba);
   if (S.tela === 'jogo' && S.jogoAba === 'prancheta' && S.playId) u.set('play', S.playId);
+  if (S.tela === 'jogadores' && S.playerId) u.set('jogador', S.playerId);
   history.replaceState(null, '', location.pathname + '?' + u.toString());
 }
 
@@ -235,6 +237,7 @@ async function boot() {
   S.week = temporadaMeta().weeks.some((w) => w.week === querSemana) ? querSemana : semanaPadrao(S.season);
   if (Number(u.get('game'))) S.gameId = Number(u.get('game'));
   if (Number(u.get('play'))) S.playId = Number(u.get('play'));
+  if (u.get('jogador')) S.playerId = u.get('jogador').slice(0, 40);
 
   const pedida = u.get('screen') || 'inicio';
   const [tela, aba] = LEGADO[pedida] || [pedida, u.get('aba')];

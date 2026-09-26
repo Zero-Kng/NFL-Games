@@ -99,11 +99,21 @@
     - Posição genérica (2026, a fonte ainda sem os jogadores): o rótulo diz "Posição genérica · OL · ataque", e o cartão não leva a um perfil.
     - `tests/test_ui_novo.py`: +4 testes (esquema de 1 quadro sem controles, jogador tocado destacado, posições genéricas com as cores dos lados, `coresDosLados`). Suíte: 238. Verificador de design: limpo.
 
-- [ ] 6. Tela Jogadores
+- [x] 6. Tela Jogadores
   - _Depende de: 2_
-  - [ ] 6.1 **Mover** `scoutList`, `scoutDetail`, `radarBlock`/`radarSVG`, `fillComparePicker` e `showCompare` para `js/telas/jogadores.js`, no visual novo (lista no estilo `row-card` do rascunho).
-  - [ ] 6.2 Seção "Jogadores a observar" com `game.watch` da partida selecionada, atualizada ao trocar de partida e oculta se vazia.
+  - [x] 6.1 **Mover** `scoutList`, `scoutDetail`, `radarBlock`/`radarSVG`, `fillComparePicker` e `showCompare` para `js/telas/jogadores.js`, no visual novo (lista no estilo `row-card` do rascunho).
+  - [x] 6.2 Seção "Jogadores a observar" com `game.watch` da partida selecionada, atualizada ao trocar de partida e oculta se vazia.
   - _Requisitos: 6.1–6.4_
+  - **Feito (2026-09-26):** `app/js/telas/jogadores.js` (registrado em `TELAS.jogadores`) e os componentes em `novo.css`.
+    - "A observar" no topo: cartões com rolagem lateral (escudo, rating, nome, posição e grupo), com o link "DAL @ TB" para a partida. Tocar num cartão abre o perfil.
+    - Lista no `row-card` do rascunho (posição no ranking, nome, posição · time · grupo · snaps · jogos, rating); busca pelo nome (280 ms de espera, 100 caracteres) e filtro por posição em chips. Ao voltar do perfil, a busca e o filtro continuam.
+    - Perfil: cabeçalho com avatar da posição, rating e dados físicos; radar, números da temporada, onde se alinha, jogo a jogo e comparação. O perfil vai para a URL (`&jogador=`), e o boot o lê. `abrirJogador(id)` fica exportada para a busca da tarefa 7; o jogador tocado na prancheta também abre o perfil.
+    - Funções **movidas** com a mesma lógica; os contadores `seq.scout` viraram `ultimo('scout')` (e `ultimo('comparar')` na comparação, que antes não descartava resposta atrasada).
+    - **Decisões (Claude):**
+      - Sem partida escolhida, "A observar" usa a 1ª partida da semana, como a página Jogo (5.7), sem mudar a partida selecionada.
+      - Radar no tema escuro: rótulos em 13 px, e os longos em duas linhas ("Jardas por / tentativa") para caberem sem encolher o radar nem a fonte.
+      - O código das abas de função do perfil (`data-role`) não veio: o `scoutDetail` antigo já não as desenhava.
+    - `tests/test_ui_novo.py`: +8 testes (6.1–6.4, temporada, primeira da semana, prancheta → perfil e perfil por link). Suíte: 246. Verificador de design: limpo.
 
 - [ ] 7. Notícias e busca geral
   - _Depende de: 1, 2_
