@@ -98,16 +98,21 @@
   - [x] 8.2 Adaptar `tools/bench.py`, `tools/carga.py` e `tests/test_ui.py` para a semana mais recente disputada; `server/smoke_test.py` e `ui_test_all.py` para os dados novos.
     - `bench.py`, `carga.py` e `test_ui.py` já tinham sido adaptados na tarefa 6. `smoke_test.py` roda sobre `dados/` (padrão: a última temporada encerrada).
     - **Desvio:** `ui_test.py` e `ui_test_all.py` foram apagados em vez de adaptados. Conferiam textos e jogos do dataset antigo ("Big Data Bowl", jogo `2021092300`, animação) e são cobertos pelo `tests/test_ui.py` (Playwright), que clica, mede e simula atrasos.
-  - [ ] 8.3 `.gitignore`: `dados/` e `nfl-big-data-bowl-regional-event-data-main/`.
+  - [x] 8.3 `.gitignore`: `dados/` e `nfl-big-data-bowl-regional-event-data-main/`.
+    - A regra do dataset só passa a valer depois da 8.4: enquanto os 127 arquivos estiverem versionados, o git continua rastreando a pasta.
   - [ ] 8.4 **Feito pelo José:** tirar o dataset do versionamento: `git rm -r --cached nfl-big-data-bowl-regional-event-data-main` (e o `cache/` antigo, se ainda houver algo rastreado).
   - _Requisitos: 3.3, 8.1, NFR 4_
 
-- [ ] 9. Medição final e documentação
+- [x] 9. Medição final e documentação
   - _Depende de: 8_
-  - [ ] 9.1 `pytest`, `bench.py --check`, `carga.py --usuarios 10 --check` (semana mais recente disputada), subida ≤ 10 s, memória ≤ 1 GB, primeira carga ≤ 5 min e disco ≤ 1 GB. Resultados em `tests/golden/resultado_dados_externos.txt`.
-  - [ ] 9.2 Recapturar o golden como a nova base (Decisão 5).
-  - [ ] 9.3 README: as fontes e os créditos, temporadas e playoffs, a atualização diária, o placar ao vivo, a prancheta ilustrativa, os ratings novos e o que deixou de existir (animação, velocidade de pico).
-  - [ ] 9.4 Se alguma meta falhar: não afrouxar, registrar e parar para decidir com o José.
+  - [x] 9.1 `pytest`, `bench.py --check`, `carga.py --usuarios 10 --check` (semana mais recente disputada), subida ≤ 10 s, memória ≤ 1 GB, primeira carga ≤ 5 min e disco ≤ 1 GB. Resultados em `tests/golden/resultado_dados_externos.txt`.
+    - Tudo dentro das metas: p95 de 27 ms com 10 usuários; subida em 3,8 s; **primeira carga medida de verdade** numa pasta vazia: 103 s (60 arquivos, 6 temporadas); 50 MB em disco; pico de 495 MB de memória.
+    - Saíram os `PerformanceWarning` de DataFrame fragmentado do `montar.py` e do `ratings.py` (os ratings recalculados de 2021 e 2025 conferem com as tabelas gravadas).
+  - [x] 9.2 Recapturar o golden como a nova base (Decisão 5).
+    - Recapturado ao fim da tarefa 7 (depois dela a API não mudou): 2.116 URLs das temporadas encerradas e dos caminhos de erro, `check` OK.
+  - [x] 9.3 README: as fontes e os créditos, temporadas e playoffs, a atualização diária, o placar ao vivo, a prancheta ilustrativa, os ratings novos e o que deixou de existir (animação, velocidade de pico).
+  - [x] 9.4 Se alguma meta falhar: não afrouxar, registrar e parar para decidir com o José.
+    - Nenhuma falhou.
   - _Requisitos: NFR 1–5, 9.1_
 
 ---

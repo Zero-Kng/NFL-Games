@@ -97,11 +97,25 @@ lista de fontes, os créditos e a hora da última atualização saem em `/api/me
 | **Olheiro** | Busca de jogadores, rating 40–99, radar de atributos por percentil, jogo a jogo, comparação | estatísticas por jogador e jogo + PFR + snaps |
 | **Comentarista** | Replay cronológico com o placar oficial de cada momento, narração e estatísticas acumuladas | play-by-play em ordem |
 
-Deep link opcional: `?week=3&game=<gameId>&screen=coach`.
+Deep link opcional: `?season=2021&week=1&game=2021090900&screen=coach`. Sem `season`,
+abre a temporada atual; sem `week`, a semana mais recente já começada (numa temporada
+encerrada, o Super Bowl).
 
-As telas ainda estão sendo adaptadas aos dados novos (tarefa 7 da spec
-`dados-externos`): seletor de temporada, nomes das rodadas de playoff, placar ao vivo
-e matéria da ESPN entram nessa tarefa.
+- **Temporada e rodadas:** seletor de 2021 até a atual; nos playoffs, as rodadas
+  aparecem pelo nome (Wild Card, Divisional, Final de Conferência, Super Bowl). O
+  Olheiro segue a temporada escolhida.
+- **Cartão do jogo:** "A JOGAR" com dia e hora no seu fuso, "resultado ainda não
+  disponível" (o jogo começou e o nflverse ainda não publicou), placar final (com
+  prorrogação) ou **AO VIVO**.
+- **Placar ao vivo:** enquanto a semana exibida tem jogo em andamento, o navegador
+  consulta a ESPN a cada 30 s e mostra placar, quarto e relógio. Começa sozinho na hora
+  do jogo, para quando ele termina e não consulta nada quando não há jogo rolando. Se a
+  ESPN falhar, fica o último placar com o aviso "atualização ao vivo indisponível".
+- **Matéria do jogo:** abaixo da partida selecionada, a matéria da ESPN (título,
+  resumo, data, fonte e link). Só links de `*.espn.com` são exibidos. Jogos muito
+  recentes ainda não têm matéria na ESPN: nesse caso o bloco não aparece.
+- **Sobre os dados** (botão ℹ️): as fontes, os créditos e a hora da última
+  atualização.
 
 ### Sobre a prancheta do Treinador
 
@@ -168,6 +182,10 @@ são comparados **entre si** em 4 a 6 eixos, cada um virando um percentil de 0 a
 | Linebacker | Tackles · Tackles para perda · Pressão · Cobertura · Tackles perdidos |
 | Secundária | Rating permitido · Passes completados · Jardas por alvo · Bolas na mão · Tackles perdidos |
 
+**Edge × linha defensiva × linebacker** vem do depth chart do elenco (DE × DT,
+OLB × ILB/MLB). Como "OLB" também cobre o linebacker de cobertura do 4-3, um OLB só
+entra em Edge se teve mais pressões do que alvos permitidos na temporada.
+
 O rating é `40 + média dos percentis × 0,59`, o que dá a escala 40–99. O volume
 mínimo é **por jogo do time** (ex.: 15 dropbacks por jogo para QB), multiplicado pelos
 jogos que o time já disputou; assim o rating funciona também no meio da temporada.
@@ -187,8 +205,8 @@ dela são do time, nos jogos em que o jogador atuou (marcado como `baseReduzida`
   vem da ESPN no navegador; depois, vale o placar oficial do nflverse.
 - **Formação e charting do FTN existem de 2022 em diante.** Em 2021 a formação vem só
   da participação.
-- **Leituras táticas e bastidores** da primeira versão dependiam do dataset antigo e
-  estão vazios (`insights` e `notes` na API).
+- **Leituras táticas e bastidores** da primeira versão dependiam do dataset antigo:
+  a API os devolve vazios (`insights` e `notes`) e a tela esconde os blocos.
 
 ---
 
@@ -250,9 +268,13 @@ disputada:
 
 | Medida | Resultado |
 |---|---|
-| 10 usuários, pausa de 1–2 s entre cliques, p95 | 28 ms (meta 300) |
+| 10 usuários, pausa de 1–2 s entre cliques, p95 | 27 ms (meta 300) |
 | Subida com a cópia local | ~4 s (meta 10) |
+| Primeira carga completa (download + montagem) | 103 s (meta 5 min) |
+| Disco em `dados/` | ~50 MB (meta 1 GB) |
 | Pico de memória no teste de carga | ~495 MB (meta 1 GB) |
+
+Detalhes em `tests/golden/resultado_dados_externos.txt`.
 
 Como: respostas prontas em memória (cada uma calculada uma vez, pré-aquecidas ao
 subir), tabelas em formato binário com texto como categoria, pré-carga das jogadas

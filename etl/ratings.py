@@ -210,11 +210,12 @@ def calcular(jj: pd.DataFrame, jogos: pd.DataFrame, bio: pd.DataFrame, ano: int)
     t["baseReduzida"] = t["grupo"].isin(BASE_REDUZIDA)
 
     # ---- percentis e rating, dentro do grupo e da temporada
-    t["rating"] = np.nan
+    # colunas novas de uma vez (uma a uma, o DataFrame fragmenta)
+    novas = {"rating": np.nan}
     for i in range(N_EIXOS):
-        t[f"eixo{i}_valor"] = np.nan
-        t[f"eixo{i}_pct"] = np.nan
-        t[f"eixo{i}_motivo"] = None
+        novas |= {f"eixo{i}_valor": np.nan, f"eixo{i}_pct": np.nan, f"eixo{i}_motivo": None}
+    t = pd.concat([t, pd.DataFrame(novas, index=t.index).astype(
+        {c: object for c in novas if c.endswith("_motivo")})], axis=1)
     for grupo, eixos in EIXOS.items():
         m = (t["grupo"] == grupo) & t["avaliado"]
         do_grupo = t["grupo"] == grupo
@@ -232,6 +233,7 @@ def calcular(jj: pd.DataFrame, jogos: pd.DataFrame, bio: pd.DataFrame, ano: int)
         if pcts:
             t.loc[m, "rating"] = (40 + pd.concat(pcts, axis=1).mean(axis=1) * 0.59).round(0)
 
+    t = t.copy()   # desfragmenta as colunas criadas uma a uma acima
     t["season"] = ano
     t = t.reset_index()
     t["grupo"] = t["grupo"].astype(object)

@@ -289,7 +289,8 @@ def montar_jogador_jogo(dados: Path, ano: int, jogos: pd.DataFrame, bio: pd.Data
     base = base.drop(columns=["home", "away"] + [c for c in base if c.startswith("time_")])
     base["season"] = ano   # quem só aparece nos snaps (linha ofensiva) não trazia a temporada
     # DE × DT e OLB × ILB/MLB: separa Edge, linha defensiva e linebacker nos ratings
-    base = base.assign(posicao_elenco=base["playerId"].map(dict(zip(elenco["gsis_id"], elenco["depth_chart_position"]))))
+    base = base.copy()   # desfragmenta (muitas colunas vindas dos merges) antes da coluna nova
+    base["posicao_elenco"] = base["playerId"].map(dict(zip(elenco["gsis_id"], elenco["depth_chart_position"])))
     return base.sort_values(["gameId", "playerId"]).reset_index(drop=True), sem_ponte
 
 
