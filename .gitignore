@@ -2,6 +2,10 @@
 # ~120 MB; e recriado na 1a subida (~50 s) a partir do dataset.
 cache/
 
+# Dados baixados do nflverse e tabelas montadas (etl/fontes.py, etl/montar.py).
+# ~500 MB; recriado na 1a subida a partir das fontes.
+dados/
+
 # Python
 __pycache__/
 *.pyc
