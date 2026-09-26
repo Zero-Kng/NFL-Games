@@ -355,13 +355,13 @@ button.row-card:hover { border-color: var(--line-strong); }
 
 /* ---------- Jogo: abas ---------- */
 .tabs {
-  display: flex; gap: 4px; padding: 4px; overflow-x: auto; scrollbar-width: none;
+  display: flex; gap: 2px; padding: 4px; overflow-x: auto; scrollbar-width: none;
   border-radius: 16px; background: var(--surface); border: 1px solid var(--line);
 }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
-  flex: 1 0 auto; min-height: var(--tap); padding: 0 10px; border-radius: 12px;
-  font-size: 14px; font-weight: 600; color: var(--text-2); white-space: nowrap;
+  flex: 1 0 auto; min-height: var(--tap); padding: 0 8px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; color: var(--text-2); white-space: nowrap;
   transition: background .2s, color .2s;
 }
 .tab:hover { color: var(--text); }

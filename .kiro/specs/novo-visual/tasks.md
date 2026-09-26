@@ -1,7 +1,7 @@
 # Implementation Plan
 
 **Feature:** novo-visual
-**Status:** em execução (v0.4 aprovada em 2026-09-26). Pausada em 2026-09-25; retomada sobre a `dados-externos`.
+**Status:** concluída em 2026-09-26 (v0.4 aprovada na mesma data). Pausada em 2026-09-25; retomada sobre a `dados-externos`.
 
 > **Por que pausou:** o José esclareceu a meta: uma repaginação total, com **todos os dados vindo de APIs**. Decisões tomadas na mesma data:
 > - **Dados primeiro, visual depois:** a spec `dados-externos` vem antes, e esta é retomada em cima dos dados novos.
@@ -156,13 +156,30 @@
       - `esc()`: respostas simuladas com `<img onerror>` em nome de time, manchete, jogador, destaque, estádio e descrição de jogada; tudo aparece como texto.
     - `tests/test_ui_novo.py`: +40 testes (parametrizados). Suíte: 286. Verificador de design: limpo no app inteiro.
 
-- [ ] 10. Verificação final e documentação
+- [x] 10. Verificação final e documentação
   - _Depende de: 9_
-  - [ ] 10.1 `golden.py check`, `pytest` (incluindo os testes adaptados da spec anterior), `bench.py --check` e `carga.py --usuarios 10 --check`.
-  - [ ] 10.2 Revisão visual das 6 telas ao lado do rascunho (capturas de tela no `tasks.md`) e checagem do verificador de design.
-  - [ ] 10.3 README: as telas novas, o novo mapa de rotas (links antigos continuam funcionando) e as notícias.
-  - [ ] 10.4 Se alguma meta falhar: não afrouxar, registrar e parar para decidir com o José.
+  - [x] 10.1 `golden.py check`, `pytest` (incluindo os testes adaptados da spec anterior), `bench.py --check` e `carga.py --usuarios 10 --check`.
+  - [x] 10.2 Revisão visual das 6 telas ao lado do rascunho (capturas de tela no `tasks.md`) e checagem do verificador de design.
+  - [x] 10.3 README: as telas novas, o novo mapa de rotas (links antigos continuam funcionando) e as notícias.
+  - [x] 10.4 Se alguma meta falhar: não afrouxar, registrar e parar para decidir com o José.
   - _Requisitos: NFR 1, NFR 2, todos_
+  - **Feito (2026-09-26):**
+    - 10.1: `golden.py check` 2.116/2.116 URLs idênticas; `pytest` 286 testes; `bench.py --check` com todas as metas (prancheta no 1º acesso 5 ms, busca de jogadores 11 ms no servidor); `carga.py --usuarios 10 --check` p95 28 ms (meta 300), pico de 495 MB. Home ≤ 200 ms e próxima jogada ≤ 50 ms passam em `test_ui.py`.
+    - 10.2: capturas a 430 px em `capturas/`, ao lado das 3 telas que o rascunho desenhou. Verificador de design limpo no app inteiro (`app/index.html`, `app/css/app.css`, `app/js`). Ajuste feito na revisão: a barra de abas da página Jogo cortava "Playbook" em 430 px; com a fonte das abas em 13 px e 2 px entre elas, as 5 cabem.
+
+      | Tela | Nova | Rascunho |
+      |---|---|---|
+      | Início | [inicio.png](capturas/inicio.png) | [rascunho-inicio.png](capturas/rascunho-inicio.png) |
+      | Jogo (Prancheta) | [jogo.png](capturas/jogo.png) | (não desenhada) |
+      | Jogadores | [jogadores.png](capturas/jogadores.png) | [rascunho-jogadores.png](capturas/rascunho-jogadores.png) |
+      | Notícias | [noticias.png](capturas/noticias.png) | [rascunho-noticias.png](capturas/rascunho-noticias.png) |
+      | Configurações | [config.png](capturas/config.png) | (não desenhada) |
+      | Sobre os dados | [sobre.png](capturas/sobre.png) | (não desenhada) |
+
+      Diferenças intencionais em relação ao rascunho: chips e itens com 44 px e nenhum texto abaixo de 12 px (tarefa 2); sem o rótulo acima do título das notícias (decisão da tarefa 3); tons do slide um pouco mais escuros para o contraste (tarefa 3); a barra inferior com 4 destinos (Jogo entrou).
+    - 10.3: README com as telas novas, o mapa de rotas (inclusive os links antigos `?screen=coach|commentator|scout`), as notícias (tipos, limiares e ordem), as rotas `/api/news` e `/api/summary`, a estrutura de `app/js` e os números de desempenho.
+    - 10.4: nenhuma meta falhou.
+    - **Fica para depois (fora do escopo):** na linha de temporadas, o chip que rola para baixo do rótulo "TEMPORADA" aparece cortado rente a ele; um degradê na borda dos chips resolveria (visual, não funcional).
 
 ---
 
