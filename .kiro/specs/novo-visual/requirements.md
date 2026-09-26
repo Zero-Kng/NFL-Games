@@ -1,7 +1,7 @@
 # Requirements Document
 
 **Feature:** novo-visual
-**Status:** v0.4 em revisão (retomada sobre os dados do nflverse), aguardando aprovação do José
+**Status:** aprovado (v0.4, retomada sobre os dados do nflverse)
 **Data:** 2026-09-26 (v0.2: perguntas Q1–Q5 respondidas · v0.3: notícia de placar adiada para `dados-externos` · **v0.4: retomada depois da `dados-externos`; Q6–Q9 respondidas**)
 **Autores:** José Cota (com Claude)
 
@@ -220,4 +220,4 @@ A feature não toca identidade, pagamento nem dado pessoal. Ela toca **entrada e
 - [x] Seção de fora de escopo preenchida
 - [x] Perguntas em aberto respondidas (conteúdo de Configurações confirmado)
 
-**Aprovado por:** José Cota em 2026-09-25 (v0.3). **v0.4: aguardando aprovação.**
+**Aprovado por:** José Cota em 2026-09-25 (v0.3) e em 2026-09-26 (v0.4).

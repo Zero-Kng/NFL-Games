@@ -251,6 +251,16 @@ def api_leaders(d, q, _p):
                      season=_temporada(d, q))
 
 
+@router.get(r"/api/news", params=("season", "week"))
+def api_news(d, q, _p):
+    return d.news(season=_temporada(d, q), week=_int_param(q, "week"))
+
+
+@router.get(r"/api/summary", params=("season",))
+def api_summary(d, q, _p):
+    return d.summary(season=_temporada(d, q))
+
+
 # --------------------------------------------------------------------------- #
 # arquivos estaticos
 # --------------------------------------------------------------------------- #
@@ -398,9 +408,9 @@ def tarefas_de_aquecimento(dados: NFLData):
     comentarista dos jogos ja disputados da temporada atual. As outras
     temporadas: sob demanda. A lista de jogos nao entra: ela nao e guardada.
     """
-    urls = ["/api/meta", "/api/players?limit=60"]
-    j = dados.jogos[(dados.jogos["season"] == dados.atual) & dados.jogos["home_score"].notna()]
     semana = dados.meta()["currentWeek"]
+    urls = ["/api/meta", "/api/players?limit=60", "/api/summary", f"/api/news?week={semana}", "/api/news"]
+    j = dados.jogos[(dados.jogos["season"] == dados.atual) & dados.jogos["home_score"].notna()]
     j = j.assign(_outra=(j["week"] != semana)).sort_values(["_outra", "week", "gameId"],
                                                           ascending=[True, False, True])
     for g in j["gameId"]:

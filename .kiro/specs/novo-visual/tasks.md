@@ -1,7 +1,7 @@
 # Implementation Plan
 
 **Feature:** novo-visual
-**Status:** v0.4 em revisão (2026-09-26), aguardando aprovação do José. Pausada em 2026-09-25; retomada sobre a `dados-externos`.
+**Status:** em execução (v0.4 aprovada em 2026-09-26). Pausada em 2026-09-25; retomada sobre a `dados-externos`.
 
 > **Por que pausou:** o José esclareceu a meta: uma repaginação total, com **todos os dados vindo de APIs**. Decisões tomadas na mesma data:
 > - **Dados primeiro, visual depois:** a spec `dados-externos` vem antes, e esta é retomada em cima dos dados novos.
@@ -15,7 +15,7 @@
 **Data:** 2026-09-25
 
 > Regras desta execução:
-> - **Branch:** `spec/novo-visual`, criada pelo José antes da tarefa 1. Ao final, um commit e uma PR (mensagem e descrição preparadas pelo Claude, sem linha de coautoria).
+> - **Branch:** `spec/novo-visual`, criada pelo José antes da tarefa 1. **Um commit por tarefa** (decisão do José em 2026-09-26) e, ao final, uma PR (mensagem e descrição preparadas pelo Claude, sem linha de coautoria).
 > - **O app atual continua funcionando até a tarefa 9.** A interface nova é montada em `app/novo.html` + `app/js/*.js`, ao lado do `index.html`/`app.js` atuais. Só na tarefa 9 ela vira o `index.html` e o código antigo sai. Assim, toda tarefa é verificável sem quebrar o que existe, e os testes da spec anterior seguem valendo até a troca.
 > - **Toda tarefa que mexe no servidor** termina com `golden.py check` 100% e `pytest` passando.
 > - **Toda tarefa de tela** termina com os testes dela passando e uma captura de tela comparada com o rascunho.
@@ -25,12 +25,14 @@
 
 ## Tarefas
 
-- [ ] 1. Gerar as notícias e o resumo no servidor
-  - [ ] 1.1 `NFLData.news(season, week=None)` em `data_layer.py`, conforme o design (componente 2): resultado (todo jogo, com o vencedor pelo placar oficial), virada de 10+ pontos, prorrogação, goleada de 28+, maior jogada da semana (só a 1ª), grande atuação (400+ jd de passe, 5+ TD de passe, 175+ jd correndo ou recebendo, 4+ TD, 3,5+ sacks) e defesa (6+ sacks ou 3+ interceptações de um time). "Incomum" como percentil na temporada, calculado uma vez por temporada. Texto montado só com números do dado.
-  - [ ] 1.2 `NFLData.summary(season)` → `{ratedPlayers, season}`.
-  - [ ] 1.3 Rotas `GET /api/news` (`season` e `week` opcionais) e `GET /api/summary` (`season` opcional) em `serve.py`; as da temporada atual entram no aquecimento.
-  - [ ] 1.4 Caminho infeliz: semana sem jogos disputados → `[]`; `week` ou `season` não numérico → 400; temporada inexistente → 404 (validação atual).
-  - [ ] 1.5 Testes em `tests/test_news.py`, incluindo: toda semana disputada de 2021–2025 com pelo menos 1 notícia e no máximo 40; o resultado bate com o placar oficial; o golden continua passando.
+- [x] 1. Gerar as notícias e o resumo no servidor
+  - [x] 1.1 `NFLData.news(season, week=None)` em `data_layer.py`, conforme o design (componente 2): resultado (todo jogo, com o vencedor pelo placar oficial), virada de 10+ pontos, prorrogação, goleada de 28+, maior jogada da semana (só a 1ª), grande atuação (400+ jd de passe, 5+ TD de passe, 175+ jd correndo ou recebendo, 4+ TD, 3,5+ sacks) e defesa (6+ sacks ou 3+ interceptações de um time). "Incomum" como percentil na temporada, calculado uma vez por temporada. Texto montado só com números do dado.
+  - [x] 1.2 `NFLData.summary(season)` → `{ratedPlayers, season}`.
+  - [x] 1.3 Rotas `GET /api/news` (`season` e `week` opcionais) e `GET /api/summary` (`season` opcional) em `serve.py`; as da temporada atual entram no aquecimento.
+  - [x] 1.4 Caminho infeliz: semana sem jogos disputados → `[]`; `week` ou `season` não numérico → 400; temporada inexistente → 404 (validação atual).
+  - [x] 1.5 Testes em `tests/test_news.py`, incluindo: toda semana disputada de 2021–2025 com pelo menos 1 notícia e no máximo 40; o resultado bate com o placar oficial; o golden continua passando.
+    - A geração fica em `server/noticias.py` (o `data_layer` só guarda o resultado por temporada, calculado na 1ª vez: ~145 ms). `/api/summary`, `/api/news` e `/api/news?week={semana atual}` entram no aquecimento.
+    - `tests/test_news.py`: 17 testes. Os limiares, o placar e a maior jogada são conferidos recalculando direto das tabelas; TB 31 x 29 DAL (2021) sai "TB vence DAL por 31–29". Golden 2.116/2.116; suíte com 169 testes.
   - _Requisitos: 4.3, 7.1, 7.3, 7.6, NFR 2_
 
 - [ ] 2. Montar a casca da interface nova
@@ -200,4 +202,4 @@ Todos os testes de navegador ficam em `tests/test_ui_novo.py` (Playwright + Edge
 - [x] Mapa de cobertura preenchido, incluindo segurança
 - [x] Branch `spec/novo-visual` criada antes da execução (**feito pelo José**)
 
-**Aprovado por:** José Cota em 2026-09-25 (v0.3). **v0.4: aguardando aprovação.**
+**Aprovado por:** José Cota em 2026-09-25 (v0.3) e em 2026-09-26 (v0.4).

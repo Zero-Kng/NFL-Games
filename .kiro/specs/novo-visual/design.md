@@ -2,7 +2,7 @@
 
 **Feature:** novo-visual
 **Workflow:** requirements-first
-**Status:** v0.4 em revisão (retomada sobre os dados do nflverse), aguardando aprovação do José
+**Status:** aprovado (v0.4, retomada sobre os dados do nflverse)
 **Data:** 2026-09-26 (v0.3 aprovada em 2026-09-25)
 
 > **v0.4:** a base agora é a da spec `dados-externos` (2021 em diante, placar oficial e ao vivo, matéria da ESPN, prancheta ilustrativa, ratings por grupo). Mudou: as notícias (tipos novos, limiares medidos de novo), a prancheta (sem interpolação: o antigo Requisito 10 saiu), as Configurações (2 controles), a matéria da ESPN (topo da página Jogo) e "Sobre os dados" (fontes e créditos de `/api/meta`).
@@ -304,4 +304,4 @@ A interpolação linear entre quadros saiu com o antigo Requisito 10: sem tracki
 - [x] Decisões relevantes registradas com alternativa descartada
 - [x] Decisão 3 decidida pelo time: sem notícia de placar até a spec `dados-externos` (v0.4: volta, com o placar oficial)
 
-**Aprovado por:** José Cota em 2026-09-25 (v0.3). **v0.4: aguardando aprovação.**
+**Aprovado por:** José Cota em 2026-09-25 (v0.3) e em 2026-09-26 (v0.4).
