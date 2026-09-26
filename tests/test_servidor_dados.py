@@ -7,6 +7,7 @@ e com o cache limpo), atualização diária agendada, /api/meta com as fontes e 
 """
 
 import os
+import shutil
 import subprocess
 import sys
 import threading
@@ -261,6 +262,23 @@ def test_subida_sem_internet_e_sem_copia_sai_com_codigo_1(tmp_path):
     assert r.returncode == 1, saida
     assert "primeira carga" in saida and "[erro] Sem dados para subir o app" in saida
     assert "internet" in saida
+
+
+def test_carga_interrompida_e_completada_antes_de_subir(tmp_path):
+    """Uma primeira carga interrompida (só 2021 montada) não sobe o app pela metade: ele tenta
+    completar a carga antes. Sem internet e sem os brutos, sai explicando o que falta."""
+    dados = tmp_path / "dados"
+    (dados / "temporadas").mkdir(parents=True)
+    for f in ("jogos.npz", "jogadores_bio.npz", "manifest.json", "origem_geral.json"):
+        shutil.copy(ROOT / "dados" / f, dados / f)
+    shutil.copytree(ROOT / "dados" / "temporadas" / "2021", dados / "temporadas" / "2021")
+    env = {**os.environ, "NFL_DADOS": str(dados), "PYTHONIOENCODING": "utf-8"}
+    r = subprocess.run([sys.executable, str(ROOT / "server" / "serve.py"), "--offline", "--port", "0"],
+                       env=env, capture_output=True, text=True, encoding="utf-8", timeout=60)
+    saida = r.stdout + r.stderr
+    assert r.returncode == 1, saida
+    assert "completando a primeira carga" in saida and "2022" in saida
+    assert "Traceback" not in saida and "[erro]" in saida and "internet" in saida
 
 
 def test_rodar_explica_a_primeira_carga():

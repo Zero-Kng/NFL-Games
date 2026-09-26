@@ -358,6 +358,23 @@ def atualizar(dados: Path = fontes.DADOS, anos: range | None = None, economia: b
     return res
 
 
+ARQUIVOS_TEMPORADA = ("jogadas.npz", "jogador_jogo.npz", "jogadores.npz", "origem.json")   # origem.json por último
+
+
+def temporadas_faltando(dados: Path = fontes.DADOS, anos: range | None = None) -> list[int]:
+    """
+    As temporadas (de 2021 até a atual) que ainda não foram montadas até o fim.
+    Uma primeira carga interrompida deixa algumas prontas e outras pela metade;
+    só com a lista vazia a cópia local serve para subir o app. Sem o
+    calendário (jogos.npz), nenhuma está pronta.
+    """
+    dados = Path(dados)
+    anos = anos or range(fontes.PRIMEIRA_TEMPORADA, fontes.temporada_atual() + 1)
+    if not (dados / "jogos.npz").exists():
+        return list(anos)
+    return [a for a in anos if not all((dados / "temporadas" / str(a) / f).exists() for f in ARQUIVOS_TEMPORADA)]
+
+
 def sincronizar_e_montar(dados: Path = fontes.DADOS, progresso: Callable[[str], None] = print,
                          rede: fontes.Rede | None = None) -> tuple[fontes.Sincronizacao, Montagem]:
     """
