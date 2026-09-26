@@ -158,6 +158,16 @@ class Rede:
                 f.write(bloco)
 
 
+class SemAcesso(Rede):
+    """Modo offline (`serve.py --offline`): o mesmo caminho de "sem internet", sem tocar na rede."""
+
+    def release(self, tag: str) -> list[dict]:
+        raise ConnectionError("modo offline")
+
+    def baixar(self, url: str, destino: Path) -> None:
+        raise ConnectionError("modo offline")
+
+
 # --------------------------------------------------------------------------- #
 def _cabecalho(caminho: Path) -> list[str]:
     abrir = gzip.open if caminho.name.endswith(".gz") or _eh_gzip(caminho) else open

@@ -33,6 +33,7 @@ sys.path.insert(0, str(ROOT / "server"))
 sys.path.insert(0, str(ROOT / "etl"))
 
 import fontes  # noqa: E402
+import ratings  # noqa: E402
 import tabela_npz  # noqa: E402
 
 # Suba quando mudar o que é montado: força refazer todas as temporadas.
@@ -356,13 +357,26 @@ def atualizar(dados: Path = fontes.DADOS, anos: range | None = None, economia: b
     return res
 
 
-if __name__ == "__main__":
-    import ratings  # noqa: E402
-    fontes.sincronizar(progresso=lambda m: print(m, flush=True))
+def sincronizar_e_montar(dados: Path = fontes.DADOS, progresso: Callable[[str], None] = print,
+                         rede: fontes.Rede | None = None) -> tuple[fontes.Sincronizacao, Montagem]:
+    """
+    O ciclo completo de atualização (subida do servidor e atualização diária):
+    baixa o que mudou, monta as temporadas afetadas com os ratings e, se uma
+    temporada precisar ser remontada sem os brutos (descartados), baixa de novo
+    só os dela. Levanta fontes.SemDados sem internet e sem cópia local.
+    """
+    sinc = fontes.sincronizar(dados, rede=rede, progresso=progresso)
     try:
-        r = atualizar(progresso=lambda m: print(m, flush=True), depois_da_temporada=ratings.montar)
+        mont = atualizar(dados, progresso=progresso, depois_da_temporada=ratings.montar)
     except FaltamBrutos as e:
-        fontes.sincronizar(forcar=e.anos, progresso=lambda m: print(m, flush=True))
-        r = atualizar(progresso=lambda m: print(m, flush=True), depois_da_temporada=ratings.montar)
+        extra = fontes.sincronizar(dados, rede=rede, progresso=progresso, forcar=e.anos)
+        sinc.baixados += extra.baixados
+        sinc.falhas += extra.falhas
+        mont = atualizar(dados, progresso=progresso, depois_da_temporada=ratings.montar)
+    return sinc, mont
+
+
+if __name__ == "__main__":
+    _s, r = sincronizar_e_montar(progresso=lambda m: print(m, flush=True))
     print(f"ok em {r.segundos:.0f}s: temporadas {r.temporadas}, gerais {r.globais}, "
           f"{r.liberado_bytes / 2**20:.0f} MB de brutos descartados")

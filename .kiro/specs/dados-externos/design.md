@@ -206,6 +206,15 @@ def atualizar(forcar_subida: bool) -> None
 - O `CacheDeRespostas` ganha `limpar()`.
 - `/api/meta` ganha `ultimaAtualizacao`, a lista de `fontes` com os créditos (9.1) e as temporadas e semanas disponíveis, com os nomes das rodadas de playoff.
 
+**Como ficou (tarefa 6):**
+- **Subida:** sem cópia montada, sincroniza e monta **antes** de servir, com o progresso no terminal; sem internet nesse caso, mensagem e código 1 (7.6). Com cópia local, **sobe na hora** e a busca por dados novos (7.1) roda em segundo plano 1 s depois, e a partir daí a cada 24 h (7.2). Assim a subida não depende da rede (NFR 2: ~3–4 s).
+- `montar.sincronizar_e_montar()` é o ciclo único (subida, atualização diária e `python etl/montar.py`), incluindo baixar de novo os brutos de uma temporada que precise ser remontada.
+- **`--offline`** (`fontes.SemAcesso`): o mesmo caminho de "sem internet", sem tocar na rede. Os testes e as ferramentas (`tools/`) sobem o servidor assim, porque a API do GitHub só permite 60 chamadas por hora.
+- **Troca sem resposta velha:** cada `NFLData` tem uma `versao`, que entra na chave do cache; e `limpar()` começa uma nova geração, em que o que estava sendo montado com os dados antigos não é guardado. Uma requisição que pegou os dados antigos pouco antes da troca termina com eles, mas nunca grava nem lê a resposta dos novos.
+- **`/api/games` não entra no cache:** o status (`agendado`, `sem_resultado`, `encerrado`) depende do relógio. As contagens por jogo são pré-calculadas na carga (~2 ms por semana).
+- **Memória:** as tabelas grandes ficam com o texto como categoria, e do `jogador_jogo` só as colunas usadas: ~290 MB para as 6 temporadas, ~500 MB de pico no teste de carga. Na troca diária, os dois conjuntos convivem por alguns segundos e continuam abaixo de 1 GB (NFR 5).
+- **Formato das respostas:** o mesmo de antes, com as adições `season`, `gameType`, `rodada`, `kickoffUtc`, `status`, `espnId` e `plays` no cartão de jogo; `playType`, `epa`, `hasFormation`/`semFormacao` no cartão de jogada; `baseReduzida`, `seasons`, `foto`, `minimo`/`volume` e `motivo` do eixo no perfil; `formacao`, `ilustrativo` e `generico` na prancheta. Até a tarefa 7, ficam também `hasTracking` (= `hasFormation`) e `dataset` (sem avisos), que o front atual lê.
+
 ### 7. Frontend atual: adaptações mínimas (`app/js/app.js`)
 
 **Responsabilidade:** manter as 4 telas atuais funcionando com os dados novos.

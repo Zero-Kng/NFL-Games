@@ -5,6 +5,10 @@ Os dados nao mudam enquanto o servidor esta de pe, entao cada resposta so
 precisa ser calculada uma vez. O cache garante isso mesmo sob concorrencia:
 se 10 pessoas pedem o mesmo jogo no mesmo instante, uma calcula e as outras
 esperam o resultado dela ("single-flight").
+
+Quando os dados sao trocados (atualizacao diaria), limpar() comeca uma nova
+geracao: o que estava sendo montado com os dados antigos termina para quem ja
+esperava, mas nao entra no cache, e quem chega depois monta de novo.
 """
 
 from __future__ import annotations
@@ -55,7 +59,8 @@ class CacheDeRespostas:
     def __init__(self, max_bytes: int = 128 * 2**20):
         self.max_bytes = max_bytes
         self._itens: OrderedDict[str, Resposta] = OrderedDict()
-        self._em_construcao: dict[str, _EmConstrucao] = {}
+        self._em_construcao: dict[tuple[int, str], _EmConstrucao] = {}
+        self._geracao = 0
         self._bytes = 0
         self._hits = 0
         self._misses = 0
@@ -73,10 +78,11 @@ class CacheDeRespostas:
                 self._itens.move_to_end(key)
                 self._hits += 1
                 return pronta, True
-            marca = self._em_construcao.get(key)
+            geracao = self._geracao
+            marca = self._em_construcao.get((geracao, key))
             dono = marca is None
             if dono:
-                marca = self._em_construcao[key] = _EmConstrucao()
+                marca = self._em_construcao[(geracao, key)] = _EmConstrucao()
 
         if not dono:
             marca.pronto.wait()
@@ -95,10 +101,11 @@ class CacheDeRespostas:
             raise
         finally:
             with self._lock:
-                del self._em_construcao[key]
+                self._em_construcao.pop((geracao, key), None)
                 if marca.resposta is not None:
-                    self._guardar(key, marca.resposta)
                     self._misses += 1
+                    if geracao == self._geracao:     # montada com os dados atuais
+                        self._guardar(key, marca.resposta)
             marca.pronto.set()
         return marca.resposta, False
 
@@ -109,6 +116,14 @@ class CacheDeRespostas:
         while self._bytes > self.max_bytes and len(self._itens) > 1:
             _k, velho = self._itens.popitem(last=False)
             self._bytes -= len(velho.gz)
+
+    def limpar(self) -> None:
+        """Esquece todas as respostas (os dados mudaram)."""
+        with self._lock:
+            self._geracao += 1
+            self._itens.clear()
+            self._em_construcao.clear()
+            self._bytes = 0
 
     def aquecer(self, tarefas: Iterable[tuple[str, Callable[[], object]]],
                 log: Callable[[str], None] = print, pausa_s: float = 0.002) -> threading.Thread:

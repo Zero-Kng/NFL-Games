@@ -31,16 +31,21 @@ from servidor_local import ROOT, servidor  # noqa: E402
 
 ARQUIVO = ROOT / "tests" / "golden" / "hashes.json"
 
-# Metricas do endpoint /api/leaders (espelha RADAR_AXES de data_layer.py, fixado
-# aqui de proposito: o golden nao pode depender do codigo que ele verifica).
+# Metricas do endpoint /api/leaders por grupo (espelha ratings.EIXOS, fixado aqui
+# de proposito: o golden nao pode depender do codigo que ele verifica).
 LEADERS = {
-    "Pass": ["completionRate", "yardsPerDropback", "timeToThrow", "intRate", "qbSackRate"],
-    "Pass Rush": ["pressureRate", "sackRate", "qbReachRate", "timeToQb", "maxSpeed"],
-    "Pass Block": ["pressureAllowedRate", "sackAllowedRate", "beatenRate", "avgDepth", "snaps"],
-    "Pass Route": ["maxSpeed", "avgDepth", "avgMaxSpeed", "snaps", "versatility"],
-    "Coverage": ["maxSpeed", "avgDepth", "blitzRate", "snaps", "versatility"],
+    "QB": ["epa_dropback", "cpoe", "jd_tentativa", "int_tentativa", "sack_dropback", "epa_corrida_jogo"],
+    "RB": ["epa_corrida", "jd_apos_contato", "quebrados_toque", "jd_rec_jogo", "fumble_toque"],
+    "WRTE": ["jd_alvo", "epa_alvo", "rec_alvo", "alvos_jogo", "drop_alvo"],
+    "OL": ["snaps_of", "faltas_100", "pressao_time", "antes_contato_time"],
+    "EDGE": ["pressao_snap", "sack_snap", "hit_snap", "tfl_snap", "perdidos_pct"],
+    "DL": ["pressao_snap", "sack_snap", "hit_snap", "tfl_snap", "perdidos_pct"],
+    "LB": ["tackles_snap", "tfl_snap", "pressao_snap", "rating_permitido", "perdidos_pct"],
+    "DB": ["rating_permitido", "comp_permitido", "jd_alvo_permitido", "bolas_alvo", "perdidos_pct"],
 }
-JOGOS_COMPLETOS = 3      # jogos com TODAS as jogadas verificadas (tracking + formacao)
+# So temporadas encerradas: a atual muda todo dia (placar, status, semana atual).
+TEMPORADAS = (2021, 2025)                 # com jogos e jogadas verificados um a um
+JOGOS_COMPLETOS = 2      # por temporada, jogos com TODAS as jogadas verificadas (esquema + formacao)
 JOGADAS_POR_JOGO = 3     # nos demais jogos
 
 
@@ -62,57 +67,63 @@ def impressao(status: int, corpo: bytes) -> dict:
 
 def montar_urls(base: str) -> list[str]:
     j = lambda p: json.loads(buscar(base + p)[1])  # noqa: E731
-    urls = ["/api/meta", "/api/games"]
     meta = j("/api/meta")
-    urls += [f"/api/games?week={w['week']}" for w in meta["weeks"]]
-    urls += [f"/api/games?date={quote(d, safe='')}" for d in meta["weeks"][0]["dates"]]
+    encerradas = [t for t in meta["seasons"] if t["season"] != meta["season"]]
+    urls = []
+    for t in encerradas:
+        a = t["season"]
+        urls += [f"/api/games?season={a}&week={w['week']}" for w in t["weeks"]]
+        urls += [f"/api/games?season={a}&date={quote(d, safe='')}" for d in t["weeks"][0]["dates"]]
+        urls += [f"/api/players?season={a}&limit=300", f"/api/players?season={a}&rated=0&limit=300"]
+        for role, metricas in LEADERS.items():
+            urls += [f"/api/leaders?season={a}&metric={m}&role={role}&limit=10" for m in metricas]
 
-    jogos = [g["gameId"] for g in j("/api/games")]
-    completos = {jogos[int(i * (len(jogos) - 1) / (JOGOS_COMPLETOS - 1))] for i in range(JOGOS_COMPLETOS)}
-    for g in jogos:
-        urls += [f"/api/games/{g}", f"/api/games/{g}/plays", f"/api/games/{g}/broadcast"]
-        jogadas = j(f"/api/games/{g}/plays")
-        com = [p["playId"] for p in jogadas if p["hasTracking"]]
-        sem = [p["playId"] for p in jogadas if not p["hasTracking"]]
-        escolhidas = com if g in completos else com[:JOGADAS_POR_JOGO]
-        for p in escolhidas:
-            urls += [f"/api/games/{g}/plays/{p}/tracking", f"/api/games/{g}/plays/{p}/formation"]
-        for p in escolhidas[:JOGADAS_POR_JOGO] + sem[:1]:
-            urls.append(f"/api/games/{g}/plays/{p}")
-        if sem:  # caminho de erro: jogada sem tracking
-            urls.append(f"/api/games/{g}/plays/{sem[0]}/tracking")
-        if g in completos:
-            time_ataque = jogadas[0]["offense"]
-            urls += [f"/api/games/{g}/plays?quarter=2", f"/api/games/{g}/plays?team={time_ataque}"]
-
-    # Olheiro
-    urls += [
-        "/api/players", "/api/players?limit=300", "/api/players?q=a&limit=300",
-        "/api/players?rated=0&limit=300", "/api/players?q=smith", "/api/players?team=KC",
-        "/api/players?position=QB&limit=60", "/api/players?position=T,G,C&limit=60",
-        "/api/players?role=Pass+Rush&limit=60", "/api/players?role=Coverage&position=CB&limit=60",
-    ]
-    ids: list[int] = []
-    for pos in ("QB", "WR", "T,G,C", "DE,DT,NT", "CB", "FS,SS,DB", "OLB,ILB,MLB,LB", "TE", "RB,FB"):
-        ids += [p["nflId"] for p in j(f"/api/players?position={pos}&limit=8")]
-    urls += [f"/api/players/{i}" for i in ids]
-    urls += [f"/api/compare?a={a}&b={b}" for a, b in zip(ids[0::2], ids[1::2])]
-    for role, metricas in LEADERS.items():
-        urls += [f"/api/leaders?metric={m}&role={quote(role)}&limit=10" for m in metricas]
-    urls += ["/api/leaders?metric=maxSpeed&limit=25"]
+    ids: dict[int, list[str]] = {}
+    for a in TEMPORADAS:
+        t = next(x for x in encerradas if x["season"] == a)
+        semanas = [t["weeks"][0]["week"], t["weeks"][-1]["week"]]          # semana 1 e o Super Bowl
+        jogos = [g["gameId"] for w in semanas for g in j(f"/api/games?season={a}&week={w}")]
+        completos = set(jogos[:JOGOS_COMPLETOS])
+        for g in jogos:
+            urls += [f"/api/games/{g}", f"/api/games/{g}/plays", f"/api/games/{g}/broadcast"]
+            jogadas = j(f"/api/games/{g}/plays")
+            com = [p["playId"] for p in jogadas if p["hasFormation"]]
+            sem = [p["playId"] for p in jogadas if not p["hasFormation"]]
+            escolhidas = com if g in completos else com[:JOGADAS_POR_JOGO]
+            for p in escolhidas:
+                urls += [f"/api/games/{g}/plays/{p}/tracking", f"/api/games/{g}/plays/{p}/formation"]
+            for p in escolhidas[:JOGADAS_POR_JOGO] + sem[:1]:
+                urls.append(f"/api/games/{g}/plays/{p}")
+            if sem:  # caminho de erro: jogada sem formacao (chutes)
+                urls.append(f"/api/games/{g}/plays/{sem[0]}/tracking")
+            if g in completos:
+                urls += [f"/api/games/{g}/plays?quarter=2", f"/api/games/{g}/plays?team={jogadas[0]['offense']}"]
+        # Olheiro
+        urls += [f"/api/players?season={a}", f"/api/players?season={a}&q=a&limit=300",
+                 f"/api/players?season={a}&q=smith", f"/api/players?season={a}&team=KC",
+                 f"/api/players?season={a}&role=EDGE&limit=60", f"/api/players?season={a}&role=DB&position=CB&limit=60"]
+        ids[a] = []
+        for pos in ("QB", "WR", "T,G,C", "DE,DT,NT", "CB", "FS,SS,DB", "OLB,ILB,MLB,LB", "TE", "RB,FB"):
+            url = f"/api/players?season={a}&position={pos}&limit=8"
+            urls.append(url)
+            ids[a] += [p["nflId"] for p in j(url)]
+        urls += [f"/api/players/{i}?season={a}" for i in ids[a]]
+        urls += [f"/api/compare?season={a}&a={x}&b={y}" for x, y in zip(ids[a][0::2], ids[a][1::2])]
 
     # Caminhos de erro (o contrato inclui as mensagens)
+    g0 = j(f"/api/games?season={TEMPORADAS[0]}&week=1")[0]["gameId"]
     urls += [
-        "/api/games/1", "/api/games/1/broadcast", f"/api/games/{jogos[0]}/plays/1/tracking",
-        "/api/players/1", "/api/compare?a=1", "/api/leaders", "/api/games?week=abc", "/api/nada",
+        "/api/games/1", "/api/games/1/broadcast", f"/api/games/{g0}/plays/1/tracking",
+        "/api/players/1", "/api/players/00-0000000", "/api/compare?a=1", "/api/leaders",
+        "/api/games?week=abc", "/api/games?season=2019", "/api/players?season=abc", "/api/nada",
     ]
     return urls
 
 
 def capture(base: str) -> int:
     if ARQUIVO.exists():
-        print(f"[erro] {ARQUIVO} ja existe. A foto e da versao ORIGINAL e nao deve ser refeita.\n"
-              f"       Se tiver certeza, apague o arquivo manualmente.")
+        print(f"[erro] {ARQUIVO} ja existe. A foto e a base de comparacao e so deve ser refeita\n"
+              f"       quando o contrato da API muda de proposito. Se for o caso, apague o arquivo.")
         return 1
     t0 = time.perf_counter()
     urls = montar_urls(base)

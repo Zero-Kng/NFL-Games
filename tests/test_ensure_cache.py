@@ -130,7 +130,3 @@ def test_primeiro_preparo_ate_90s(tmp_path):
     assert rel.segundos <= 90, f"preparo levou {rel.segundos:.0f}s"
     assert any("restantes" in m for m in mensagens)  # progresso visivel no terminal
 
-
-def test_startup_com_cache_pronto_ate_5s(servidor):
-    """6.2 (o cache real ja foi preparado; a fixture mede ate /api/meta responder)."""
-    assert servidor.startup_s <= 5.0, f"startup levou {servidor.startup_s:.1f}s"

@@ -65,11 +65,16 @@
   - A resposta traz também `formacao: {nome, pessoalAtaque, pessoalDefesa, box, rushers}` para o painel da prancheta (4.2).
   - _Requisitos: 4.1–4.6_
 
-- [ ] 6. Ligar o servidor aos dados novos
+- [x] 6. Ligar o servidor aos dados novos
   - _Depende de: 3, 4, 5_
-  - [ ] 6.1 `server/data_layer.py` reescrito sobre as tabelas das 6 temporadas, mantendo o formato das respostas de todas as rotas atuais; `season` nas listagens (padrão: a atual); id de jogador gsis nas rotas; `/tracking` e `/formation` pelo `esquema`; `insights`/`notes` vazios; campos sem fonte fora das respostas.
-  - [ ] 6.2 `server/serve.py`: sincroniza e monta na subida; thread de atualização diária; troca atômica de `DATA`; `CACHE.limpar()` + reaquecimento da semana atual; `/api/meta` com `ultimaAtualizacao`, `fontes`/créditos e temporadas/semanas com os nomes das rodadas; primeira subida sem internet e sem cópia sai com mensagem e código 1.
-  - [ ] 6.3 Testes: cada rota responde nas 6 temporadas; a troca de dados durante requisições não gera erro; o cache é limpo depois da troca; a subida sem dados sai com código 1; `RODAR.bat` mostra o progresso da primeira carga.
+  - [x] 6.1 `server/data_layer.py` reescrito sobre as tabelas das 6 temporadas, mantendo o formato das respostas de todas as rotas atuais; `season` nas listagens (padrão: a atual); id de jogador gsis nas rotas; `/tracking` e `/formation` pelo `esquema`; `insights`/`notes` vazios; campos sem fonte fora das respostas.
+  - [x] 6.2 `server/serve.py`: sincroniza e monta na subida; thread de atualização diária; troca atômica de `DATA`; `CACHE.limpar()` + reaquecimento da semana atual; `/api/meta` com `ultimaAtualizacao`, `fontes`/créditos e temporadas/semanas com os nomes das rodadas; primeira subida sem internet e sem cópia sai com mensagem e código 1.
+  - [x] 6.3 Testes: cada rota responde nas 6 temporadas; a troca de dados durante requisições não gera erro; o cache é limpo depois da troca; a subida sem dados sai com código 1; `RODAR.bat` mostra o progresso da primeira carga.
+    - `tests/test_servidor_dados.py` (24 testes): além dos acima, status dos jogos pelo relógio, placar da última jogada = oficial, jogada sem formação marcada, comparação só no mesmo grupo e temporada, radar e base reduzida, jogo a jogo, `/api/meta` com fontes/créditos/última atualização/rodadas, subida ≤ 10 s, atualização diária com relógio controlado e atualização sem rede seguindo com os dados. `test_response_cache.py` ganhou 2 testes do `limpar()`.
+    - **Desempenho** (semana mais recente disputada, `tools/bench.py` e `tools/carga.py`, agora sobre ela): todas as metas por rota OK; 10 usuários com p95 de 28 ms; pico de memória de 495 MB; subida em ~4 s.
+    - **Golden recapturado** (a API mudou de propósito): 2.116 URLs das temporadas **encerradas** 2021–2025 e dos caminhos de erro. A temporada atual fica de fora, porque muda todo dia. Duas subidas diferentes deram as 2.116 idênticas.
+    - Testes antigos: `test_tracking.py` apagado (tracking do dataset); `test_infra` e `test_ui` passam a usar a temporada atual (o `?season=` no link entra na 7.1); a subida ≤ 5 s do `test_ensure_cache` virou a ≤ 10 s do NFR 2.
+    - Detalhes em "Como ficou (tarefa 6)" no design.
   - _Requisitos: 1.3, 2.1, 3.1–3.4, 4.1, 5.3, 5.6, 7.1–7.4, 7.6, 8.3, 9.1, NFR 2, NFR 5_
 
 - [ ] 7. Adaptar as telas atuais

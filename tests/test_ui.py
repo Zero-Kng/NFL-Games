@@ -13,7 +13,14 @@ import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
 
-JOGO, SEMANA = 2021090900, 1
+SEMANA = 1
+
+
+def jogo(base):
+    """O 1o jogo da semana 1 da temporada padrao: o que a tela abre com ?week=1.
+    (O seletor de temporada, e o ?season= no link, entram na tarefa 7 da spec dados-externos.)"""
+    with urllib.request.urlopen(f"{base}/api/games?week={SEMANA}") as r:
+        return json.load(r)[0]["gameId"]
 
 # Injetado antes de qualquer script da pagina.
 EMBRULHO_FETCH = """
@@ -73,12 +80,12 @@ def esperar(pg, cond: str, limite_ms: int = 10000) -> float:
 
 
 def jogadas_com_tracking(base):
-    with urllib.request.urlopen(f"{base}/api/games/{JOGO}/plays") as r:
+    with urllib.request.urlopen(f"{base}/api/games/{jogo(base)}/plays") as r:
         return [p["playId"] for p in json.load(r) if p["hasTracking"]]
 
 
 def abrir_prancheta(pg, base):
-    pg.goto(f"{base}/?week={SEMANA}&game={JOGO}&screen=coach")
+    pg.goto(f"{base}/?week={SEMANA}&game={jogo(base)}&screen=coach")
     esperar(pg, "document.querySelectorAll('#field .player-dot').length > 10")
 
 
