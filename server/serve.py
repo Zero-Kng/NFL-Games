@@ -487,10 +487,6 @@ def ciclo_de_atualizacao(parar: threading.Event, intervalo_s: float, primeira_es
     return t
 
 
-def _tem_copia_montada() -> bool:
-    return (DADOS_DIR / "jogos.npz").exists() and any((DADOS_DIR / "temporadas").glob("*/jogadores.npz"))
-
-
 def parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="127.0.0.1")
@@ -511,15 +507,27 @@ def main() -> int:
     rede = fontes.SemAcesso() if args.offline else None
 
     ja_atualizou = False
-    if not _tem_copia_montada():
-        # Primeira subida: baixa e monta tudo antes de servir, mostrando o progresso.
-        print("primeira carga: baixando e montando os dados do nflverse (2021 em diante)...", flush=True)
+    faltam = montar.temporadas_faltando(DADOS_DIR)
+    if faltam:
+        # Primeira subida (ou uma primeira carga interrompida, com parte das temporadas):
+        # baixa e monta o que falta antes de servir, mostrando o progresso. Subir com a
+        # copia pela metade mostraria so as temporadas que deu tempo de montar.
+        if (DADOS_DIR / "jogos.npz").exists():
+            print(f"completando a primeira carga (faltam as temporadas {', '.join(map(str, faltam))})...",
+                  flush=True)
+        else:
+            print("primeira carga: baixando e montando os dados do nflverse (2021 em diante)...", flush=True)
         try:
             montar.sincronizar_e_montar(DADOS_DIR, progresso=_log, rede=rede)
         except fontes.SemDados as e:
             print(f"\n[erro] Sem dados para subir o app: {e}\n"
                   "       Conecte-se a internet e rode de novo: a primeira carga baixa os dados "
                   "do nflverse (~330 MB, alguns minutos).", flush=True)
+            return 1
+        except montar.FaltamBrutos as e:
+            print(f"\n[erro] A primeira carga ficou incompleta: faltam as temporadas "
+                  f"{', '.join(map(str, sorted(e.anos)))}, e sem internet nao ha como baixa-las.\n"
+                  "       Conecte-se a internet e rode de novo: a carga continua de onde parou.", flush=True)
             return 1
         ja_atualizou = True
 

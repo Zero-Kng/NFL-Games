@@ -135,3 +135,31 @@ def test_jogador_jogo_traz_posicao_do_depth_chart(jogador_jogo):
 @pytest.mark.parametrize("ano", list(ANOS))
 def test_jogador_jogo_sempre_com_id(jogador_jogo, ano):
     assert jogador_jogo[ano]["playerId"].notna().all()
+
+
+# ------------------------------------------------------ cópia completa (carga interrompida)
+def _temporada(pasta, completa=True, origem=True):
+    pasta.mkdir(parents=True)
+    for f in ("jogadas.npz", "jogador_jogo.npz") + (("jogadores.npz",) if completa else ()):
+        (pasta / f).write_bytes(b"x")
+    if origem:
+        (pasta / "origem.json").write_text("{}")
+
+
+def test_temporadas_faltando_numa_carga_interrompida(tmp_path, monkeypatch):
+    """Só está pronta a cópia com todas as temporadas de 2021 até a atual montadas até o fim
+    (os 3 .npz e o origem.json, gravado por último)."""
+    import fontes
+    import montar
+    monkeypatch.setattr(fontes, "temporada_atual", lambda hoje=None: 2023)
+    (tmp_path / "jogos.npz").write_bytes(b"x")
+    _temporada(tmp_path / "temporadas" / "2021")
+    _temporada(tmp_path / "temporadas" / "2022", completa=False)            # parou no meio
+    assert montar.temporadas_faltando(tmp_path) == [2022, 2023]
+    _temporada(tmp_path / "temporadas" / "2023", origem=False)              # sem o marcador final
+    (tmp_path / "temporadas" / "2022" / "jogadores.npz").write_bytes(b"x")
+    assert montar.temporadas_faltando(tmp_path) == [2023]
+    (tmp_path / "temporadas" / "2023" / "origem.json").write_text("{}")
+    assert montar.temporadas_faltando(tmp_path) == []
+    (tmp_path / "jogos.npz").unlink()                                       # sem o calendário, nada está pronto
+    assert montar.temporadas_faltando(tmp_path) == [2021, 2022, 2023]
