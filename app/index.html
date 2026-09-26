@@ -16,6 +16,7 @@
 <link rel="modulepreload" href="js/api.js" />
 <link rel="modulepreload" href="js/ui.js" />
 <link rel="modulepreload" href="js/config.js" />
+<link rel="modulepreload" href="js/carregamento.js" />
 <link rel="modulepreload" href="js/telas/inicio.js" />
 <link rel="modulepreload" href="js/telas/jogo.js" />
 <link rel="modulepreload" href="js/prancheta.js" />
@@ -125,6 +126,16 @@
       </button>
     </nav>
   </aside>
+</div>
+
+<!-- ============ TELA DE CARREGAMENTO (enquanto o servidor prepara os dados) ============ -->
+<div class="carregando" id="carregando" hidden>
+  <div class="carregando-caixa" role="status" aria-live="polite">
+    <img class="carregando-logo" src="img/logo.png" alt="" width="147" height="96" />
+    <h2 class="carregando-titulo" id="carregandoTitulo">Preparando os dados</h2>
+    <p class="carregando-fase" id="carregandoFase"></p>
+    <p class="carregando-nota" id="carregandoNota" hidden></p>
+  </div>
 </div>
 
 <script type="module" src="js/main.js"></script>

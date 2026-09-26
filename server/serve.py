@@ -71,6 +71,19 @@ _vagas = threading.BoundedSemaphore(MAX_PENDENTES)
 # So para testes: atraso artificial em cada requisicao /api, para segurar uma
 # vaga e provar o 503 de forma deterministica. Nunca definido em uso normal.
 _ATRASO_TESTE_S = float(os.environ.get("NFL_ATRASO_API_MS", "0")) / 1000
+# So para testes: atraso artificial antes de carregar os dados, para ver o
+# servidor respondendo durante a carga (/api/estado e os 503).
+_ATRASO_CARGA_S = float(os.environ.get("NFL_ATRASO_CARGA_S", "0"))
+# Com erro na subida, o servidor ainda responde por alguns segundos antes de
+# sair, para a tela de carregamento conseguir mostrar a mensagem.
+_ESPERA_ERRO_S = float(os.environ.get("NFL_ESPERA_ERRO_S", "3"))
+
+# A carga dos dados, para a tela de carregamento (/api/estado). O servidor abre a
+# porta antes de carregar: a interface ja sai, e a API responde 503 ate os dados
+# ficarem prontos. fase: "preparando" (baixando/montando na primeira carga),
+# "carregando" (lendo a copia local), "pronto" ou "erro". mensagem: a ultima
+# linha de progresso, a mesma do terminal.
+ESTADO = {"pronto": False, "fase": "carregando", "mensagem": "iniciando o servidor...", "primeiraCarga": False}
 
 
 class Server(ThreadingHTTPServer):
@@ -317,6 +330,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "erro interno no servidor"}, status=500)
 
     def _handle_api(self, path: str, query: dict):
+        if path == "/api/estado":
+            self._send_json(dict(ESTADO))
+            return
+        if DATA is None:
+            raise ApiError(503, "carregando os dados", {"Retry-After": "1"})
         fn, params, conhecidos, cacheavel = router.match(path)
         if fn is None:
             raise ApiError(404, f"rota desconhecida: {path}")
@@ -429,6 +447,13 @@ def tarefas_de_aquecimento(dados: NFLData):
 
 def _log(m: str) -> None:
     print(m, flush=True)
+    if not ESTADO["pronto"] and m.strip():
+        ESTADO["mensagem"] = m.strip()
+
+
+def _fase(fase: str, mensagem: str) -> None:
+    ESTADO.update(fase=fase)
+    _log(mensagem)
 
 
 def trocar_dados(novo: NFLData, log=_log) -> None:
@@ -501,8 +526,42 @@ def parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = parser().parse_args()
 
-    global DATA, _vagas
+    global _vagas
     _vagas = threading.BoundedSemaphore(args.max_pendentes)
+    if not (APP_DIR / "index.html").is_file():
+        print(f"[aviso] {APP_DIR / 'index.html'} nao existe; a API funciona, a UI nao.")
+
+    # A porta abre antes da carga: o navegador ja mostra a tela de carregamento
+    # (a interface acompanha /api/estado) enquanto os dados sao preparados.
+    httpd = Server((args.host, args.port), Handler)
+    threading.Thread(target=httpd.serve_forever, name="http", daemon=True).start()
+    url = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"
+    print(f"servindo em {url} (a pagina mostra o progresso da carga)")
+    if args.host == "0.0.0.0":
+        print("[aviso] escutando em todas as interfaces, sem autenticacao. Use so em rede confiavel.")
+    print("ctrl+c para parar\n", flush=True)
+
+    parar = threading.Event()
+    try:
+        codigo = _carregar_e_servir(args, parar)
+    except KeyboardInterrupt:
+        print("\nencerrando...")
+        codigo = 0
+    parar.set()
+    httpd.shutdown()
+    return codigo
+
+
+def _falhou(mensagem: str) -> int:
+    """Mostra o erro no terminal e na tela de carregamento, e sai com 1."""
+    print(f"\n[erro] {mensagem}", flush=True)
+    ESTADO.update(fase="erro", mensagem=mensagem.split("\n")[0].strip())
+    time.sleep(_ESPERA_ERRO_S)
+    return 1
+
+
+def _carregar_e_servir(args, parar: threading.Event) -> int:
+    global DATA
     intervalo = float(os.environ.get("NFL_INTERVALO_ATUALIZACAO_S") or INTERVALO_ATUALIZACAO_S)
     rede = fontes.SemAcesso() if args.offline else None
 
@@ -510,59 +569,46 @@ def main() -> int:
     faltam = montar.temporadas_faltando(DADOS_DIR)
     if faltam:
         # Primeira subida (ou uma primeira carga interrompida, com parte das temporadas):
-        # baixa e monta o que falta antes de servir, mostrando o progresso. Subir com a
-        # copia pela metade mostraria so as temporadas que deu tempo de montar.
+        # baixa e monta o que falta antes de liberar a API, mostrando o progresso. Liberar
+        # com a copia pela metade mostraria so as temporadas que deu tempo de montar.
+        ESTADO["primeiraCarga"] = True
         if (DADOS_DIR / "jogos.npz").exists():
-            print(f"completando a primeira carga (faltam as temporadas {', '.join(map(str, faltam))})...",
-                  flush=True)
+            _fase("preparando", f"completando a primeira carga (faltam as temporadas {', '.join(map(str, faltam))})...")
         else:
-            print("primeira carga: baixando e montando os dados do nflverse (2021 em diante)...", flush=True)
+            _fase("preparando", "primeira carga: baixando e montando os dados do nflverse (2021 em diante)...")
         try:
             montar.sincronizar_e_montar(DADOS_DIR, progresso=_log, rede=rede)
         except fontes.SemDados as e:
-            print(f"\n[erro] Sem dados para subir o app: {e}\n"
-                  "       Conecte-se a internet e rode de novo: a primeira carga baixa os dados "
-                  "do nflverse (~330 MB, alguns minutos).", flush=True)
-            return 1
+            return _falhou(f"Sem dados para subir o app: {e}\n"
+                           "       Conecte-se a internet e rode de novo: a primeira carga baixa os dados "
+                           "do nflverse (~330 MB, alguns minutos).")
         except montar.FaltamBrutos as e:
-            print(f"\n[erro] A primeira carga ficou incompleta: faltam as temporadas "
-                  f"{', '.join(map(str, sorted(e.anos)))}, e sem internet nao ha como baixa-las.\n"
-                  "       Conecte-se a internet e rode de novo: a carga continua de onde parou.", flush=True)
-            return 1
+            return _falhou(f"A primeira carga ficou incompleta: faltam as temporadas "
+                           f"{', '.join(map(str, sorted(e.anos)))}, e sem internet nao ha como baixa-las.\n"
+                           "       Conecte-se a internet e rode de novo: a carga continua de onde parou.")
         ja_atualizou = True
 
-    print("carregando os dados...", flush=True)
+    _fase("carregando", "carregando os dados...")
+    if _ATRASO_CARGA_S:
+        time.sleep(_ATRASO_CARGA_S)
     t0 = time.perf_counter()
     try:
-        DATA = NFLData(DADOS_DIR)
+        novo = NFLData(DADOS_DIR)
     except (FileNotFoundError, OSError, ValueError, KeyError) as e:
-        print(f"[erro] dados locais ilegiveis ({e!r}). Apague a pasta {DADOS_DIR} e rode de novo.", flush=True)
-        return 1
-    c = DATA.meta()["counts"]
-    print(f"  pronto em {time.perf_counter() - t0:.1f}s: temporadas {min(DATA.temporadas)}-{DATA.atual}, "
-          f"{c['played']} jogos disputados e {c['plays']} jogadas em {DATA.atual}", flush=True)
+        return _falhou(f"dados locais ilegiveis ({e!r}). Apague a pasta {DADOS_DIR} e rode de novo.")
+    c = novo.meta()["counts"]
+    print(f"  pronto em {time.perf_counter() - t0:.1f}s: temporadas {min(novo.temporadas)}-{novo.atual}, "
+          f"{c['played']} jogos disputados e {c['plays']} jogadas em {novo.atual}", flush=True)
+    DATA = novo                                           # libera a API
+    ESTADO.update(pronto=True, fase="pronto", mensagem="pronto")
 
-    if not (APP_DIR / "index.html").is_file():
-        print(f"[aviso] {APP_DIR / 'index.html'} nao existe; a API funciona, a UI nao.")
-
-    httpd = Server((args.host, args.port), Handler)
-    url = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"
-    print(f"\nservindo em {url}")
-    if args.host == "0.0.0.0":
-        print("[aviso] escutando em todas as interfaces, sem autenticacao. Use so em rede confiavel.")
-    print("ctrl+c para parar\n", flush=True)
-    # O socket ja esta escutando: o app atende enquanto o cache aquece.
+    # O app ja atende enquanto o cache aquece.
     CACHE.aquecer(tarefas_de_aquecimento(DATA), log=_log)
     # Com copia local, a busca por dados novos (7.1) roda em 2o plano logo apos a subida.
-    parar = threading.Event()
     ciclo_de_atualizacao(parar, intervalo, primeira_espera_s=intervalo if ja_atualizou else 1.0,
                          offline=args.offline)
-    try:
-        httpd.serve_forever()
-    except KeyboardInterrupt:
-        print("\nencerrando...")
-        parar.set()
-        httpd.shutdown()
+    while not parar.wait(0.5):
+        pass
     return 0
 
 

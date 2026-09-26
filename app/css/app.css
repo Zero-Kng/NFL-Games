@@ -601,6 +601,24 @@ button.row-card:hover { border-color: var(--line-strong); }
 .fonte p { font-size: 14px; color: var(--text-2); }
 .fonte p.muted { margin-top: 4px; font-size: 13px; color: var(--text-3); }
 
+/* ---------- Tela de carregamento (enquanto o servidor prepara os dados) ---------- */
+.carregando {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px;
+  background:
+    radial-gradient(120% 50% at 0% 0%, rgba(29, 79, 163, .35), transparent 60%),
+    radial-gradient(80% 40% at 100% 10%, rgba(229, 32, 46, .18), transparent 60%),
+    var(--bg);
+}
+.carregando-caixa { width: min(360px, 100%); display: flex; flex-direction: column; align-items: center; text-align: center; }
+.carregando-logo { width: auto; height: 96px; margin-bottom: 20px; animation: flutuar 2.4s var(--ease) infinite; }
+@keyframes flutuar { 50% { transform: translateY(-8px); } }
+.carregando-titulo { font: 700 26px/1.1 var(--font-display); text-transform: uppercase; letter-spacing: .4px; }
+.carregando-fase { min-height: 1.45em; margin-top: 8px; font-size: 14px; color: var(--text-2); overflow-wrap: anywhere; }
+.carregando-nota { margin-top: 16px; font-size: 13px; line-height: 1.45; color: var(--text-3); }
+.carregando.erro .carregando-logo { animation: none; opacity: .5; }
+.carregando.erro .carregando-fase { color: var(--red-soft); }
+.carregando.erro .carregando-nota { color: var(--text-2); }
+
 /* ---------- Barra inferior ---------- */
 .bottom-nav {
   position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 25;
