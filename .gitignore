@@ -19,3 +19,7 @@ __pycache__/
 
 # Temporarios de escrita atomica (so existem se um processo for interrompido)
 *.tmp
+
+# Executavel gerado pelo tools/empacotar.py (PyInstaller); publicado nas Releases, nao no Git.
+dist/
+build/

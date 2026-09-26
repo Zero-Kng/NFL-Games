@@ -263,8 +263,9 @@ def test_subida_sem_internet_e_sem_copia_sai_com_codigo_1(tmp_path):
     assert "internet" in saida
 
 
-def test_rodar_bat_explica_a_primeira_carga():
-    """O RODAR.bat avisa que a primeira carga baixa os dados (o progresso sai do servidor, testado acima)."""
-    bat = (ROOT / "RODAR.bat").read_text(encoding="utf-8", errors="replace")
-    assert "nflverse" in bat and "primeira" in bat.lower()
-    assert "Big Data Bowl" not in bat and "tracking" not in bat
+def test_rodar_explica_a_primeira_carga():
+    """O rodar.py (e o executável, que é ele empacotado) avisa que a primeira carga baixa os dados
+    (o progresso sai do servidor, testado acima). Substituiu o RODAR.bat."""
+    rodar = (ROOT / "rodar.py").read_text(encoding="utf-8")
+    assert "nflverse" in rodar and "primeira" in rodar.lower()
+    assert "Big Data Bowl" not in rodar and "tracking" not in rodar

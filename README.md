@@ -12,34 +12,61 @@ próprio servidor.
 
 ## Como executar
 
-### Opção 1 — duplo clique (Windows)
+### Opção 1 — executável (sem instalar Python)
 
-```
-RODAR.bat
-```
+Baixe o arquivo do seu sistema na página
+[Releases](https://github.com/Zero-Kng/NFL-Games/releases) do repositório e coloque-o
+numa pasta só dele (os dados ficam numa pasta `dados/` ao lado do executável):
 
-Na **primeira execução** o servidor baixa e monta os dados do nflverse: **~330 MB**,
-alguns minutos, com o progresso no terminal. Precisa de internet. O navegador abre
-sozinho quando o app estiver no ar. Nas próximas, sobe em ~4 s com a cópia local.
+| Sistema | Arquivo | Como abrir |
+|---|---|---|
+| Windows | `NFL-Games.exe` | duplo clique. Se o Windows avisar que o app não é reconhecido (ele não tem assinatura digital), clique em **Mais informações → Executar assim mesmo**. |
+| Linux | `nfl-games` | `chmod +x nfl-games` (uma vez) e `./nfl-games` |
 
-### Opção 2 — linha de comando
+### Opção 2 — a partir do código (Windows, Linux e macOS)
 
-```powershell
+```bash
 # 1. dependências (uma vez)
 python -m pip install pandas numpy
 
-# 2. sobe o app (na 1a vez ele mesmo baixa e monta os dados)
-python server/serve.py
+# 2. sobe o app e abre o navegador (na 1a vez ele mesmo baixa e monta os dados)
+python rodar.py
 ```
 
-Depois abra **<http://127.0.0.1:8000>**.
+No Linux e no macOS, `./rodar.sh` faz o mesmo (usa o `python3`).
 
-| Comando | Para quê |
+### O que acontece ao abrir
+
+Na **primeira execução** o servidor baixa e monta os dados do nflverse: **~330 MB**,
+alguns minutos, com o progresso no terminal. Precisa de internet. O navegador abre
+sozinho quando o app estiver no ar, em **<http://127.0.0.1:8000>**. Nas próximas, sobe
+em ~4 s com a cópia local (o executável leva ~7 s, porque se descompacta antes). A
+janela do terminal fica aberta enquanto o app roda: feche-a (ou Ctrl+C) para parar.
+
+As opções valem para o executável, o `rodar.py` e o `rodar.sh`:
+
+| Opção | Para quê |
 |---|---|
-| `python server/serve.py` | uso normal: sobe com a cópia local e busca o que mudou em segundo plano |
-| `python server/serve.py --offline` | não acessa a internet, usa só a cópia em `dados/` (testes, medições, apresentação sem rede) |
-| `python server/serve.py --port 9000` | outra porta |
-| `python etl/montar.py` | sincroniza as fontes e monta o que mudou, sem subir o servidor |
+| (nenhuma) | uso normal: sobe com a cópia local e busca o que mudou em segundo plano |
+| `--offline` | não acessa a internet, usa só a cópia em `dados/` (testes, medições, apresentação sem rede) |
+| `--port 9000` | outra porta |
+| `--sem-navegador` | não abre o navegador; só mostra o endereço |
+| `--host 0.0.0.0` | abre para a rede local (ver o aviso abaixo) |
+
+`python server/serve.py` (só o servidor, sem abrir o navegador) e `python etl/montar.py`
+(sincroniza as fontes e monta o que mudou, sem subir o servidor) continuam valendo.
+
+### Gerar os executáveis
+
+```bash
+python -m pip install -r requirements-dev.txt   # traz o PyInstaller (uma vez)
+python tools/empacotar.py                        # gera dist/NFL-Games.exe (ou dist/nfl-games no Linux)
+```
+
+Cada sistema gera o seu. Para publicar os dois numa versão, marque-a: `git tag v1.0` e
+`git push origin v1.0`. O GitHub Actions (`.github/workflows/executaveis.yml`) gera
+os executáveis em Windows e em Linux, confere que sobem e os anexa à página da versão.
+O executável de Linux é gerado no Ubuntu 22.04 e roda nas distribuições mais novas.
 
 ### Atualização dos dados
 
@@ -190,7 +217,8 @@ formação, aparecem os dados da jogada e "formação indisponível para esta jo
 
 ```
 Projeto/
-├─ RODAR.bat                  inicia tudo (Windows)
+├─ rodar.py                   inicia tudo: servidor + navegador (Windows, Linux, macOS); é o que vira o executável
+├─ rodar.sh                   atalho do rodar.py no Linux e no macOS
 ├─ app/                       a página
 │  ├─ index.html              cabeçalho, filtros, barra inferior, menu lateral e as 6 telas
 │  ├─ css/app.css             tokens e componentes do visual novo
@@ -213,7 +241,8 @@ Projeto/
 │  ├─ tabela_npz.py           formato binário das tabelas
 │  ├─ teams.py                nomes e cores das 32 franquias
 │  └─ smoke_test.py           roda todas as consultas e imprime amostras
-├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários)
+├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários), empacotar (executável)
+├─ .github/workflows/         executáveis de Windows e Linux nas versões (Releases)
 ├─ tests/                     pytest + testes de navegador (Playwright com o Edge)
 ├─ rascunho/                  o protótipo do visual (referência, não é servido)
 ├─ .kiro/specs/               specs SDD (requirements, design, tasks)
@@ -356,25 +385,28 @@ vizinhas no navegador e descarte de respostas atrasadas.
 
 | Sintoma | Causa e solução |
 |---|---|
-| A página abre com o aviso "API indisponível" | O servidor não está de pé. Rode `python server/serve.py`. |
+| A página abre com o aviso "API indisponível" | O servidor não está de pé. Abra o executável ou rode `python rodar.py`. |
+| O Windows diz que protegeu o computador ao abrir o `.exe` | O executável não tem assinatura digital. **Mais informações → Executar assim mesmo.** |
+| `permission denied` ao abrir o `nfl-games` ou o `rodar.sh` | Falta a permissão de execução: `chmod +x nfl-games` (ou `rodar.sh`). |
 | Primeira subida demora alguns minutos | É o download e a montagem dos dados (~330 MB). O progresso aparece no terminal. |
 | `[erro] Sem dados para subir o app` | Primeira subida sem internet. Conecte-se e rode de novo. |
 | `[erro] dados locais ilegiveis` | A cópia em `dados/` corrompeu. Apague a pasta e rode de novo (com internet). |
 | `503 servidor ocupado` | Mais de 64 requisições simultâneas. O navegador pode tentar de novo em 2 s. |
 | `ModuleNotFoundError: pandas` | `python -m pip install pandas numpy` |
 | Tela em branco abrindo o arquivo direto | É o caso do `file://`. Acesse por `http://127.0.0.1:8000`. |
-| Porta 8000 ocupada | `python server/serve.py --port 9000` |
+| Porta 8000 ocupada | `--port 9000` (no executável, no `rodar.py` ou no `rodar.sh`) |
 | Acentos quebrados no terminal do Windows | `$env:PYTHONIOENCODING='utf-8'` antes do comando. |
 
 ---
 
 ## Requisitos
 
-- Python 3.10 ou superior (testado no 3.14) com **pandas** e **numpy**
+- Pelo executável: nada (ele traz o Python e as bibliotecas)
+- Pelo código: Python 3.10 ou superior (testado no 3.14) com **pandas** e **numpy**
 - Um navegador atual
 - Internet na primeira execução (depois, opcional)
 
-Sem Node, sem npm, sem etapa de build.
+Sem Node, sem npm, sem etapa de build para rodar a partir do código (o executável é opcional).
 
 ---
 
