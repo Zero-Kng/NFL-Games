@@ -21,5 +21,8 @@ __pycache__/
 *.tmp
 
 # Executavel gerado pelo tools/empacotar.py (PyInstaller); publicado nas Releases, nao no Git.
+# Na raiz, ele usa a mesma pasta dados/ do projeto.
 dist/
 build/
+/NFL-Games.exe
+/nfl-games
