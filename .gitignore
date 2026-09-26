@@ -1,9 +1,10 @@
-# Cache gerado automaticamente pelo servidor (etl/build_metrics.py ensure_cache).
-# ~120 MB; e recriado na 1a subida (~50 s) a partir do dataset.
+# Cache do dataset antigo (Big Data Bowl 2023). Nao e mais lido nem gerado;
+# fica ignorado ate a pasta ser apagada das maquinas.
 cache/
 
 # Dados baixados do nflverse e tabelas montadas (etl/fontes.py, etl/montar.py).
-# ~500 MB; recriado na 1a subida a partir das fontes.
+# ~330 MB baixados na 1a subida; os brutos das temporadas encerradas sao
+# descartados depois de montados. Recriado a partir das fontes se for apagado.
 dados/
 
 # Python

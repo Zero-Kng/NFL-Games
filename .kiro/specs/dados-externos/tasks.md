@@ -89,8 +89,11 @@
 
 - [ ] 8. Aposentar o dataset do Big Data Bowl
   - _Depende de: 6, 7_
-  - [ ] 8.1 Remover a leitura do dataset e do `cache/` antigo: `etl/build_metrics.py`, `server/tracking_npz.py` (substituído pelo `tabela_npz.py`) e os testes que dependiam deles (`test_tracking.py`, `test_ensure_cache.py`), trocados pelos testes das tarefas 1–6.
-  - [ ] 8.2 Adaptar `tools/bench.py`, `tools/carga.py` e `tests/test_ui.py` para a semana mais recente disputada; `server/smoke_test.py` e `ui_test_all.py` para os dados novos.
+  - [x] 8.1 Remover a leitura do dataset e do `cache/` antigo: `etl/build_metrics.py`, `server/tracking_npz.py` (substituído pelo `tabela_npz.py`) e os testes que dependiam deles (`test_tracking.py`, `test_ensure_cache.py`), trocados pelos testes das tarefas 1–6.
+    - Saiu também o marcador `lento` do `pytest.ini` (só o `test_ensure_cache` o usava) e os `.pyc` versionados por engano em `tests/__pycache__/`.
+  - [x] 8.2 Adaptar `tools/bench.py`, `tools/carga.py` e `tests/test_ui.py` para a semana mais recente disputada; `server/smoke_test.py` e `ui_test_all.py` para os dados novos.
+    - `bench.py`, `carga.py` e `test_ui.py` já tinham sido adaptados na tarefa 6. `smoke_test.py` roda sobre `dados/` (padrão: a última temporada encerrada).
+    - **Desvio:** `ui_test.py` e `ui_test_all.py` foram apagados em vez de adaptados. Conferiam textos e jogos do dataset antigo ("Big Data Bowl", jogo `2021092300`, animação) e são cobertos pelo `tests/test_ui.py` (Playwright), que clica, mede e simula atrasos.
   - [ ] 8.3 `.gitignore`: `dados/` e `nfl-big-data-bowl-regional-event-data-main/`.
   - [ ] 8.4 **Feito pelo José:** tirar o dataset do versionamento: `git rm -r --cached nfl-big-data-bowl-regional-event-data-main` (e o `cache/` antigo, se ainda houver algo rastreado).
   - _Requisitos: 3.3, 8.1, NFR 4_
