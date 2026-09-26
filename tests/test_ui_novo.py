@@ -115,9 +115,32 @@ def test_ui_cabecalho_em_todas_as_telas(servidor, pagina, tela):
     """1.2: menu, escudo com o título da tela e busca em todas as telas."""
     abrir(pagina, servidor.url)
     ir_para(pagina, tela)
-    for sel in ("#btnMenu", ".topbar .shield", "#btnSearch"):
+    for sel in ("#btnMenu", ".topbar .logo", "#btnSearch"):
         assert pagina.is_visible(sel), sel
     assert pagina.inner_text("#pageTitle").strip().lower() == TELAS[tela].lower()
+
+
+def test_ui_logo_no_cabecalho_e_no_menu(servidor, pagina):
+    """A logo da equipe (app/img/logo.png) no lugar do escudo "NFL": carregada, decorativa e com 32 px de altura."""
+    abrir(pagina, servidor.url)
+    pagina.click("#btnMenu")
+    esperar(pagina, "document.getElementById('sidebar').classList.contains('open')")
+    logos = pagina.eval_on_selector_all(".topbar .logo, .sidebar-head .logo", """ls => ls.map(l => ({
+        src: l.getAttribute('src'), alt: l.getAttribute('alt'), ok: l.complete && l.naturalWidth > 0,
+        altura: Math.round(l.getBoundingClientRect().height), largura: Math.round(l.getBoundingClientRect().width) }))""")
+    assert len(logos) == 2
+    for l in logos:
+        assert l["src"] == "img/logo.png" and l["alt"] == "" and l["ok"], l
+        assert l["altura"] == 32 and 45 <= l["largura"] <= 52, l
+    assert pagina.query_selector(".shield") is None
+
+
+def test_ui_icone_da_aba(servidor, pagina):
+    abrir(pagina, servidor.url)
+    href = pagina.eval_on_selector("link[rel=icon]", "l => l.getAttribute('href')")
+    assert href == "img/icone.png"
+    with urllib.request.urlopen(servidor.url + "/" + href) as r:
+        assert r.headers["Content-Type"] == "image/png" and r.read()[:4] == bytes([0x89]) + b"PNG"
 
 
 def test_ui_moldura_centralizada_em_tela_larga(servidor, navegador):

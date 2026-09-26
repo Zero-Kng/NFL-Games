@@ -37,6 +37,8 @@ def argumentos(dist: Path, trabalho: Path) -> list[str]:
         "--hidden-import", "serve",                     # importado pelo rodar.py so na hora de subir
         "--add-data", f"{RAIZ / 'app'}{sep}app",
     ]
+    if os.name == "nt":                                 # icone do .exe (o PyInstaller ignora no Linux)
+        args += ["--icon", str(RAIZ / "app" / "img" / "icone.ico")]
     for modulo in FORA:
         args += ["--exclude-module", modulo]
     return args

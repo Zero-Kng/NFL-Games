@@ -63,6 +63,9 @@ python -m pip install -r requirements-dev.txt   # traz o PyInstaller (uma vez)
 python tools/empacotar.py                        # gera dist/NFL-Games.exe (ou dist/nfl-games no Linux)
 ```
 
+A logo (`app/img/logo.png`, o ícone da aba e o do `.exe`) sai de `rascunho/logo-original.png`,
+recolorida na paleta do app: se a arte mudar, `python tools/logo.py` gera tudo de novo.
+
 Cada sistema gera o seu. Para publicar os dois numa versão, marque-a: `git tag v1.0` e
 `git push origin v1.0`. O GitHub Actions (`.github/workflows/executaveis.yml`) gera
 os executáveis em Windows e em Linux, confere que sobem e os anexa à página da versão.
@@ -241,7 +244,7 @@ Projeto/
 │  ├─ tabela_npz.py           formato binário das tabelas
 │  ├─ teams.py                nomes e cores das 32 franquias
 │  └─ smoke_test.py           roda todas as consultas e imprime amostras
-├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários), empacotar (executável)
+├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários), empacotar (executável), logo
 ├─ .github/workflows/         executáveis de Windows e Linux nas versões (Releases)
 ├─ tests/                     pytest + testes de navegador (Playwright com o Edge)
 ├─ rascunho/                  o protótipo do visual (referência, não é servido)

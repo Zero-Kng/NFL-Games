@@ -188,6 +188,18 @@ def test_servidor_serve_a_pasta_do_app_indicada(tmp_path):
             assert b"app do executavel" in r.read()
 
 
+# ------------------------------------------------------------ empacotamento
+def test_executavel_leva_a_interface_e_o_icone_da_logo():
+    import empacotar
+    args = empacotar.argumentos(Path("dist"), Path("build"))
+    assert any(a.endswith(f"app{os.pathsep}app") for a in args)
+    if os.name == "nt":                                # o PyInstaller so usa o icone no Windows (e no macOS)
+        i = args.index("--icon")
+        assert args[i + 1] == str(ROOT / "app" / "img" / "icone.ico") and Path(args[i + 1]).is_file()
+    else:
+        assert "--icon" not in args
+
+
 # ------------------------------------------------------------ atalho
 def test_rodar_sh_chama_o_rodar_py():
     assert not (ROOT / "RODAR.bat").exists()             # substituído pelo executável e pelo rodar.py

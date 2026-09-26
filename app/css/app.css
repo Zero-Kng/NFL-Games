@@ -93,13 +93,8 @@ body {
 .icon-btn:active { transform: scale(.94); }
 
 .brand { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; }
-.shield {
-  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
-  display: grid; place-items: center;
-  background: linear-gradient(160deg, #fff, #dfe6f1);
-  border: 2px solid var(--red);
-  color: var(--blue-2); font-family: var(--font-display); font-weight: 800; font-size: 14px;
-}
+/* a logo da equipe (app/img/logo.png, gerada por tools/logo.py na paleta do app) */
+.logo { width: auto; height: 32px; flex-shrink: 0; }
 .brand-title {
   font-family: var(--font-display); font-weight: 700; font-size: 24px; line-height: 1;
   letter-spacing: .4px; text-transform: uppercase;
