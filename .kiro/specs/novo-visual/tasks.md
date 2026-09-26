@@ -1,7 +1,7 @@
 # Implementation Plan
 
 **Feature:** novo-visual
-**Status:** ⏸ **PAUSADO** (2026-09-25)
+**Status:** v0.4 em revisão (2026-09-26), aguardando aprovação do José. Pausada em 2026-09-25; retomada sobre a `dados-externos`.
 
 > **Por que pausou:** o José esclareceu a meta: uma repaginação total, com **todos os dados vindo de APIs**. Decisões tomadas na mesma data:
 > - **Dados primeiro, visual depois:** a spec `dados-externos` vem antes, e esta é retomada em cima dos dados novos.
@@ -10,6 +10,8 @@
 > - **Temporadas:** a atual (2026) mais as recentes (2021–2025).
 >
 > **Impacto:** os Requisitos 7 (notícias), 10 (movimento contínuo da prancheta), 3 (temporadas) e 6 (ratings) terão de ser revistos ao retomar. A tarefa 1 tinha só código não testado, gerado a partir do dataset; ele foi retirado da branch e guardado como referência.
+>
+> **Retomada (v0.4, 2026-09-26):** revistos com o José (Q6–Q9 no requirements): notícias com tipos novos sobre o placar oficial; o Requisito 10 saiu; Configurações com 2 controles; matéria da ESPN no topo da página Jogo. As tarefas abaixo já estão ajustadas. A branch `spec/novo-visual` foi avançada até a `main` com a `dados-externos`.
 **Data:** 2026-09-25
 
 > Regras desta execução:
@@ -24,45 +26,43 @@
 ## Tarefas
 
 - [ ] 1. Gerar as notícias e o resumo no servidor
-  - [ ] 1.1 `NFLData.news(week=None)` em `data_layer.py`, conforme o design (componente 2): recordes da semana (maior jogada, mais rápido, pocket; só o 1º de cada), eventos por jogo (≥ 5 sacks, ≥ 3 interceptações, virada ≥ 7 até o último dropback, prorrogação), "incomum" como percentil na liga, calculado no `_load`. Texto montado só com números do dado.
-  - [ ] 1.2 `NFLData.summary()` → `{ratedPlayers, season, weeks}`.
-  - [ ] 1.3 Rotas `GET /api/news` (`week` opcional) e `GET /api/summary` em `serve.py`; `/api/news?week=N` e `/api/summary` entram no aquecimento.
-  - [ ] 1.4 Caminho infeliz: semana inexistente → `[]`; `week` não numérico → 400 (validação atual).
-  - [ ] 1.5 Testes em `tests/test_news.py`.
+  - [ ] 1.1 `NFLData.news(season, week=None)` em `data_layer.py`, conforme o design (componente 2): resultado (todo jogo, com o vencedor pelo placar oficial), virada de 10+ pontos, prorrogação, goleada de 28+, maior jogada da semana (só a 1ª), grande atuação (400+ jd de passe, 5+ TD de passe, 175+ jd correndo ou recebendo, 4+ TD, 3,5+ sacks) e defesa (6+ sacks ou 3+ interceptações de um time). "Incomum" como percentil na temporada, calculado uma vez por temporada. Texto montado só com números do dado.
+  - [ ] 1.2 `NFLData.summary(season)` → `{ratedPlayers, season}`.
+  - [ ] 1.3 Rotas `GET /api/news` (`season` e `week` opcionais) e `GET /api/summary` (`season` opcional) em `serve.py`; as da temporada atual entram no aquecimento.
+  - [ ] 1.4 Caminho infeliz: semana sem jogos disputados → `[]`; `week` ou `season` não numérico → 400; temporada inexistente → 404 (validação atual).
+  - [ ] 1.5 Testes em `tests/test_news.py`, incluindo: toda semana disputada de 2021–2025 com pelo menos 1 notícia e no máximo 40; o resultado bate com o placar oficial; o golden continua passando.
   - _Requisitos: 4.3, 7.1, 7.3, 7.6, NFR 2_
 
 - [ ] 2. Montar a casca da interface nova
   - [ ] 2.1 `app/novo.html` com o cabeçalho (menu, escudo, título, busca), os filtros de temporada e semana, a barra inferior com 4 destinos e o menu lateral (4 destinos + Sobre os dados + Configurações), no HTML do rascunho.
   - [ ] 2.2 `app/css/novo.css` com os tokens e componentes do rascunho, sem os padrões apontados pelo verificador de design (borda lateral no item ativo, ponto pulsante, texto < 12 px, sombra com brilho).
-  - [ ] 2.3 `js/api.js` e `js/ui.js`: `get()` (LRU e dedupe), `ultimo()`, `into()` e os formatadores, **extraídos** do `app.js`.
-  - [ ] 2.4 `js/main.js`: estado `S`, `ir()`, `selecionarJogo()`, menu lateral (abre, fecha com Esc e com toque fora), filtros vindos de `meta` (só 2021, semanas 1–8), rotas legadas (`?screen=coach|commentator|scout`) e boot em paralelo (como no `app.js` atual). As telas ainda são esqueletos.
+  - [ ] 2.3 `js/api.js` e `js/ui.js`: `get()` (LRU e dedupe; `games()` fora do cache), `ultimo()`, `into()` e os formatadores (incluindo `inicioLocal` e `dataHora`), **extraídos** do `app.js`.
+  - [ ] 2.4 `js/main.js`: estado `S`, `ir()`, `selecionarJogo()`, menu lateral (abre, fecha com Esc e com toque fora), filtros de temporada e semana vindos de `meta.seasons` (rodadas de playoff pelo nome; padrão: a semana mais recente já começada), deep link `?season=&week=&game=&screen=`, rotas legadas (`?screen=coach|commentator|scout`) e boot. As telas ainda são esqueletos.
   - [ ] 2.5 `js/config.js` (Requisito 11, sem a tela ainda): `ler`, `gravar`, `aoMudar`, `reduzirMovimento`, com padrões se o `localStorage` falhar.
   - [ ] 2.6 Fontes com `preload` sem bloquear (mesmo mecanismo do `index.html` atual).
-  - _Requisitos: 1.1–1.5, 2.1–2.6, 3.1–3.4, 11.5_
+  - _Requisitos: 1.1–1.5, 2.1–2.6, 3.1–3.5, 11.5_
 
 - [ ] 3. Tela Início
   - _Depende de: 1, 2_
   - [ ] 3.1 Carrossel com as 4 primeiras notícias da semana (slides do rascunho), com os pontos de navegação. Avança sozinho a cada 5 s, pausa com o mouse em cima ou durante o toque, e não avança com movimento reduzido ou com o avanço desligado nas Configurações. Semana sem notícias oculta o carrossel.
   - [ ] 3.2 Dois cartões: partidas na semana (`games(week).length`) e jogadores avaliados (`summary.ratedPlayers`).
-  - [ ] 3.3 Lista de jogos da semana (cartão de partida do rascunho). Tocar abre a página Jogo com a partida. Filtro por time vindo da busca, com chip "TIME ×".
+  - [ ] 3.3 Lista de jogos da semana (cartão de partida do rascunho), com os estados e o placar ao vivo **movidos** da `dados-externos` (`gameCard`, `estadoDoJogo`, `aoVivo`). Tocar abre a página Jogo com a partida. Filtro por time vindo da busca, com chip "TIME ×".
   - [ ] 3.4 Caminho infeliz: erro ao carregar a semana mostra a mensagem na lista, e os filtros continuam utilizáveis.
-  - _Requisitos: 3.3, 3.4, 4.1–4.7, 7.4, 7.5_
+  - _Requisitos: 3.3, 3.4, 4.1–4.8, 7.4, 7.5_
 
 - [ ] 4. Página Jogo: cabeçalho, abas e conteúdo movido
   - _Depende de: 2_
   - [ ] 4.1 Cabeçalho da partida (placar, times, semana) e 5 abas: Prancheta, Jogadas, Replay, Estatísticas, Playbook. A aba, a partida e a jogada ficam em `S`.
   - [ ] 4.2 **Mover** para `js/telas/jogo.js`: `coachLineup`, `loadFieldPlay`, `prefetchVizinhas`, `ensurePlays`, `playRow`, `coachPlays`, `coachStats`, `coachBook`, `renderBroadcast`, `paintBc` e os controles do replay, com o HTML no visual novo e os contadores `seq` preservados.
   - [ ] 4.3 Tocar numa jogada em Jogadas ou em Replay abre a Prancheta com ela.
-  - [ ] 4.4 Caminho infeliz: sem partida escolhida, abre a 1ª da semana; jogada sem tracking mostra os dados da jogada e o aviso "Tracking indisponível".
-  - _Requisitos: 5.1–5.8_
+  - [ ] 4.4 Caminho infeliz: sem partida escolhida, abre a 1ª da semana; jogada sem formação mostra os dados da jogada e "formação indisponível para esta jogada".
+  - [ ] 4.5 Matéria da ESPN logo abaixo do placar da página Jogo: **mover** `renderMateria`, `linkEspn` e `conferirPlacar` (só `*.espn.com`, `http`→`https`, some sem matéria).
+  - _Requisitos: 5.1–5.9_
 
-- [ ] 5. Prancheta com movimento contínuo
+- [ ] 5. Prancheta no visual novo
   - _Depende de: 4_
-  - [ ] 5.1 `js/prancheta.js`: `Field` movido do `app.js`, com posição por `transform` e laço de `requestAnimationFrame` que interpola entre `P[i]` e `P[i+1]`.
-  - [ ] 5.2 Pausa, arraste e fim da jogada desenham o quadro exato; a troca de velocidade mantém a continuidade.
-  - [ ] 5.3 Caminho infeliz: um jogador sem posição num dos quadros não é interpolado; com movimento reduzido ou animação suave desligada, o avanço é quadro a quadro.
-  - [ ] 5.4 A velocidade inicial vem das Configurações.
-  - _Requisitos: 10.1–10.6, 11.3_
+  - [ ] 5.1 `js/prancheta.js`: `Field` **movido** do `app.js` como está (esquema de 1 quadro, aviso "Esquema ilustrativo", sem controles de animação), com o visual novo. Sem interpolação: o antigo Requisito 10 saiu (Q7).
+  - _Requisitos: 5.3, 5.8_
 
 - [ ] 6. Tela Jogadores
   - _Depende de: 2_
@@ -77,14 +77,14 @@
   - _Requisitos: 7.2, 7.5, 7.6, 8.1–8.6, S.2_
 
 - [ ] 8. Configurações e Sobre os dados
-  - _Depende de: 2, 5_
-  - [ ] 8.1 Tela Configurações: animação suave (liga/desliga), avanço automático das notícias (liga/desliga) e velocidade padrão (0,25×, 0,5×, 1× ou 2×), aplicados na hora via `aoMudar`.
-  - [ ] 8.2 Tela Sobre os dados com `meta.dataset` (escopo e ressalvas), incluindo a atribuição que já existe no README.
+  - _Depende de: 2, 4_
+  - [ ] 8.1 Tela Configurações: avanço automático das notícias (liga/desliga) e velocidade do Replay narrado (0,5×, 1× ou 2×), aplicados na hora via `aoMudar`.
+  - [ ] 8.2 Tela Sobre os dados com `meta.fontes` (fontes e créditos das licenças) e `meta.ultimaAtualizacao`: **mover** o `renderSobre` da `dados-externos`.
   - _Requisitos: 2.3, 11.1–11.4_
 
 - [ ] 9. Trocar a interface e remover o código antigo
   - _Depende de: 3, 4, 5, 6, 7, 8_
-  - [ ] 9.1 `novo.html` vira `index.html`; saem o `app.js` e o `app.css` antigos. `server/ui_test_all.py` é atualizado para as telas novas.
+  - [ ] 9.1 `novo.html` vira `index.html`; saem o `app.js` e o `app.css` antigos. `tests/test_ui.py` e `tests/test_ui_dados.py` passam a rodar sobre as telas novas (ao vivo, matéria, prancheta e "Sobre" continuam cobertos).
   - [ ] 9.2 Conferir que "Sugestões de tática", "Bastidores", "Treinador", "Olheiro" e "Comentarista" não aparecem em nenhuma tela.
   - [ ] 9.3 Passada de acessibilidade: alvos ≥ 44 px, contraste ≥ 4,5:1, uso completo pelo teclado com foco visível, e todo texto dos dados passando por `esc()`.
   - _Requisitos: 2.4, 9.1, 9.2, NFR 3–5, S.1_
@@ -117,9 +117,10 @@ Todos os testes de navegador ficam em `tests/test_ui_novo.py` (Playwright + Edge
 | 2 | 2.5 | 2 | `test_ui_menu_fecha_com_esc_e_toque_fora` |
 | 2 | 2.6 | 2 | `test_ui_links_antigos_abrem_tela_nova` |
 | 3 | 3.1 | 2 | `test_ui_temporadas_so_com_dados` |
-| 3 | 3.2 | 2 | `test_ui_semanas_so_com_dados` |
+| 3 | 3.2 | 2 | `test_ui_semanas_so_com_dados` (com as rodadas de playoff pelo nome) |
 | 3 | 3.3 | 3 | `test_ui_trocar_semana_atualiza_inicio` |
 | 3 | 3.4 | 3 | `test_ui_erro_na_semana_mantem_filtros` |
+| 3 | 3.5 | 2 | `test_ui_abre_na_semana_mais_recente` |
 | 4 | 4.1 | 3 | `test_ui_inicio_ordem_das_secoes` |
 | 4 | 4.2 | 3 | `test_ui_cartao_partidas_da_semana` |
 | 4 | 4.3 | 1, 3 | `test_summary_rated_players` + `test_ui_cartao_jogadores_avaliados` |
@@ -127,6 +128,7 @@ Todos os testes de navegador ficam em `tests/test_ui_novo.py` (Playwright + Edge
 | 4 | 4.5 | 3 | `test_ui_carrossel_avanca_a_cada_5s` (relógio controlado) |
 | 4 | 4.6 | 3 | `test_ui_carrossel_parado_com_movimento_reduzido` |
 | 4 | 4.7 | 3 | `test_ui_semana_sem_noticias_oculta_carrossel` (resposta simulada vazia) |
+| 4 | 4.8 | 3, 9 | os testes de cartão e ao vivo de `test_ui_dados.py`, adaptados |
 | 5 | 5.1 | 4 | `test_ui_jogo_cabecalho_da_partida` |
 | 5 | 5.2 | 4 | `test_ui_jogo_5_abas` |
 | 5 | 5.3 | 4 | `test_ui_abas_do_antigo_treinador` (prancheta com 22 jogadores, jogadas por quarto, estatísticas, playbook) |
@@ -134,17 +136,18 @@ Todos os testes de navegador ficam em `tests/test_ui_novo.py` (Playwright + Edge
 | 5 | 5.5 | 4 | `test_ui_jogada_em_jogadas_ou_replay_abre_prancheta` |
 | 5 | 5.6 | 4 | `test_ui_trocar_aba_mantem_jogo_e_jogada` |
 | 5 | 5.7 | 4 | `test_ui_jogo_sem_partida_abre_primeira_da_semana` |
-| 5 | 5.8 | 4 | `test_ui_jogada_sem_tracking_mostra_aviso` (404 simulado) |
+| 5 | 5.8 | 4 | `test_ui_jogada_sem_formacao_mostra_aviso` |
+| 5 | 5.9 | 4 | `test_ui_materia_no_topo_da_pagina_jogo` + os de matéria de `test_ui_dados.py`, adaptados |
 | 6 | 6.1 | 6 | `test_ui_jogadores_busca_filtro_perfil_comparacao` |
 | 6 | 6.2 | 6 | `test_ui_jogadores_a_observar_da_partida` |
 | 6 | 6.3 | 6 | `test_ui_a_observar_atualiza_ao_trocar_partida` |
 | 6 | 6.4 | 6 | `test_ui_a_observar_oculto_sem_avaliados` (resposta simulada) |
-| 7 | 7.1 | 1 | `test_news_so_tipos_permitidos_e_numeros_do_dado`, `test_news_virada_diz_ate_ultimo_dropback`, `test_news_sem_noticia_de_placar` |
+| 7 | 7.1 | 1 | `test_news_so_tipos_permitidos_e_numeros_do_dado`, `test_news_resultado_com_placar_oficial`, `test_news_limiares` |
 | 7 | 7.2 | 1, 7 | `test_news_referencia_o_jogo` + `test_ui_noticia_mostra_o_jogo` |
 | 7 | 7.3 | 1 | `test_news_ordenadas_por_incomum` |
 | 7 | 7.4 | 3 | `test_ui_carrossel_4_primeiras` |
 | 7 | 7.5 | 3, 7 | `test_ui_noticia_abre_pagina_jogo` |
-| 7 | 7.6 | 1, 7 | `test_news_entre_4_e_30_por_semana` + `test_ui_noticias_semana_vazia` |
+| 7 | 7.6 | 1, 7 | `test_news_toda_semana_disputada_tem_noticia` + `test_ui_noticias_semana_vazia` |
 | 8 | 8.1 | 7 | `test_ui_lupa_abre_busca_com_foco` |
 | 8 | 8.2 | 7 | `test_ui_busca_agrupa_times_jogadores_noticias` |
 | 8 | 8.3 | 7 | `test_ui_resultado_da_busca_leva_ao_destino` |
@@ -153,14 +156,9 @@ Todos os testes de navegador ficam em `tests/test_ui_novo.py` (Playwright + Edge
 | 8 | 8.6 | 7 | `test_ui_busca_cancelar_e_esc_limpam` |
 | 9 | 9.1 | 9 | `test_ui_sem_sugestoes_de_tatica` |
 | 9 | 9.2 | 9 | `test_ui_sem_bastidores` |
-| 10 | 10.1 | 5 | `test_ui_prancheta_posicao_intermediaria_durante_play` |
-| 10 | 10.2 | 5 | `test_ui_prancheta_quadros_registrados_exatos` |
-| 10 | 10.3 | 5 | `test_ui_prancheta_pausa_e_arraste_no_quadro_exato` |
-| 10 | 10.4 | 5 | `test_ui_prancheta_velocidade_mantem_continuidade` |
-| 10 | 10.5 | 5 | `test_prancheta_sem_quadro_nao_interpola` (dados simulados) |
-| 10 | 10.6 | 5, 8 | `test_ui_prancheta_quadro_a_quadro_com_movimento_reduzido`, `..._com_suave_desligado` |
+| 10 | — | — | removido na v0.4 (Q7) |
 | 11 | 11.1 | 8 | `test_ui_menu_abre_configuracoes` |
-| 11 | 11.2 | 8 | `test_ui_configuracoes_tres_controles` |
+| 11 | 11.2 | 8 | `test_ui_configuracoes_dois_controles` (e o Replay na velocidade escolhida) |
 | 11 | 11.3 | 8 | `test_ui_configuracao_aplica_sem_recarregar` |
 | 11 | 11.4 | 8 | `test_ui_configuracao_persiste_ao_recarregar` |
 | 11 | 11.5 | 2 | `test_ui_configuracao_corrompida_usa_padrao` |
@@ -189,7 +187,6 @@ Todos os testes de navegador ficam em `tests/test_ui_novo.py` (Playwright + Edge
 
 ## Fora desta entrega
 
-- **Notícia de placar/resultado, placar oficial, jogadas completas e matérias da ESPN:** spec `dados-externos` (fontes já testadas).
 - CI no GitHub.
 - Versão desktop própria.
 
@@ -203,4 +200,4 @@ Todos os testes de navegador ficam em `tests/test_ui_novo.py` (Playwright + Edge
 - [x] Mapa de cobertura preenchido, incluindo segurança
 - [x] Branch `spec/novo-visual` criada antes da execução (**feito pelo José**)
 
-**Aprovado por:** José Cota em 2026-09-25. O plano foi mantido: várias temporadas entram na spec `dados-externos`; os filtros desta spec já mostram o que existir nos dados.
+**Aprovado por:** José Cota em 2026-09-25 (v0.3). **v0.4: aguardando aprovação.**

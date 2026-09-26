@@ -1,20 +1,21 @@
 # Requirements Document
 
 **Feature:** novo-visual
-**Status:** aprovado
-**Data:** 2026-09-25 (v0.2: perguntas Q1–Q5 respondidas · v0.3: notícia de placar adiada para `dados-externos`)
+**Status:** v0.4 em revisão (retomada sobre os dados do nflverse), aguardando aprovação do José
+**Data:** 2026-09-26 (v0.2: perguntas Q1–Q5 respondidas · v0.3: notícia de placar adiada para `dados-externos` · **v0.4: retomada depois da `dados-externos`; Q6–Q9 respondidas**)
 **Autores:** José Cota (com Claude)
 
 ---
 
 ## Introduction
 
-Hoje o app tem quatro telas: **Jogos** (home), **Treinador** (prancheta com o tracking, lista de jogadas, estatísticas e playbook), **Olheiro** (busca e avaliação de jogadores) e **Comentarista** (replay narrado com placar). O visual é o do protótipo do hackathon. A equipe desenhou um novo visual no `rascunho/`: fundo escuro, cartões em camadas, ícones em traço, cabeçalho com menu lateral e busca, filtros de temporada e semana, carrossel de notícias e barra inferior flutuante.
+> **v0.4 (2026-09-26):** a spec foi escrita sobre o dataset do Big Data Bowl e pausada para os dados virem primeiro. Com a `dados-externos` na `main`, o app tem 2021 até a temporada atual (com playoffs), placar oficial e ao vivo, a matéria da ESPN, a prancheta como **esquema ilustrativo** (sem tracking) e ratings por grupo de posição. Esta revisão ajusta os requisitos a isso: notícias com tipos novos (Q6), **sem prancheta animada** (Q7, o antigo Requisito 10 saiu), Configurações enxutas (Q8) e a matéria no topo da página Jogo (Q9).
+
+Hoje o app tem quatro telas: **Jogos** (home), **Treinador** (prancheta com o esquema da formação, lista de jogadas, estatísticas e playbook), **Olheiro** (busca e avaliação de jogadores) e **Comentarista** (replay narrado com placar). O visual é o do protótipo do hackathon. A equipe desenhou um novo visual no `rascunho/`: fundo escuro, cartões em camadas, ícones em traço, cabeçalho com menu lateral e busca, filtros de temporada e semana, carrossel de notícias e barra inferior flutuante.
 
 Esta feature aplica esse visual a **todo** o app e reorganiza as telas:
 
 - **Treinador + Comentarista viram uma página só, "Jogo"**, organizada em abas. Ela fica na barra inferior, junto com Início, Jogadores e Notícias.
-- **A prancheta passa a animar de forma contínua**, em vez de saltar de quadro em quadro.
 - **O menu lateral ganha "Configurações"**, com preferências de exibição.
 - **Olheiro passa a se chamar Jogadores**, e recebe os "jogadores a observar" do jogo selecionado, que hoje ficam na home.
 - **"Sugestões de tática" e "Bastidores" deixam de existir.**
@@ -22,8 +23,9 @@ Esta feature aplica esse visual a **todo** o app e reorganiza as telas:
 
 Restrições de contexto que o implementador precisa respeitar:
 
-- **Os dados continuam sendo o contrato.** Todo número exibido vem do dataset, como hoje. A tela muda; os valores não. Nenhuma notícia pode conter fato ou número que não esteja nos dados.
-- **O rascunho é a referência visual, não o conteúdo.** Os dados de exemplo dele (temporadas 2018–2020, 18 semanas, notícias escritas à mão, ratings inventados) não entram no app.
+- **Os dados continuam sendo o contrato.** Todo número exibido vem dos dados (nflverse, e a ESPN no navegador), como hoje. A tela muda; os valores não. Nenhuma notícia pode conter fato ou número que não esteja nos dados.
+- **O rascunho é a referência visual, não o conteúdo.** Os dados de exemplo dele (temporadas 2018–2020, notícias escritas à mão, ratings inventados) não entram no app.
+- **As conquistas da spec `dados-externos` não podem regredir:** temporadas e rodadas de playoff, estados do cartão de jogo (a jogar, sem resultado, encerrado, **AO VIVO**), matéria da ESPN só com link `*.espn.com`, prancheta ilustrativa com aviso, "formação indisponível", blocos sem dado ocultos e "Sobre os dados" com os créditos.
 - **As conquistas da spec `otimizacao-desempenho` não podem regredir:** tempos de resposta, descarte de respostas atrasadas, pré-carga de jogadas e as metas do teste de carga.
 - **O app continua sem etapa de build** e sobe com o `RODAR.bat`.
 
@@ -31,8 +33,9 @@ Restrições de contexto que o implementador precisa respeitar:
 
 ## Fora de escopo
 
-- **Novas fontes de dados.** Temporadas além de 2021 e semanas além da 8 ficam para a spec de APIs.
-- **Mudar o que a API calcula.** Ratings, percentis, métricas de tracking e narração continuam como estão.
+- **Novas fontes de dados.** Ficam as da `dados-externos` (nflverse no servidor, ESPN no navegador).
+- **Mudar o que a API calcula.** Ratings, percentis, esquema da prancheta e narração continuam como estão; informação nova entra por rotas novas.
+- **Prancheta animada.** Não há tracking nas fontes públicas: a prancheta é o esquema ilustrativo de um quadro (Q7).
 - **Versão desktop própria.** Continua o layout de celular, centralizado em telas grandes, como no rascunho.
 - **Contas e favoritos.** As configurações do Requisito 11 valem só para o aparelho em que foram feitas; não há login nem sincronização.
 - **Tradução para outros idiomas.**
@@ -73,9 +76,10 @@ Restrições de contexto que o implementador precisa respeitar:
 **Critérios de aceitação:**
 
 1. O SISTEMA DEVE exibir no filtro de temporada somente as temporadas que existem nos dados.
-2. O SISTEMA DEVE exibir no filtro de semana somente as semanas que existem na temporada escolhida.
+2. O SISTEMA DEVE exibir no filtro de semana somente as semanas que existem na temporada escolhida, com o nome da rodada nos playoffs.
 3. QUANDO o usuário escolher uma semana, O SISTEMA DEVE atualizar a lista de jogos, os cartões de resumo e as notícias para aquela semana.
 4. SE os dados de uma semana não puderem ser carregados, ENTÃO O SISTEMA DEVE exibir uma mensagem de erro no lugar da lista, mantendo os filtros utilizáveis.
+5. QUANDO o app abrir sem semana escolhida, O SISTEMA DEVE mostrar a semana mais recente já começada da temporada atual.
 
 ### Requisito 4: Início
 
@@ -85,11 +89,12 @@ Restrições de contexto que o implementador precisa respeitar:
 
 1. O SISTEMA DEVE exibir no Início, nesta ordem: o carrossel de principais notícias da semana, os dois cartões de resumo e a lista de jogos da semana.
 2. O SISTEMA DEVE exibir no cartão "Partidas na semana" a quantidade real de jogos da semana escolhida.
-3. O SISTEMA DEVE exibir no cartão de jogadores a quantidade real de jogadores com avaliação.
+3. O SISTEMA DEVE exibir no cartão de jogadores a quantidade real de jogadores com avaliação na temporada escolhida.
 4. QUANDO o usuário tocar numa partida, O SISTEMA DEVE abrir a página do jogo com aquela partida.
 5. ENQUANTO o carrossel estiver visível e o usuário não estiver interagindo com ele, O SISTEMA DEVE avançar para a notícia seguinte a cada 5 segundos.
 6. SE o usuário tiver pedido redução de movimento, ENTÃO O SISTEMA DEVE deixar de avançar o carrossel sozinho.
 7. SE uma semana não tiver notícias geradas, ENTÃO O SISTEMA DEVE ocultar o carrossel e manter o restante do Início.
+8. O SISTEMA DEVE exibir na lista de jogos os mesmos estados de hoje: a jogar, resultado ainda não disponível, encerrado e AO VIVO (placar ao vivo da spec `dados-externos`).
 
 ### Requisito 5: Página "Jogo" (Treinador + Comentarista)
 
@@ -97,14 +102,15 @@ Restrições de contexto que o implementador precisa respeitar:
 
 **Critérios de aceitação:**
 
-1. O SISTEMA DEVE exibir no topo da página Jogo o placar, os dois times e a semana da partida selecionada.
+1. O SISTEMA DEVE exibir no topo da página Jogo o placar, os dois times e a semana (ou rodada) da partida selecionada.
 2. O SISTEMA DEVE organizar a página Jogo em cinco abas: Prancheta, Jogadas, Replay, Estatísticas e Playbook.
 3. O SISTEMA DEVE oferecer nas abas Prancheta, Jogadas, Estatísticas e Playbook todas as funções que existiam no Treinador.
 4. O SISTEMA DEVE oferecer na aba Replay todas as funções que existiam no Comentarista: replay cronológico com narração, placar do momento e estatísticas acumuladas.
 5. QUANDO o usuário tocar numa jogada na aba Jogadas ou na aba Replay, O SISTEMA DEVE abrir a aba Prancheta com essa jogada.
 6. QUANDO o usuário trocar de aba, O SISTEMA DEVE manter a partida e a jogada selecionadas.
 7. SE o usuário abrir a página Jogo sem ter escolhido uma partida, ENTÃO O SISTEMA DEVE abrir a primeira partida da semana selecionada.
-8. SE o tracking de uma jogada não estiver disponível, ENTÃO O SISTEMA DEVE exibir os dados da jogada com um aviso no lugar da prancheta.
+8. SE a jogada não tiver formação, ENTÃO O SISTEMA DEVE exibir os dados da jogada com o aviso "formação indisponível para esta jogada" no lugar da prancheta.
+9. O SISTEMA DEVE exibir logo abaixo do placar da página Jogo a matéria do jogo da ESPN (título, resumo, data, fonte e link), com as regras da spec `dados-externos`: só link `*.espn.com`, e o bloco some se a matéria não existir ou falhar.
 
 ### Requisito 6: Jogadores (antigo Olheiro)
 
@@ -112,7 +118,7 @@ Restrições de contexto que o implementador precisa respeitar:
 
 **Critérios de aceitação:**
 
-1. O SISTEMA DEVE oferecer na tela Jogadores todas as funções do antigo Olheiro: busca, filtro por posição, lista por rating, perfil com radar de atributos, jogo a jogo e comparação.
+1. O SISTEMA DEVE oferecer na tela Jogadores todas as funções do antigo Olheiro: busca, filtro por posição, lista por rating, perfil com radar de atributos, jogo a jogo e comparação, na temporada escolhida.
 2. O SISTEMA DEVE exibir na tela Jogadores a seção "Jogadores a observar" referente à partida selecionada.
 3. QUANDO o usuário trocar a partida selecionada, O SISTEMA DEVE atualizar os "Jogadores a observar".
 4. SE nenhum jogador da partida tiver amostra suficiente para avaliação, ENTÃO O SISTEMA DEVE ocultar a seção "Jogadores a observar".
@@ -123,14 +129,14 @@ Restrições de contexto que o implementador precisa respeitar:
 
 **Critérios de aceitação:**
 
-1. O SISTEMA DEVE gerar as notícias da semana exclusivamente a partir de fatos presentes nos dados, destes tipos: virada, prorrogação, maior jogada, jogador mais rápido, pocket mais longo, sacks numa partida e interceptações.
+1. O SISTEMA DEVE gerar as notícias da semana exclusivamente a partir de fatos presentes nos dados, destes tipos: resultado, virada, prorrogação, goleada, maior jogada da semana, grande atuação individual e grande atuação defensiva de um time.
 
-> **Revisão v0.3 (2026-09-25, decidida pelo José):** a notícia de **resultado/placar** sai desta spec. O placar do dataset é o do último dropback e pode apontar o vencedor errado (TB × DAL aparece 28–29, e o oficial foi 31–29 para o TB). Ela volta na spec `dados-externos`, com o placar oficial do nflverse.
+> **Histórico:** na v0.3 a notícia de resultado tinha saído, porque o placar do dataset antigo era o do último dropback (TB × DAL aparecia 28–29; o oficial foi 31–29 para o TB). Com o placar oficial do nflverse, ela volta na v0.4 e diz quem venceu. "Mais rápido" e "pocket mais longo" saíram: vinham do tracking.
 2. O SISTEMA DEVE exibir em cada notícia o jogo a que ela se refere.
 3. O SISTEMA DEVE ordenar as notícias da semana pelo quanto o fato foge da média da liga, do mais incomum para o menos incomum.
 4. O SISTEMA DEVE exibir no carrossel do Início as 4 primeiras notícias da semana.
 5. QUANDO o usuário tocar numa notícia, O SISTEMA DEVE abrir a página Jogo da partida correspondente.
-6. SE uma semana não tiver fatos suficientes para gerar notícias, ENTÃO O SISTEMA DEVE exibir uma mensagem informando que não há notícias para a semana.
+6. SE uma semana ainda não tiver jogos disputados, ENTÃO O SISTEMA DEVE exibir uma mensagem informando que não há notícias para a semana.
 
 ### Requisito 8: Busca geral
 
@@ -154,18 +160,9 @@ Restrições de contexto que o implementador precisa respeitar:
 1. O SISTEMA DEVE deixar de exibir a seção "Sugestões de tática" em qualquer tela.
 2. O SISTEMA DEVE deixar de exibir a seção "Bastidores do jogo" em qualquer tela. (Os fatos que ela mostrava passam a aparecer como notícias, pelo Requisito 7.)
 
-### Requisito 10: Prancheta com movimento contínuo
+### Requisito 10: (removido na v0.4)
 
-**História de usuário:** Como treinador, quero ver os jogadores se movendo de forma fluida na prancheta, para que eu acompanhe as rotas como num vídeo, e não aos saltos.
-
-**Critérios de aceitação:**
-
-1. ENQUANTO uma jogada estiver sendo reproduzida, O SISTEMA DEVE mover cada jogador e a bola de forma contínua entre dois quadros registrados consecutivos.
-2. O SISTEMA DEVE exibir, em cada quadro registrado, exatamente a posição que está nos dados.
-3. ENQUANTO a jogada estiver pausada ou o usuário estiver arrastando a linha do tempo, O SISTEMA DEVE exibir exatamente as posições de um quadro registrado, sem posições intermediárias.
-4. QUANDO o usuário mudar a velocidade de reprodução, O SISTEMA DEVE manter o movimento contínuo na nova velocidade.
-5. SE um jogador não tiver posição registrada em um dos dois quadros, ENTÃO O SISTEMA DEVE exibi-lo só nos quadros em que ele aparece, sem inventar trajetória.
-6. SE o usuário tiver pedido redução de movimento, ou tiver desligado a animação suave nas Configurações, ENTÃO O SISTEMA DEVE avançar quadro a quadro, como hoje.
+A prancheta com movimento contínuo dependia do tracking quadro a quadro do dataset antigo, que não existe nas fontes públicas. A prancheta segue como o esquema ilustrativo da spec `dados-externos`, só com o visual novo (Q7).
 
 ### Requisito 11: Configurações
 
@@ -174,17 +171,17 @@ Restrições de contexto que o implementador precisa respeitar:
 **Critérios de aceitação:**
 
 1. QUANDO o usuário tocar em "Configurações" no menu lateral, O SISTEMA DEVE exibir a tela de Configurações.
-2. O SISTEMA DEVE oferecer nas Configurações: ligar ou desligar a animação suave da prancheta, ligar ou desligar o avanço automático das notícias, e escolher a velocidade padrão de reprodução das jogadas (0,25×, 0,5×, 1× ou 2×).
+2. O SISTEMA DEVE oferecer nas Configurações: ligar ou desligar o avanço automático das notícias e escolher a velocidade do Replay narrado (0,5×, 1× ou 2×).
 3. QUANDO o usuário mudar uma configuração, O SISTEMA DEVE aplicá-la imediatamente, sem recarregar a página.
 4. QUANDO o usuário voltar ao app no mesmo aparelho, O SISTEMA DEVE manter as configurações que ele escolheu.
-5. SE as configurações salvas não puderem ser lidas, ENTÃO O SISTEMA DEVE usar os valores padrão: animação suave ligada, avanço automático ligado e velocidade 1×.
+5. SE as configurações salvas não puderem ser lidas, ENTÃO O SISTEMA DEVE usar os valores padrão: avanço automático ligado e Replay em 1×.
 
 ---
 
 ## Requisitos não funcionais
 
 1. O SISTEMA DEVE manter as metas da spec `otimizacao-desempenho`: tela inicial pronta em até 200 ms, próxima jogada em até 50 ms e p95 de até 300 ms com 10 usuários com pausa entre cliques.
-2. O SISTEMA DEVE manter idênticas as respostas atuais da API (o golden de 2.159 URLs continua passando). Informação nova, como notícias, entra por caminhos novos.
+2. O SISTEMA DEVE manter idênticas as respostas atuais da API (o golden de 2.116 URLs da spec `dados-externos` continua passando). Informação nova, como notícias, entra por caminhos novos.
 3. O SISTEMA DEVE ter todos os alvos de toque com pelo menos 44 × 44 px.
 4. O SISTEMA DEVE ter todo texto com contraste de pelo menos 4,5:1 sobre o fundo (WCAG AA).
 5. O SISTEMA DEVE permitir usar todas as telas pelo teclado, com o foco sempre visível.
@@ -206,6 +203,10 @@ A feature não toca identidade, pagamento nem dado pessoal. Ela toca **entrada e
 - [x] **Q2. Como juntar Treinador e Comentarista:** **abas** (Prancheta · Jogadas · Replay · Estatísticas · Playbook). Aplicado no Requisito 5.
 - [x] **Q3. Fatos que viram notícia:** aprovada a proposta (resultado, virada, prorrogação, maior jogada, mais rápido, pocket mais longo, sacks, interceptações), ordenados pelo quanto fogem da média da liga, com as 4 primeiras no carrossel. Aplicado no Requisito 7.
 - [x] **Q4. Animação contínua da prancheta:** **entra**. Virou o Requisito 10.
+- [x] **Q6 (v0.4). Notícias sem o tracking:** **fatos gerados dos dados do nflverse**, com os tipos do Requisito 7 (a matéria da ESPN fica na página Jogo). Os limiares foram medidos nos dados (design, componente 2).
+- [x] **Q7 (v0.4). Prancheta com movimento:** **sai** (o antigo Requisito 10): sem tracking, não há trajetória.
+- [x] **Q8 (v0.4). Configurações:** **enxutas**: avanço automático das notícias e velocidade do Replay narrado.
+- [x] **Q9 (v0.4). Matéria da ESPN:** **no topo da página Jogo**, abaixo do placar.
 - [x] **Q5. Configurações:** **entra no menu lateral**. O conteúdo do Requisito 11 (animação suave, avanço automático das notícias, velocidade padrão) é **proposta do Claude a partir do que o app já tem**, e precisa ser confirmado na aprovação.
 
 ---
@@ -219,4 +220,4 @@ A feature não toca identidade, pagamento nem dado pessoal. Ela toca **entrada e
 - [x] Seção de fora de escopo preenchida
 - [x] Perguntas em aberto respondidas (conteúdo de Configurações confirmado)
 
-**Aprovado por:** José Cota em 2026-09-25
+**Aprovado por:** José Cota em 2026-09-25 (v0.3). **v0.4: aguardando aprovação.**
