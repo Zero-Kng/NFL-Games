@@ -1,15 +1,16 @@
 /* ==========================================================================
    NFL GAMES — casca da interface nova (spec novo-visual, tarefa 2).
    Estado compartilhado, cabeçalho, menu lateral, busca, filtros de temporada
-   e semana, barra inferior e roteador. Cada tela registra um render(); até as
-   tarefas 3 a 8, as telas são esqueletos.
+   e semana, barra inferior e roteador. Cada tela registra um render() (e,
+   se precisar, um sair()); as de Configurações e Sobre entram na tarefa 8.
    ========================================================================== */
-import { api } from './api.js';
-import { $, esc, icone, oops } from './ui.js';
+import { api, ultimo } from './api.js';
+import { $, esc, icone, oops, badge, rateChip } from './ui.js';
 import { reduzirMovimento, aoMudarMovimento } from './config.js';
 import * as inicio from './telas/inicio.js';
 import * as jogo from './telas/jogo.js';
 import * as jogadores from './telas/jogadores.js';
+import * as noticias from './telas/noticias.js';
 
 /* ------------------------------- estado ------------------------------- */
 export const S = {
@@ -41,7 +42,7 @@ export const TELAS = {
   inicio: { titulo: 'Início', filtros: ['temporada', 'semana'], render: inicio.render, sair: inicio.sair },
   jogo: { titulo: 'Jogo', filtros: [], render: jogo.render, sair: jogo.sair },
   jogadores: { titulo: 'Jogadores', filtros: ['temporada'], render: jogadores.render },
-  noticias: { titulo: 'Notícias', filtros: ['temporada', 'semana'], render: esqueleto('Notícias', 7) },
+  noticias: { titulo: 'Notícias', filtros: ['temporada', 'semana'], render: noticias.render },
   config: { titulo: 'Configurações', filtros: [], render: esqueleto('Configurações', 8) },
   sobre: { titulo: 'Sobre os dados', filtros: [], render: esqueleto('Sobre os dados', 8) },
 };
@@ -173,7 +174,72 @@ function atualizarSidebar() {
 
 /* -------------------------------- busca -------------------------------- */
 // A lupa abre o campo com o cursor nele (8.1); Cancelar ou Esc fecha e limpa (8.6).
-// Os resultados entram na tarefa 7.
+// Resultados em 3 grupos (8.2): Times (de meta.teams) e Notícias (de /api/news da
+// temporada inteira) filtrados aqui; Jogadores pela API, com "só o último vence" (8.5).
+const BUSCA_MS = 200;
+let buscaTimer = null;
+const normal = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+function buscar() {
+  clearTimeout(buscaTimer);
+  const termo = $('searchInput').value.slice(0, 100).trim();       // S.2
+  const box = $('searchResults');
+  const atual = ultimo('busca');
+  if (!termo) { box.hidden = true; box.innerHTML = ''; return; }
+  const n = normal(termo);
+  const times = Object.values(S.meta.teams)
+    .filter((t) => normal(t.abbr + ' ' + t.name + ' ' + t.nick).includes(n)).slice(0, 5);
+  const pedido = { season: S.season };
+  let noticiasAchadas = null, jogadoresAchados = null;
+  const pintar = () => { if (atual()) renderBusca(termo, times, jogadoresAchados, noticiasAchadas); };
+  pintar();
+  api.news(pedido.season)
+    .then((ns) => { noticiasAchadas = ns.filter((x) => normal(textoDaNoticia(x)).includes(n)).slice(0, 6); })
+    .catch(() => { noticiasAchadas = []; })
+    .then(pintar);
+  // Os jogadores esperam a digitação parar um pouco; resposta de um termo antigo é descartada.
+  buscaTimer = setTimeout(() => {
+    api.players(pedido.season, { q: termo, limit: 8 })
+      .then((ps) => { jogadoresAchados = ps; })
+      .catch(() => { jogadoresAchados = []; })
+      .then(pintar);
+  }, BUSCA_MS);
+}
+
+// A manchete usa a sigla ("TB vence DAL"); a busca acha também pelo nome e pelo apelido dos times.
+function textoDaNoticia(x) {
+  return x.titulo + ' ' + (x.times || []).map((a) => { const t = S.meta.teams[a] || {}; return a + ' ' + (t.name || '') + ' ' + (t.nick || ''); }).join(' ');
+}
+
+function renderBusca(termo, times, jogs, ns) {
+  const box = $('searchResults');
+  const grupo = (titulo, itens) => '<div class="sr-group" role="presentation">' + titulo + '</div>' + itens;
+  let html = '';
+  if (times.length) {
+    html += grupo('Times', times.map((t) =>
+      '<button class="sr-item" data-busca-time="' + esc(t.abbr) + '">' + badge(t, 'sm') +
+      '<span><b>' + esc(t.name) + '</b><small>' + esc(t.abbr) + ' · jogos na semana</small></span></button>').join(''));
+  }
+  if (jogs === null) html += grupo('Jogadores', '<div class="sr-carregando">Buscando jogadores…</div>');
+  else if (jogs.length) {
+    html += grupo('Jogadores', jogs.map((p) =>
+      '<button class="sr-item" data-busca-jogador="' + esc(p.nflId) + '">' + rateChip(p.rating) +
+      '<span><b>' + esc(p.name) + '</b><small>' + esc(p.position) + ' · ' + esc(p.team) + ' · ' + esc(p.roleLabel) +
+      '</small></span></button>').join(''));
+  }
+  if (ns && ns.length) {
+    html += grupo('Notícias', ns.map((x) =>
+      '<button class="sr-item" data-game="' + esc(x.gameId) + '">' +
+      '<span><b>' + esc(x.titulo) + '</b><small>' + esc(x.tag) + ' · ' + esc(x.rodada || 'Semana ' + x.week) +
+      '</small></span></button>').join(''));
+  }
+  if (!html && jogs !== null && ns !== null) {
+    html = '<div class="sr-empty">Nada encontrado para “' + esc(termo) + '”.</div>';       // 8.4
+  }
+  box.innerHTML = html;
+  box.hidden = !html;
+}
+
 function setBusca(abrir) {
   $('searchbar').hidden = !abrir;
   $('btnSearch').setAttribute('aria-expanded', String(abrir));
@@ -182,6 +248,8 @@ function setBusca(abrir) {
   } else {
     const estava = $('searchInput').value !== '' || document.activeElement === $('searchInput');
     $('searchInput').value = '';
+    clearTimeout(buscaTimer);
+    ultimo('busca');                    // descarta o que ainda estiver a caminho
     $('searchResults').hidden = true;
     $('searchResults').innerHTML = '';
     if (estava) $('btnSearch').focus();
@@ -192,6 +260,8 @@ function setBusca(abrir) {
 document.addEventListener('click', (e) => {
   const t = e.target.closest('button, [data-go], [data-game]');
   if (!t) return;
+  if (t.dataset.buscaTime) { const a = t.dataset.buscaTime; setBusca(false); inicio.filtrarPorTime(a); return; }
+  if (t.dataset.buscaJogador) { const id = t.dataset.buscaJogador; setBusca(false); jogadores.abrirJogador(id); return; }
   if (t.dataset.go) { ir(t.dataset.go); return; }
   if (t.dataset.season) { mudarTemporada(Number(t.dataset.season)); return; }
   if (t.dataset.week) { mudarSemana(Number(t.dataset.week)); return; }
@@ -201,6 +271,7 @@ $('btnMenu').addEventListener('click', () => setMenu(true));
 $('scrim').addEventListener('click', () => setMenu(false));
 $('btnSearch').addEventListener('click', () => setBusca(true));
 $('btnSearchClose').addEventListener('click', () => setBusca(false));
+$('searchInput').addEventListener('input', buscar);
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if ($('sidebar').classList.contains('open')) setMenu(false);

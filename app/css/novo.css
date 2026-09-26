@@ -531,6 +531,40 @@ button.row-card:hover { border-color: var(--line-strong); }
 .cmp-nomes .l { color: var(--blue-soft); }
 .cmp-nomes .r { color: var(--red-soft); text-align: right; }
 
+/* ---------- Busca: resultados ---------- */
+.sr-group { padding: 12px 10px 6px; font-size: 12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-3); }
+.sr-item {
+  width: 100%; min-height: var(--tap); display: flex; align-items: center; gap: 12px; padding: 8px 10px;
+  text-align: left; border-radius: 12px;
+}
+.sr-item:hover { background: var(--surface-2); }
+.sr-item > span:last-child { min-width: 0; }
+.sr-item b { display: block; font-weight: 600; font-size: 14px; }
+.sr-item small { display: block; color: var(--text-2); font-size: 12px; }
+.sr-carregando, .sr-empty { padding: 10px; color: var(--text-2); font-size: 13px; }
+.sr-empty { padding: 18px 10px; text-align: center; font-size: 14px; }
+
+/* ---------- Notícias: lista ---------- */
+.badge.xs { width: 26px; height: 26px; border-radius: 8px; font-size: 12px; box-shadow: none; }
+.news-item {
+  width: 100%; display: flex; gap: 12px; padding: 14px; text-align: left;
+  border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line);
+  transition: background .2s, border-color .2s;
+}
+.news-item:hover { background: var(--surface-2); border-color: var(--line-strong); }
+.news-thumb {
+  width: 64px; height: 64px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center;
+  font: 800 22px var(--font-display); color: #fff;
+}
+.news-thumb.red { background: linear-gradient(145deg, #d11a27, #8a0d17); }
+.news-thumb.blue { background: linear-gradient(145deg, #2a5fbf, var(--blue-2)); }
+.news-thumb.dark { background: linear-gradient(145deg, #2c3b57, #0b1322); }
+.news-corpo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.news-titulo { font: 700 17px/1.1 var(--font-display); text-transform: uppercase; }
+.news-texto { font-size: 13px; line-height: 1.4; color: var(--text-2); }
+.news-rodape { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.news-tipo::before { content: "·"; margin: 0 6px 0 2px; }
+
 /* ---------- Barra inferior ---------- */
 .bottom-nav {
   position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 25;

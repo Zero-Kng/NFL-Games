@@ -13,6 +13,7 @@ lista de jogos são simuladas com page.route(); o relógio é o do Playwright.
 
 import json
 import re
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -1048,3 +1049,174 @@ def test_ui_perfil_por_link(servidor, pagina):
     abrir_jogadores(pagina, servidor.url, "?season=2021&screen=jogadores&jogador=00-0019596")
     esperar(pagina, "document.querySelector('#radarSlot')")
     assert "TOM BRADY" in pagina.inner_text("#scoutBody").upper()
+
+
+# ================================================================ Tarefa 7: Notícias e busca
+NOTICIAS = "?season=2021&week=1&screen=noticias"
+EMBRULHO_FETCH = """
+window.__atraso = {};          // {trecho_da_url: ms}
+const _fetch = window.fetch.bind(window);
+window.fetch = async (url, opts) => {
+  const r = await _fetch(url, opts);
+  for (const t in window.__atraso) {
+    if (String(url).includes(t)) await new Promise((ok) => setTimeout(ok, window.__atraso[t]));
+  }
+  return r;
+};
+"""
+
+
+def abrir_noticias(pg, base, query=NOTICIAS):
+    abrir(pg, base, query)
+    esperar(pg, "document.getElementById('noticias').classList.contains('active') && "
+                "document.querySelector('#noticiasLista .news-item, #noticiasLista .state:not(.loading)')")
+
+
+def buscar(pg, termo):
+    if pg.is_hidden("#searchbar"):
+        pg.click("#btnSearch")
+    pg.fill("#searchInput", termo)
+
+
+def grupos_da_busca(pg):
+    return pg.eval_on_selector_all("#searchResults .sr-group", "gs => gs.map(g => g.textContent)")
+
+
+def esperar_busca_completa(pg):
+    esperar(pg, "!document.querySelector('#searchResults .sr-carregando') && "
+                "document.querySelector('#searchResults .sr-item, #searchResults .sr-empty')")
+
+
+def test_ui_noticias_da_semana(servidor, pagina):
+    """7.1 e 7.2: as notícias da semana, na ordem da API, cada uma com o jogo a que se refere."""
+    abrir_noticias(pagina, servidor.url)
+    news = api(servidor.url, "/api/news?season=2021&week=1")
+    ids = pagina.eval_on_selector_all("#noticiasLista .news-item", "ns => ns.map(n => n.dataset.noticia)")
+    assert ids == [n["id"] for n in news]
+    assert pagina.inner_text("#noticiasConta") == f"{len(news)} notícias · Semana 1"
+    itens = pagina.eval_on_selector_all("#noticiasLista .news-item", "ns => ns.map(n => n.innerText)")
+    for t, n in zip(itens, news):
+        assert all(time in t for time in n["times"]) and n["tag"] in t and n["texto"] in t
+
+
+def test_ui_noticia_da_lista_abre_pagina_jogo(servidor, pagina):
+    """7.5."""
+    abrir_noticias(pagina, servidor.url)
+    jogo = pagina.eval_on_selector_all("#noticiasLista .news-item", "ns => ns[2].dataset.game")
+    pagina.click("#noticiasLista .news-item:nth-child(3)")
+    esperar(pagina, "document.getElementById('jogo').classList.contains('active') && document.querySelector('#jogoCab .jogo-cab')")
+    assert f"game={jogo}" in pagina.url
+
+
+def test_ui_noticias_semana_vazia(servidor, pagina):
+    """7.6: semana ainda sem jogos disputados."""
+    abrir_noticias(pagina, servidor.url, "?season=2026&week=18&screen=noticias")
+    assert "Sem notícias para esta semana." in pagina.inner_text("#noticiasLista")
+
+
+def test_ui_noticias_trocar_semana(servidor, pagina):
+    abrir_noticias(pagina, servidor.url)
+    pagina.click("#weekChips [data-week='2']")
+    news = api(servidor.url, "/api/news?season=2021&week=2")
+    esperar(pagina, "document.querySelector('#noticiasLista .news-item') && "
+                    f"document.querySelector('#noticiasLista .news-item').dataset.noticia === {json.dumps(news[0]['id'])}")
+
+
+def test_ui_lupa_abre_busca_com_foco(servidor, pagina):
+    """8.1."""
+    abrir(pagina, servidor.url)
+    pagina.click("#btnSearch")
+    assert pagina.is_visible("#searchbar")
+    assert pagina.evaluate("document.activeElement.id") == "searchInput"
+
+
+def test_ui_busca_agrupa_times_jogadores_noticias(servidor, pagina):
+    """8.2: nesta ordem; as notícias também pelo nome do time (a manchete usa a sigla)."""
+    abrir(pagina, servidor.url, "?season=2021&week=1")
+    buscar(pagina, "buc")
+    esperar_busca_completa(pagina)
+    assert grupos_da_busca(pagina) == ["Times", "Jogadores", "Notícias"]
+    assert "Tampa Bay Buccaneers" in pagina.inner_text("#searchResults")
+    jogadores = api(servidor.url, "/api/players?season=2021&q=buc&limit=8")
+    ids = pagina.eval_on_selector_all("[data-busca-jogador]", "bs => bs.map(b => b.dataset.buscaJogador)")
+    assert ids == [p["nflId"] for p in jogadores]
+    noticias = pagina.eval_on_selector_all("#searchResults [data-game]", "bs => bs.length")
+    assert 1 <= noticias <= 6
+
+
+def test_ui_resultado_da_busca_leva_ao_destino(servidor, pagina):
+    """8.3: o time (seus jogos na semana), o perfil do jogador e a página do jogo da notícia."""
+    abrir(pagina, servidor.url, "?season=2021&week=1&screen=noticias")
+    buscar(pagina, "tampa")
+    esperar_busca_completa(pagina)
+    pagina.click("[data-busca-time=TB]")
+    esperar(pagina, "document.getElementById('inicio').classList.contains('active') && "
+                    "document.querySelectorAll('#jogosLista .match').length === 1")
+    assert pagina.inner_text("#filtroTime .chip").strip() == "TB" and pagina.is_hidden("#searchbar")
+    buscar(pagina, "mahomes")
+    esperar(pagina, "document.querySelector('[data-busca-jogador]')")
+    pagina.click("[data-busca-jogador]")
+    esperar(pagina, "document.getElementById('jogadores').classList.contains('active') && document.querySelector('#radarSlot')")
+    assert "PATRICK MAHOMES" in pagina.inner_text("#scoutBody").upper()
+    buscar(pagina, "chandler jones")
+    esperar(pagina, "document.querySelector('#searchResults [data-game]')")
+    jogo = pagina.eval_on_selector("#searchResults [data-game]", "b => b.dataset.game")
+    pagina.click("#searchResults [data-game]")
+    esperar(pagina, "document.getElementById('jogo').classList.contains('active') && document.querySelector('#jogoCab .jogo-cab')")
+    assert f"game={jogo}" in pagina.url and pagina.is_hidden("#searchResults")
+
+
+def test_ui_busca_nada_encontrado(servidor, pagina):
+    """8.4, com o termo escapado (S.1)."""
+    abrir(pagina, servidor.url)
+    buscar(pagina, "<img src=x onerror=window.__xss=1>")
+    esperar(pagina, "document.querySelector('#searchResults .sr-empty')")
+    assert pagina.inner_text("#searchResults .sr-empty") == "Nada encontrado para “<img src=x onerror=window.__xss=1>”."
+    assert pagina.query_selector("#searchResults img") is None and pagina.evaluate("window.__xss") is None
+
+
+def test_ui_busca_resposta_antiga_descartada(servidor, contexto):
+    """8.5: a busca por "ma" demora; a por "mahomes" chega antes e é a que fica."""
+    contexto.add_init_script(EMBRULHO_FETCH)
+    pg = contexto.new_page()
+    abrir(pg, servidor.url, "?season=2021&week=1")
+    pg.evaluate("window.__atraso['q=ma&'] = 900")
+    pg.click("#btnSearch")
+    pg.type("#searchInput", "ma")
+    pg.wait_for_timeout(350)                                           # passa a espera de 200 ms: "ma" sai
+    pg.type("#searchInput", "homes")
+    esperar(pg, "[...document.querySelectorAll('[data-busca-jogador] b')].some((b) => /mahomes/i.test(b.textContent))")
+    pg.wait_for_timeout(1000)                                          # a resposta velha de "ma" já chegou
+    nomes = pg.eval_on_selector_all("[data-busca-jogador] b", "bs => bs.map(b => b.textContent)")
+    assert nomes == ["Patrick Mahomes"]
+
+
+def test_ui_busca_cancelar_e_esc_limpam(servidor, pagina):
+    """8.6."""
+    abrir(pagina, servidor.url)
+    buscar(pagina, "chiefs")
+    esperar(pagina, "!document.getElementById('searchResults').hidden")
+    pagina.click("#btnSearchClose")
+    assert pagina.is_hidden("#searchbar") and pagina.is_hidden("#searchResults")
+    assert pagina.input_value("#searchInput") == ""
+    buscar(pagina, "chiefs")
+    esperar(pagina, "!document.getElementById('searchResults').hidden")
+    pagina.keyboard.press("Escape")
+    assert pagina.is_hidden("#searchbar") and pagina.input_value("#searchInput") == ""
+    assert pagina.evaluate("document.activeElement.id") == "btnSearch"
+    pagina.click("#btnSearch")                                         # reabre vazia
+    assert pagina.input_value("#searchInput") == "" and pagina.is_hidden("#searchResults")
+
+
+def test_ui_busca_corta_em_100_caracteres(servidor, pagina):
+    """S.2: só os 100 primeiros caracteres (o campo também tem maxlength)."""
+    pedidos = []
+    pagina.on("request", lambda r: pedidos.append(r.url) if "/api/players?" in r.url else None)
+    abrir(pagina, servidor.url)
+    pagina.click("#btnSearch")
+    assert pagina.get_attribute("#searchInput", "maxlength") == "100"
+    pagina.evaluate("""() => { const i = document.getElementById('searchInput');
+        i.value = 'a'.repeat(150); i.dispatchEvent(new Event('input', { bubbles: true })); }""")
+    esperar(pagina, "document.querySelector('#searchResults .sr-empty, #searchResults [data-busca-jogador]')")
+    q = urllib.parse.parse_qs(urllib.parse.urlparse(pedidos[-1]).query)["q"][0]
+    assert q == "a" * 100

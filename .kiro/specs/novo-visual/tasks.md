@@ -115,11 +115,17 @@
       - O código das abas de função do perfil (`data-role`) não veio: o `scoutDetail` antigo já não as desenhava.
     - `tests/test_ui_novo.py`: +8 testes (6.1–6.4, temporada, primeira da semana, prancheta → perfil e perfil por link). Suíte: 246. Verificador de design: limpo.
 
-- [ ] 7. Notícias e busca geral
+- [x] 7. Notícias e busca geral
   - _Depende de: 1, 2_
-  - [ ] 7.1 Tela Notícias: `news(week)` no estilo `news-item` do rascunho; tocar abre a página Jogo; mensagem para semana vazia.
-  - [ ] 7.2 Busca: a lupa abre o campo com o cursor nele. Os resultados vêm em 3 grupos: Times (de `meta.teams`), Jogadores (`/api/players?q=&limit=8` com `ultimo("busca")`) e Notícias (de `/api/news`, todas as semanas). O termo é cortado em 100 caracteres. Tocar num resultado leva ao destino. "Nada encontrado para "…"". Cancelar ou Esc fecha e limpa.
+  - [x] 7.1 Tela Notícias: `news(week)` no estilo `news-item` do rascunho; tocar abre a página Jogo; mensagem para semana vazia.
+  - [x] 7.2 Busca: a lupa abre o campo com o cursor nele. Os resultados vêm em 3 grupos: Times (de `meta.teams`), Jogadores (`/api/players?q=&limit=8` com `ultimo("busca")`) e Notícias (de `/api/news`, todas as semanas). O termo é cortado em 100 caracteres. Tocar num resultado leva ao destino. "Nada encontrado para "…"". Cancelar ou Esc fecha e limpa.
   - _Requisitos: 7.2, 7.5, 7.6, 8.1–8.6, S.2_
+  - **Feito (2026-09-26):** `app/js/telas/noticias.js` (registrado em `TELAS.noticias`) e a busca em `main.js`, como no design.
+    - Notícias: `news-item` do rascunho (quadrado com o número em destaque, título, texto) e, no rodapé, os escudos dos dois times e o tipo, como decidido na tarefa 3. A contagem e a semana ficam ao lado do título.
+    - Busca: Times filtrados de `meta.teams` (sigla, nome e apelido, sem diferença de acento e maiúscula; até 5); Jogadores de `/api/players?q=&limit=8` depois de 200 ms sem digitar, com `ultimo("busca")`; Notícias de `/api/news?season=` (a temporada inteira, do cache; até 6). Enquanto os jogadores chegam, o grupo mostra "Buscando jogadores…"; "Nada encontrado" só aparece com as três listas vazias.
+    - Destinos: o time abre o Início filtrado (chip "TIME ×", da tarefa 3); o jogador abre o perfil (`abrirJogador`, da tarefa 6); a notícia abre a página Jogo. Fechar a busca descarta a resposta que ainda estiver a caminho.
+    - **Decisão (Claude):** a notícia também é encontrada pelo nome e pelo apelido dos times dela, porque a manchete usa só a sigla ("TB vence DAL"): sem isso, "buccaneers" não achava nenhuma notícia do TB.
+    - `tests/test_ui_novo.py`: +11 testes (7.1, 7.2, 7.5, 7.6, troca de semana, 8.1–8.6 com o `fetch` embrulhado da spec anterior no 8.5, S.2 e o termo escapado no "Nada encontrado"). Suíte: 257. Verificador de design: limpo.
 
 - [ ] 8. Configurações e Sobre os dados
   - _Depende de: 2, 4_
