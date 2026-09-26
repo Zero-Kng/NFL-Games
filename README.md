@@ -1,8 +1,10 @@
 # NFL Games — Treinador · Olheiro · Comentarista
 
-Protótipo de UI ligado aos dados reais do **NFL Big Data Bowl 2023** (semanas 1 a 8 da
-temporada 2021). Nenhum número da interface é fictício: tudo vem dos CSVs oficiais do
-dataset — 122 jogos, 8.557 jogadas e 810 MB de tracking a 10 quadros por segundo.
+Protótipo de UI ligado a dados reais e públicos da NFL, da **temporada 2021 em diante**
+(temporada regular e playoffs, com todas as jogadas: passes, corridas, chutes e retornos).
+Nenhum número da interface é fictício: tudo vem dos arquivos do
+[nflverse](https://github.com/nflverse/nflverse-data), baixados e atualizados pelo
+próprio servidor.
 
 **Autoria:** José Cota · Alan Souza · Nilo Reis · José Johnata
 
@@ -16,33 +18,49 @@ dataset — 122 jogos, 8.557 jogadas e 810 MB de tracking a 10 quadros por segun
 RODAR.bat
 ```
 
-Na primeira execução o servidor prepara o cache (~50 s, com o progresso no terminal) e
-o navegador abre sozinho quando o app estiver no ar. Nas próximas, sobe em ~3 s.
+Na **primeira execução** o servidor baixa e monta os dados do nflverse: **~330 MB**,
+alguns minutos, com o progresso no terminal. Precisa de internet. O navegador abre
+sozinho quando o app estiver no ar. Nas próximas, sobe em ~4 s com a cópia local.
 
 ### Opção 2 — linha de comando
 
 ```powershell
-# 1. dependência (uma vez)
-python -m pip install pandas
+# 1. dependências (uma vez)
+python -m pip install pandas numpy
 
-# 2. sobe o app (na 1a vez ele mesmo prepara o cache)
+# 2. sobe o app (na 1a vez ele mesmo baixa e monta os dados)
 python server/serve.py
 ```
 
 Depois abra **<http://127.0.0.1:8000>**.
 
-O cache é **incremental**: se um CSV de tracking mudar ou uma partida nova for
-adicionada, só aquele jogo é reprocessado. Para refazer tudo:
-`python etl/build_metrics.py --force`.
+| Comando | Para quê |
+|---|---|
+| `python server/serve.py` | uso normal: sobe com a cópia local e busca o que mudou em segundo plano |
+| `python server/serve.py --offline` | não acessa a internet, usa só a cópia em `dados/` (testes, medições, apresentação sem rede) |
+| `python server/serve.py --port 9000` | outra porta |
+| `python etl/montar.py` | sincroniza as fontes e monta o que mudou, sem subir o servidor |
 
-Para trocar a porta: `python server/serve.py --port 9000`.
+### Atualização dos dados
+
+- Com cópia local, o servidor **sobe na hora** e, 1 s depois, busca os dados novos em
+  segundo plano. A partir daí, repete **uma vez por dia** e troca os dados sem reiniciar.
+- Só baixa o que mudou: compara a data e o tamanho de cada arquivo com o
+  `dados/manifest.json`.
+- O download nunca estraga a cópia boa: vai para um `.tmp`, as colunas são conferidas
+  e só então substitui o arquivo anterior.
+- Depois que uma **temporada encerrada** é montada, os arquivos brutos dela são
+  descartados (a pasta `dados/` fica com ~50 MB). Só são baixados de novo se o
+  nflverse publicar uma correção.
+- **Sem internet**, o app segue com a última cópia. Sem internet **e** sem cópia
+  nenhuma, a primeira subida sai com uma mensagem e código 1.
 
 ### Por que o `index.html` precisa do servidor
 
 Abrir `app/index.html` com duplo clique **não funciona**. Dois motivos:
 
-1. O dataset tem 810 MB em 122 arquivos CSV — o navegador não consegue ler e cruzar
-   isso sozinho; quem faz o trabalho pesado é o Python.
+1. São seis temporadas de jogadas e estatísticas por jogador. Quem cruza isso é o
+   Python; o navegador só recebe as respostas prontas.
 2. Em `file://` o navegador bloqueia as chamadas `fetch()` por política de CORS.
 
 O `server/serve.py` resolve os dois: serve a página e a API JSON no mesmo endereço.
@@ -50,7 +68,23 @@ A página em si é um HTML comum, sem build, sem npm, sem framework.
 
 > O servidor escuta só em `127.0.0.1` (sua máquina), é somente leitura e não tem
 > autenticação. Se usar `--host 0.0.0.0` para abrir no celular, faça isso apenas em
-> rede confiável.
+> rede confiável. Os únicos endereços que o servidor acessa são os do nflverse no
+> GitHub.
+
+---
+
+## Fontes e créditos
+
+| Fonte | Licença | Usada para |
+|---|---|---|
+| [nflverse](https://github.com/nflverse/nflverse-data) | CC-BY-4.0 | calendário, placar oficial, jogadas, jogadores em campo, formação e estatísticas |
+| [FTN Data](https://ftndata.com), via nflverse | CC-BY-SA-4.0 | posição do QB, backfield, box e rushers (2022 em diante) |
+| [Pro Football Reference](https://www.pro-football-reference.com), via nflverse | via nflverse | pressões, tackles perdidos, drops, jardas após o contato e snaps |
+| [ESPN](https://www.espn.com/nfl/) | consulta no navegador | placar ao vivo e matéria do jogo (título, resumo e link) |
+
+O servidor só baixa arquivos do nflverse. A ESPN é consultada **direto pelo navegador**,
+nunca pelo servidor; quando o placar dela diverge do nflverse, vale o nflverse. A
+lista de fontes, os créditos e a hora da última atualização saem em `/api/meta`.
 
 ---
 
@@ -58,19 +92,40 @@ A página em si é um HTML comum, sem build, sem npm, sem framework.
 
 | Tela | O que mostra | De onde vem |
 |---|---|---|
-| **Jogos** | Partidas da semana, leituras táticas, jogadores a observar, bastidores | `games.csv`, `plays.csv`, `pffScoutingData.csv` + métricas do tracking |
-| **Treinador** | Prancheta com as posições reais dos 22 jogadores, animação quadro a quadro, lista de jogadas, estatísticas e tendências | `tracking_<gameId>.csv` (x, y, velocidade, eventos) |
-| **Olheiro** | Busca de jogadores, rating 40–99, radar de atributos por percentil, jogo a jogo, comparação | `players.csv`, `pffScoutingData.csv` + velocidade/deslocamento do tracking |
-| **Comentarista** | Replay cronológico com placar, narração e estatísticas acumuladas | `plays.csv` em ordem de `playId` |
+| **Jogos** | Partidas da semana (a jogar, sem resultado ou encerradas), destaques do jogo | calendário e placar do nflverse + ratings |
+| **Treinador** | Prancheta com a formação da jogada, lista de jogadas, estatísticas e tendências (formação, pessoal, cobertura) | play-by-play + participação + FTN |
+| **Olheiro** | Busca de jogadores, rating 40–99, radar de atributos por percentil, jogo a jogo, comparação | estatísticas por jogador e jogo + PFR + snaps |
+| **Comentarista** | Replay cronológico com o placar oficial de cada momento, narração e estatísticas acumuladas | play-by-play em ordem |
 
-Deep link opcional: `?week=3&game=2021092300&screen=coach`.
+Deep link opcional: `?season=2021&week=1&game=2021090900&screen=coach`. Sem `season`,
+abre a temporada atual; sem `week`, a semana mais recente já começada (numa temporada
+encerrada, o Super Bowl).
+
+- **Temporada e rodadas:** seletor de 2021 até a atual; nos playoffs, as rodadas
+  aparecem pelo nome (Wild Card, Divisional, Final de Conferência, Super Bowl). O
+  Olheiro segue a temporada escolhida.
+- **Cartão do jogo:** "A JOGAR" com dia e hora no seu fuso, "resultado ainda não
+  disponível" (o jogo começou e o nflverse ainda não publicou), placar final (com
+  prorrogação) ou **AO VIVO**.
+- **Placar ao vivo:** enquanto a semana exibida tem jogo em andamento, o navegador
+  consulta a ESPN a cada 30 s e mostra placar, quarto e relógio. Começa sozinho na hora
+  do jogo, para quando ele termina e não consulta nada quando não há jogo rolando. Se a
+  ESPN falhar, fica o último placar com o aviso "atualização ao vivo indisponível".
+- **Matéria do jogo:** abaixo da partida selecionada, a matéria da ESPN (título,
+  resumo, data, fonte e link). Só links de `*.espn.com` são exibidos. Jogos muito
+  recentes ainda não têm matéria na ESPN: nesse caso o bloco não aparece.
+- **Sobre os dados** (botão ℹ️): as fontes, os créditos e a hora da última
+  atualização.
 
 ### Sobre a prancheta do Treinador
 
-O eixo `x` do dataset (0–120 jardas) vai na vertical e o `y` (0–53,3) na horizontal.
-Quando `playDirection` é `left`, os dois eixos são espelhados para o **ataque sempre
-jogar para cima**. Círculos são ataque, quadrados são defesa, o número é a camisa real.
-A linha azul é a linha de scrimmage e a amarela tracejada é a linha da 1ª descida.
+Não há tracking nas fontes públicas, então a prancheta é um **esquema ilustrativo**
+da formação, com um quadro só: os 22 jogadores reais da jogada (nome, número e
+posição) em posições-modelo da formação informada. O ataque joga sempre no mesmo
+sentido; o QB fica mais fundo no shotgun do que sob o center; a defesa se distribui
+pelo número de defensores no box. Quando a jogada não tem a lista de jogadores (caso
+de 2026), o esquema é genérico, sem nomes. Sem formação, aparece "formação
+indisponível".
 
 ---
 
@@ -81,99 +136,103 @@ Projeto/
 ├─ RODAR.bat                  inicia tudo (Windows)
 ├─ app/                       a página
 │  ├─ index.html              markup
-│  ├─ css/app.css             design system do protótipo + componentes novos
+│  ├─ css/app.css             design system do protótipo + componentes
 │  └─ js/app.js               toda a lógica (JS puro, sem dependências)
 ├─ etl/
-│  └─ build_metrics.py        prepara o cache de forma incremental (ensure_cache)
+│  ├─ fontes.py               baixa e valida os arquivos do nflverse (só o que mudou)
+│  ├─ montar.py               monta as tabelas do servidor a partir dos brutos
+│  └─ ratings.py              ratings por grupo de posição e temporada
 ├─ server/
-│  ├─ serve.py                servidor HTTP + API JSON (só stdlib + pandas)
-│  ├─ data_layer.py           consultas, ratings e geração de insights
+│  ├─ serve.py                servidor HTTP + API JSON + atualização diária
+│  ├─ data_layer.py           consultas sobre as tabelas montadas
+│  ├─ prancheta.py            esquema ilustrativo da formação
 │  ├─ response_cache.py       respostas prontas da API em memória (calcula cada uma 1 vez)
-│  ├─ tracking_npz.py         formato binário do tracking de um jogo
+│  ├─ tabela_npz.py           formato binário das tabelas
 │  ├─ teams.py                nomes e cores das 32 franquias
-│  ├─ smoke_test.py           testa a camada de dados
-│  ├─ ui_test.py              testa a home num navegador headless
-│  └─ ui_test_all.py          testa as 4 telas num navegador headless
+│  └─ smoke_test.py           roda todas as consultas e imprime amostras
 ├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários)
 ├─ tests/                     pytest + testes de navegador (Playwright com o Edge)
 ├─ .kiro/specs/               specs SDD (requirements, design, tasks)
-├─ cache/                     gerado automaticamente, ~120 MB (não versionar)
-└─ nfl-big-data-bowl-regional-event-data-main/data/    dataset original
+└─ dados/                     gerado automaticamente (não versionar)
+   ├─ manifest.json           o que foi baixado, quando, e a última sincronização
+   ├─ brutos/                 cópias validadas dos arquivos do nflverse
+   ├─ jogos.npz               calendário e placar de todas as temporadas
+   ├─ jogadores_bio.npz       bio, foto e posição dos jogadores
+   └─ temporadas/{ano}/       jogadas · estatísticas por jogador e jogo · ratings
 ```
 
+A pasta `nfl-big-data-bowl-regional-event-data-main/` (dataset do Big Data Bowl 2023,
+usado pela primeira versão) e o `cache/` não são mais lidos. Tirar o dataset do
+repositório é uma decisão pendente (Q-D1 na spec `dados-externos`).
+
 ---
 
-## Métricas derivadas do tracking
+## Como o rating é calculado
 
-O ETL (`etl/build_metrics.py`) percorre os 122 arquivos em ~20 s e calcula:
+Não é nota inventada. Para cada **temporada** e **grupo de posição**, os jogadores
+são comparados **entre si** em 4 a 6 eixos, cada um virando um percentil de 0 a 100:
 
-- **Tempo para lançar** — do snap até o release. Média 3,10 s, mediana 2,80 s.
-  Por resultado: completo 2,80 s, incompleto 3,19 s, sack 4,42 s.
-- **Tempo até a pressão** — quando o primeiro pass rusher chega a 2 jardas do QB.
-  Acontece em 34,5% dos dropbacks; concorda com as flags do PFF em 82% dos casos.
-- **Velocidade de pico** por jogador. Líderes: Brandin Cooks 22,9 mph, Quez Watkins
-  22,1, Henry Ruggs 21,8, Tyreek Hill 21,3.
-- **Profundidade de rota** — deslocamento entre snap e release. Rotas 9,2 jd,
-  pass set 4,0 jd, dropback do QB 3,6 jd.
-
-### Como o rating é calculado
-
-Não é nota inventada. Para cada função (`pff_role`) os jogadores são comparados
-**entre si** em 5 eixos, cada um virando um percentil de 0 a 100:
-
-| Função | Eixos |
+| Grupo | Eixos |
 |---|---|
-| Quarterback | Precisão · Produção · Rapidez · Cuidado · Sob pressão |
-| Pass rusher | Pressão · Finalização · Chegada · Explosão · Velocidade |
-| Protetor | Proteção · Sacks cedidos · Consistência · Recuo · Volume |
-| Recebedor | Velocidade · Profundidade · Explosão · Volume · Versatilidade |
-| Cobertura | Velocidade · Alcance · Blitz · Volume · Versatilidade |
+| Quarterback | EPA por dropback · Precisão (CPOE) · Jardas por tentativa · Cuidado com a bola · Sob pressão · Corrida |
+| Running back | EPA por corrida · Após o contato · Tackles quebrados · Recepção · Segurança |
+| Recebedor (WR/TE) | Jardas por alvo · EPA por alvo · Aproveitamento · Alvos por jogo · Mãos |
+| Linha ofensiva | Volume · Disciplina · Proteção do time · Corrida do time |
+| Edge / Linha defensiva | Pressão · Sacks · QB hits · Tackles para perda · Tackles perdidos |
+| Linebacker | Tackles · Tackles para perda · Pressão · Cobertura · Tackles perdidos |
+| Secundária | Rating permitido · Passes completados · Jardas por alvo · Bolas na mão · Tackles perdidos |
 
-O rating é `40 + média dos percentis × 0,59`, o que dá a escala 40–99. Quem não bate o
-mínimo de snaps (75 para QB, 50 para as demais, 30 para rotas) aparece como `n/d` em
-vez de receber uma nota com amostra fraca.
+**Edge × linha defensiva × linebacker** vem do depth chart do elenco (DE × DT,
+OLB × ILB/MLB). Como "OLB" também cobre o linebacker de cobertura do 4-3, um OLB só
+entra em Edge se teve mais pressões do que alvos permitidos na temporada.
 
-Conferência de sanidade: Myles Garrett 97, Tom Brady 87, Brian Burns 91,
-Sam Darnold 59 — coerente com a temporada 2021.
+O rating é `40 + média dos percentis × 0,59`, o que dá a escala 40–99. O volume
+mínimo é **por jogo do time** (ex.: 15 dropbacks por jogo para QB), multiplicado pelos
+jogos que o time já disputou; assim o rating funciona também no meio da temporada.
+Quem não bate o mínimo aparece como `n/d`, em vez de receber uma nota com amostra
+fraca. Um eixo sem dado na fonte fica fora da média, com o motivo.
+
+A linha ofensiva não tem pressão cedida individual em fonte pública: 2 dos 4 eixos
+dela são do time, nos jogos em que o jogador atuou (marcado como `baseReduzida`).
 
 ---
 
-## Limites do dataset (a interface avisa isso na tela)
+## Limites dos dados
 
-- **Só existem jogadas de passe.** O Big Data Bowl 2023 é sobre proteção e pressão,
-  então não há corridas, chutes nem retornos. Por isso a tela de estatísticas fala em
-  "dropbacks", e não em jardas totais do jogo.
-- **O placar é aproximado.** O `plays.csv` só traz o placar *antes* de cada dropback.
-  Pontos marcados depois do último dropback (field goal decisivo, TD terrestre) não
-  aparecem. Exemplo: TB × DAL na semana 1 fecha em 28–29 no app, quando o oficial foi
-  31–29.
-- **O tracking termina pouco depois do lançamento.** Os eventos de recepção são raros,
-  então não há métrica confiável de alvos, recepções ou separação do recebedor.
+- **Não há tracking.** A prancheta é ilustrativa e não anima; métricas de velocidade
+  e de deslocamento da primeira versão deixaram de existir.
+- **O nflverse publica o jogo no dia seguinte.** Durante a partida, o placar ao vivo
+  vem da ESPN no navegador; depois, vale o placar oficial do nflverse.
+- **Formação e charting do FTN existem de 2022 em diante.** Em 2021 a formação vem só
+  da participação.
+- **Leituras táticas e bastidores** da primeira versão dependiam do dataset antigo:
+  a API os devolve vazios (`insights` e `notes`) e a tela esconde os blocos.
 
 ---
 
 ## API
 
-Todos os endpoints são `GET` e devolvem JSON.
+Todos os endpoints são `GET` e devolvem JSON. Sem `season`, vale a temporada atual.
 
 | Rota | Retorno |
 |---|---|
-| `/api/meta` | temporada, semanas, 32 times, médias da liga, limitações |
-| `/api/games?week=3` | partidas da semana |
-| `/api/games/{id}` | detalhe + estatísticas + insights + bastidores + destaques |
-| `/api/games/{id}/plays` | todas as jogadas do jogo |
-| `/api/games/{id}/plays/{pid}/tracking` | quadros de todos os 22 jogadores + bola |
-| `/api/games/{id}/plays/{pid}/formation` | posições no instante do snap |
-| `/api/games/{id}/broadcast` | feed cronológico narrado |
-| `/api/players?q=&position=&role=&limit=` | busca de jogadores |
-| `/api/players/{nflId}` | perfil completo com radar e jogo a jogo |
-| `/api/compare?a=&b=` | comparação entre dois jogadores |
-| `/api/leaders?metric=&role=` | ranking por métrica |
+| `/api/meta` | temporadas, semanas e rodadas, 32 times, médias da liga, fontes, créditos e última atualização |
+| `/api/games?season=&week=&date=` | partidas, com status (`agendado`, `sem_resultado`, `encerrado`) |
+| `/api/games/{id}` | detalhe + estatísticas + tendências + destaques |
+| `/api/games/{id}/plays?quarter=&team=` | todas as jogadas do jogo |
+| `/api/games/{id}/plays/{pid}` | uma jogada |
+| `/api/games/{id}/plays/{pid}/tracking` | esquema ilustrativo da formação (1 quadro, `ilustrativo: true`) |
+| `/api/games/{id}/plays/{pid}/formation` | o mesmo esquema, no formato da formação no snap |
+| `/api/games/{id}/broadcast` | feed cronológico narrado com o placar de cada jogada |
+| `/api/players?season=&q=&position=&role=&team=&rated=&limit=` | busca de jogadores |
+| `/api/players/{id}?season=` | perfil completo com radar e jogo a jogo (id gsis, ex.: `00-0034857`) |
+| `/api/compare?season=&a=&b=` | comparação entre dois jogadores do mesmo grupo e temporada |
+| `/api/leaders?season=&metric=&role=&limit=` | ranking por eixo do rating (ex.: `metric=pressao_snap&role=EDGE`) |
 
 Exemplo:
 
 ```powershell
-curl http://127.0.0.1:8000/api/leaders?metric=pressureRate&role=Pass+Rush&limit=5
+curl "http://127.0.0.1:8000/api/leaders?season=2025&metric=epa_dropback&role=QB&limit=5"
 ```
 
 ---
@@ -183,58 +242,43 @@ curl http://127.0.0.1:8000/api/leaders?metric=pressureRate&role=Pass+Rush&limit=
 ```powershell
 python -m pip install -r requirements-dev.txt   # pytest + playwright (uma vez)
 
-python -m pytest                  # 39 testes (~80 s); cada um sobe seu próprio servidor
-python -m pytest -m lento         # preparo completo do cache do zero (~50 s)
-python tools/golden.py check      # prova que nenhuma resposta da API mudou (2.159 URLs)
+python -m pytest tests -q         # sobe o servidor em --offline; precisa de dados/ montado
+python server/smoke_test.py       # todas as consultas da camada de dados, sem servidor
+python tools/golden.py check      # prova que nenhuma resposta da API mudou (2.116 URLs)
 python tools/bench.py --check     # tempo por rota com 1 usuário, contra as metas
-python tools/carga.py --usuarios 10 --check   # 10 usuários ao mesmo tempo (~45 s)
-python tools/carga.py --usuarios 10 --sem-pausa   # estresse, sem pausa entre cliques
+python tools/carga.py --usuarios 10 --check   # 10 usuários ao mesmo tempo
 ```
+
+Os testes que leem `dados/` são pulados se a pasta ainda não tiver sido montada: suba
+o servidor uma vez com internet antes. Os testes e as ferramentas usam `--offline`,
+porque a API do GitHub permite só 60 chamadas por hora.
 
 Os testes de navegador usam o **Edge já instalado** (não rode `playwright install`).
-O `tests/golden/hashes.json` é a "foto" das respostas da versão original: se uma
-mudança alterar qualquer número da API, o `golden.py check` aponta a URL. Só refaça a
-foto (`capture`) quando a mudança de dados for intencional, como ao trocar o dataset.
-
-Os testes de fumaça antigos continuam valendo (esses precisam do servidor rodando):
-
-```powershell
-python server/smoke_test.py      # camada de dados
-python server/ui_test.py         # home renderizada num navegador headless
-python server/ui_test_all.py     # as 4 telas
-```
+O `tests/golden/hashes.json` é a "foto" das respostas das temporadas **encerradas**
+(2021–2025) e dos caminhos de erro; a temporada atual fica de fora, porque muda todo
+dia. Só refaça a foto (`capture`) quando a mudança de dados for intencional.
 
 ---
 
 ## Desempenho
 
-Otimizado pela spec `.kiro/specs/otimizacao-desempenho/` (meta: uma banca de 10
-pessoas usando ao mesmo tempo). Medido nesta máquina, com os mesmos números na tela:
+Meta das specs `.kiro/specs/otimizacao-desempenho/` e `dados-externos/`: uma banca de
+10 pessoas usando ao mesmo tempo. Medido nesta máquina, na semana mais recente
+disputada:
 
-| Medida | Antes | Depois |
-|---|---|---|
-| 10 usuários, pausa de 1–2 s entre cliques (cenário da spec), p95 | não medido | **37–42 ms** (meta 300) |
-| 10 usuários **sem pausa** (estresse), p95 | 1.502 ms | 263–393 ms |
-| 10 usuários sem pausa, p50 | 457 ms | 24–29 ms |
-| 25 usuários simultâneos | 5 conexões recusadas | 0 recusadas, p95 ~650 ms |
-| Tela inicial pronta | ~340 ms | ~40 ms |
-| Abrir jogada, 1º acesso ao jogo | 144 ms | 30–38 ms |
-| Abrir jogada, jogo já aberto | 52 ms | 8–10 ms |
-| Avançar para a próxima jogada | ~65 ms | 5–6 ms (pré-carregada) |
-| Detalhe do jogo | 111 ms | 0 ms (em cache) |
-| Busca de 300 jogadores | 25 ms | 17–21 ms |
+| Medida | Resultado |
+|---|---|
+| 10 usuários, pausa de 1–2 s entre cliques, p95 | 27 ms (meta 300) |
+| Subida com a cópia local | ~4 s (meta 10) |
+| Primeira carga completa (download + montagem) | 103 s (meta 5 min) |
+| Disco em `dados/` | ~50 MB (meta 1 GB) |
+| Pico de memória no teste de carga | ~495 MB (meta 1 GB) |
+
+Detalhes em `tests/golden/resultado_dados_externos.txt`.
 
 Como: respostas prontas em memória (cada uma calculada uma vez, pré-aquecidas ao
-subir), tracking em formato binário por jogo, montagem das jogadas com numpy,
-pré-carga das jogadas vizinhas no navegador e descarte de respostas atrasadas.
-
-O cache binário ocupa **~111 MB** em `cache/tracking/` (1 arquivo por jogo).
-
-**Sobre a meta de 10 usuários:** o cenário da spec é uma banca de pessoas, com uma
-pausa de 1 a 2 s entre cliques (`tools/carga.py --usuarios 10`). O modo
-`--sem-pausa` dispara tudo sem intervalo. É mais agressivo que gente de verdade e
-fica como teste de estresse: nele o p95 oscila em torno de 300 ms, e o custo que
-sobra é descomprimir o tracking de cada jogo aberto pela primeira vez (~25 ms).
+subir), tabelas em formato binário com texto como categoria, pré-carga das jogadas
+vizinhas no navegador e descarte de respostas atrasadas.
 
 ---
 
@@ -243,10 +287,11 @@ sobra é descomprimir o tracking de cada jogo aberto pela primeira vez (~25 ms).
 | Sintoma | Causa e solução |
 |---|---|
 | A página abre com o aviso "API indisponível" | O servidor não está de pé. Rode `python server/serve.py`. |
-| Primeira subida demora ~50 s | É o preparo do cache (só na 1ª vez ou quando o dataset muda). O progresso aparece no terminal. |
-| `[aviso] <jogo>.npz ilegivel` no terminal | O arquivo do cache daquele jogo corrompeu. O app segue funcionando (lê o CSV original); ele é regenerado ao reiniciar o servidor. |
+| Primeira subida demora alguns minutos | É o download e a montagem dos dados (~330 MB). O progresso aparece no terminal. |
+| `[erro] Sem dados para subir o app` | Primeira subida sem internet. Conecte-se e rode de novo. |
+| `[erro] dados locais ilegiveis` | A cópia em `dados/` corrompeu. Apague a pasta e rode de novo (com internet). |
 | `503 servidor ocupado` | Mais de 64 requisições simultâneas. O navegador pode tentar de novo em 2 s. |
-| `ModuleNotFoundError: pandas` | `python -m pip install pandas` |
+| `ModuleNotFoundError: pandas` | `python -m pip install pandas numpy` |
 | Tela em branco abrindo o arquivo direto | É o caso do `file://`. Acesse por `http://127.0.0.1:8000`. |
 | Porta 8000 ocupada | `python server/serve.py --port 9000` |
 | Acentos quebrados no terminal do Windows | `$env:PYTHONIOENCODING='utf-8'` antes do comando. |
@@ -255,13 +300,16 @@ sobra é descomprimir o tracking de cada jogo aberto pela primeira vez (~25 ms).
 
 ## Requisitos
 
-- Python 3.10 ou superior (testado no 3.14) com **pandas**
+- Python 3.10 ou superior (testado no 3.14) com **pandas** e **numpy**
 - Um navegador atual
-- O dataset em `nfl-big-data-bowl-regional-event-data-main/data/`
+- Internet na primeira execução (depois, opcional)
 
 Sem Node, sem npm, sem etapa de build.
 
 ---
 
-**Fonte dos dados:** NFL Big Data Bowl 2023 — tracking do NFL Next Gen Stats,
-avaliações de [Pro Football Focus](https://www.pff.com/).
+**Fontes dos dados:** [nflverse](https://github.com/nflverse/nflverse-data) (CC-BY-4.0);
+charting de [FTN Data](https://ftndata.com) via nflverse (CC-BY-SA-4.0); estatísticas
+avançadas e snaps de [Pro Football Reference](https://www.pro-football-reference.com)
+via nflverse; placar ao vivo e matérias da [ESPN](https://www.espn.com/nfl/),
+consultados no navegador.

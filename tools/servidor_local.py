@@ -10,6 +10,7 @@ ferramentas de medicao (tools/) e para os testes (tests/).
 
 from __future__ import annotations
 
+import json
 import os
 import socket
 import subprocess
@@ -57,7 +58,8 @@ def servidor(args: tuple[str, ...] = (), esperar_aquecimento: bool = True, timeo
     env = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1", **(env or {})}
     t0 = time.perf_counter()
     proc = subprocess.Popen(
-        [sys.executable, str(SERVE), "--port", str(porta), *args],
+        # --offline: testes e medicoes usam a copia local e nao gastam o limite da API do GitHub.
+        [sys.executable, str(SERVE), "--port", str(porta), "--offline", *args],
         cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace",
     )
@@ -100,6 +102,23 @@ def servidor(args: tuple[str, ...] = (), esperar_aquecimento: bool = True, timeo
             proc.wait(10)
         except subprocess.TimeoutExpired:
             proc.kill()
+
+
+def jogos_da_semana_recente(base: str) -> list[int]:
+    """
+    Os jogos da semana mais recente ja disputada por inteiro (com jogadas), onde
+    as metas de desempenho sao medidas (NFR 1 da spec dados-externos). No inicio
+    da temporada, a ultima semana da temporada anterior.
+    """
+    j = lambda p: json.load(urllib.request.urlopen(base + p))  # noqa: E731
+    meta = j("/api/meta")
+    for t in meta["seasons"]:                       # da mais nova para a mais antiga
+        semanas = [w["week"] for w in t["weeks"] if w["week"] <= (t["currentWeek"] or 0)]
+        for w in reversed(semanas):
+            jogos = j(f"/api/games?season={t['season']}&week={w}")
+            if jogos and all(g["status"] == "encerrado" and g["plays"] for g in jogos):
+                return [g["gameId"] for g in jogos]
+    raise RuntimeError("nenhuma semana disputada nos dados")
 
 
 def pico_memoria_mb(pid: int) -> float | None:

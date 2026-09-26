@@ -1,12 +1,18 @@
 """
 Servidor local do app NFL Games.
 
-Serve a UI estatica de app/ e a API JSON /api/* sobre os dados do Big Data Bowl.
-So depende da stdlib + pandas (nenhum framework a instalar).
+Serve a UI estatica de app/ e a API JSON /api/* sobre os dados do nflverse
+(temporadas de 2021 em diante), baixados e montados em dados/ por etl/fontes.py,
+etl/montar.py e etl/ratings.py. So depende da stdlib + pandas/numpy.
+
+Na subida, busca os dados novos (so o que mudou); com copia local, sobe na hora
+e atualiza em segundo plano. Uma vez por dia, atualiza de novo e troca os dados
+sem reiniciar. Sem internet, segue com a ultima copia.
 
 Uso:
     python server/serve.py                 # http://127.0.0.1:8000
     python server/serve.py --port 9000
+    python server/serve.py --offline       # usa so a copia local (testes, medicoes)
     python server/serve.py --host 0.0.0.0  # expoe na rede local (ver aviso abaixo)
 
 Seguranca: a API e somente leitura e, por padrao, escuta apenas em 127.0.0.1.
@@ -34,19 +40,23 @@ from urllib.parse import parse_qs, unquote, urlencode, urlparse
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "etl"))
 
-from build_metrics import ensure_cache  # noqa: E402
+import fontes  # noqa: E402
+import montar  # noqa: E402
 from data_layer import NFLData  # noqa: E402
-from response_cache import CacheDeRespostas, Resposta  # noqa: E402
+from response_cache import CacheDeRespostas, Resposta, serializar  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT / "app"
-DATA_DIR = ROOT / "nfl-big-data-bowl-regional-event-data-main" / "data"
-CACHE_DIR = ROOT / "cache"
+# NFL_DADOS: outra pasta de dados (testes da subida sem dados).
+DADOS_DIR = Path(os.environ.get("NFL_DADOS") or fontes.DADOS)
 
 GZIP_MIN_BYTES = 2048
+# Os dados em uso. A atualizacao diaria troca a referencia inteira de uma vez;
+# cada requisicao pega a sua no inicio e termina com ela.
 DATA: NFLData | None = None
-# Respostas prontas da API: os dados nao mudam com o servidor de pe.
+# Respostas prontas da API; limpas quando os dados sao trocados.
 CACHE = CacheDeRespostas()
+INTERVALO_ATUALIZACAO_S = 24 * 3600
 
 # Requisicoes /api em processamento ao mesmo tempo. Acima disso: 503 imediato,
 # em vez de enfileirar sem limite (protege memoria e CPU numa rajada).
@@ -72,25 +82,26 @@ class Router:
     """
     Cada rota declara os parametros de query que entende. So eles entram na
     chave do cache de respostas, em ordem fixa: parametros desconhecidos nao
-    geram variacoes e nao conseguem encher o cache.
+    geram variacoes e nao conseguem encher o cache. `cache=False` para as
+    respostas que dependem do relogio (o status "a jogar" dos jogos).
     """
 
     def __init__(self):
-        self.routes: list[tuple[re.Pattern, callable, tuple[str, ...]]] = []
+        self.routes: list[tuple[re.Pattern, callable, tuple[str, ...], bool]] = []
 
-    def get(self, pattern: str, params: tuple[str, ...] = ()):
+    def get(self, pattern: str, params: tuple[str, ...] = (), cache: bool = True):
         def deco(fn):
-            self.routes.append((re.compile(f"^{pattern}$"), fn, tuple(sorted(params))))
+            self.routes.append((re.compile(f"^{pattern}$"), fn, tuple(sorted(params)), cache))
             return fn
 
         return deco
 
     def match(self, path: str):
-        for pattern, fn, params in self.routes:
+        for pattern, fn, params, cache in self.routes:
             m = pattern.match(path)
             if m:
-                return fn, m.groupdict(), params
-        return None, None, ()
+                return fn, m.groupdict(), params, cache
+        return None, None, (), True
 
 
 router = Router()
@@ -100,6 +111,12 @@ def chave_cache(path: str, query: dict, conhecidos: tuple[str, ...]) -> str:
     """Caminho + parametros conhecidos (1o valor, nao vazios), em ordem alfabetica."""
     pares = [(k, query[k][0]) for k in conhecidos if query.get(k) and query[k][0] != ""]
     return path + ("?" + urlencode(pares) if pares else "")
+
+
+def _chave(dados: NFLData, path: str, query: dict, conhecidos: tuple[str, ...]) -> str:
+    """Chave no cache: a versao dos dados + a chave da URL. Uma requisicao que pegou
+    os dados antigos pouco antes da troca nunca grava nem le a resposta dos novos."""
+    return f"v{dados.versao} {chave_cache(path, query, conhecidos)}"
 
 
 class ApiError(Exception):
@@ -126,68 +143,77 @@ def _str_param(query: dict, name: str, default=None):
 
 
 # --------------------------------------------------------------------------- #
-# endpoints
+# endpoints: cada um recebe os dados da requisicao (d), a query e o caminho
 # --------------------------------------------------------------------------- #
+ID_JOGADOR = r"(?P<pid>[0-9A-Za-z-]{1,20})"
+
+
+def _temporada(d: NFLData, q: dict) -> int | None:
+    ano = _int_param(q, "season")
+    if ano is not None and ano not in d.temporadas:
+        raise ApiError(404, f"temporada {ano} indisponivel (ha {min(d.temporadas)} a {max(d.temporadas)})")
+    return ano
+
+
 @router.get(r"/api/meta")
-def api_meta(_q, _p):
-    return DATA.meta()
+def api_meta(d, _q, _p):
+    return d.meta()
 
 
-@router.get(r"/api/games", params=("week", "date"))
-def api_games(q, _p):
-    return DATA.games_list(week=_int_param(q, "week"), date=_str_param(q, "date"))
+@router.get(r"/api/games", params=("season", "week", "date"), cache=False)
+def api_games(d, q, _p):
+    return d.games_list(season=_temporada(d, q), week=_int_param(q, "week"), date=_str_param(q, "date"))
 
 
 @router.get(r"/api/games/(?P<game_id>\d+)")
-def api_game(_q, p):
-    game = DATA.game(int(p["game_id"]))
+def api_game(d, _q, p):
+    game = d.game(int(p["game_id"]))
     if game is None:
         raise ApiError(404, f"jogo {p['game_id']} nao encontrado")
     return game
 
 
 @router.get(r"/api/games/(?P<game_id>\d+)/plays", params=("quarter", "team"))
-def api_plays(q, p):
-    return DATA.game_plays(
-        int(p["game_id"]), quarter=_int_param(q, "quarter"), team=_str_param(q, "team")
-    )
+def api_plays(d, q, p):
+    return d.game_plays(int(p["game_id"]), quarter=_int_param(q, "quarter"), team=_str_param(q, "team"))
 
 
 @router.get(r"/api/games/(?P<game_id>\d+)/plays/(?P<play_id>\d+)")
-def api_play(_q, p):
-    play = DATA.play(int(p["game_id"]), int(p["play_id"]))
+def api_play(d, _q, p):
+    play = d.play(int(p["game_id"]), int(p["play_id"]))
     if play is None:
         raise ApiError(404, "jogada nao encontrada")
     return play
 
 
 @router.get(r"/api/games/(?P<game_id>\d+)/plays/(?P<play_id>\d+)/tracking")
-def api_tracking(_q, p):
-    tr = DATA.play_tracking(int(p["game_id"]), int(p["play_id"]))
+def api_tracking(d, _q, p):
+    tr = d.play_tracking(int(p["game_id"]), int(p["play_id"]))
     if tr is None:
-        raise ApiError(404, "tracking indisponivel para esta jogada")
+        raise ApiError(404, "formacao indisponivel para esta jogada")
     return tr
 
 
 @router.get(r"/api/games/(?P<game_id>\d+)/plays/(?P<play_id>\d+)/formation")
-def api_formation(_q, p):
-    f = DATA.snap_formation(int(p["game_id"]), int(p["play_id"]))
+def api_formation(d, _q, p):
+    f = d.snap_formation(int(p["game_id"]), int(p["play_id"]))
     if f is None:
         raise ApiError(404, "formacao indisponivel para esta jogada")
     return f
 
 
 @router.get(r"/api/games/(?P<game_id>\d+)/broadcast")
-def api_broadcast(_q, p):
-    bc = DATA.broadcast(int(p["game_id"]))
+def api_broadcast(d, _q, p):
+    bc = d.broadcast(int(p["game_id"]))
     if bc is None:
-        raise ApiError(404, "jogo nao encontrado")
+        raise ApiError(404, "jogo nao encontrado ou ainda sem jogadas")
     return bc
 
 
-@router.get(r"/api/players", params=("q", "position", "role", "team", "rated", "limit"))
-def api_players(q, _p):
-    return DATA.players_list(
+@router.get(r"/api/players", params=("season", "q", "position", "role", "team", "rated", "limit"))
+def api_players(d, q, _p):
+    return d.players_list(
+        season=_temporada(d, q),
         q=_str_param(q, "q"),
         position=_str_param(q, "position"),
         role=_str_param(q, "role"),
@@ -197,31 +223,32 @@ def api_players(q, _p):
     )
 
 
-@router.get(r"/api/players/(?P<nfl_id>\d+)")
-def api_player(_q, p):
-    prof = DATA.player(int(p["nfl_id"]))
+@router.get(r"/api/players/" + ID_JOGADOR, params=("season",))
+def api_player(d, q, p):
+    prof = d.player(p["pid"], season=_temporada(d, q))
     if prof is None:
-        raise ApiError(404, "jogador sem dados suficientes no periodo")
+        raise ApiError(404, "jogador sem dados na temporada")
     return prof
 
 
-@router.get(r"/api/compare", params=("a", "b"))
-def api_compare(q, _p):
-    a, b = _int_param(q, "a"), _int_param(q, "b")
-    if a is None or b is None:
-        raise ApiError(400, "informe os parametros 'a' e 'b' com os nflId")
-    cmp = DATA.compare(a, b)
+@router.get(r"/api/compare", params=("season", "a", "b"))
+def api_compare(d, q, _p):
+    a, b = _str_param(q, "a"), _str_param(q, "b")
+    if not a or not b:
+        raise ApiError(400, "informe os parametros 'a' e 'b' com os ids dos jogadores")
+    cmp = d.compare(a, b, season=_temporada(d, q))
     if cmp is None:
-        raise ApiError(404, "um dos jogadores nao tem dados suficientes")
+        raise ApiError(404, "um dos jogadores nao tem dados na temporada")
     return cmp
 
 
-@router.get(r"/api/leaders", params=("metric", "role", "limit"))
-def api_leaders(q, _p):
+@router.get(r"/api/leaders", params=("season", "metric", "role", "limit"))
+def api_leaders(d, q, _p):
     metric = _str_param(q, "metric")
     if not metric:
         raise ApiError(400, "informe o parametro 'metric'")
-    return DATA.leaders(metric, role=_str_param(q, "role"), limit=min(_int_param(q, "limit", 10), 100))
+    return d.leaders(metric, role=_str_param(q, "role"), limit=min(_int_param(q, "limit", 10), 100),
+                     season=_temporada(d, q))
 
 
 # --------------------------------------------------------------------------- #
@@ -275,7 +302,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": "erro interno no servidor"}, status=500)
 
     def _handle_api(self, path: str, query: dict):
-        fn, params, conhecidos = router.match(path)
+        fn, params, conhecidos, cacheavel = router.match(path)
         if fn is None:
             raise ApiError(404, f"rota desconhecida: {path}")
         if not _vagas.acquire(blocking=False):
@@ -283,10 +310,15 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if _ATRASO_TESTE_S:
                 time.sleep(_ATRASO_TESTE_S)
+            dados = DATA        # a referencia desta requisicao, mesmo que troquem no meio
             t0 = time.perf_counter()
             # Parametro invalido ou recurso inexistente viram ApiError dentro de
             # fn: atravessam o cache sem ser guardados.
-            resp, hit = CACHE.get_or_build(chave_cache(path, query, conhecidos), lambda: fn(query, params))
+            if cacheavel:
+                resp, hit = CACHE.get_or_build(_chave(dados, path, query, conhecidos),
+                                               lambda: fn(dados, query, params))
+            else:
+                resp, hit = serializar(fn(dados, query, params)), False
             ms = (time.perf_counter() - t0) * 1000
         finally:
             _vagas.release()
@@ -358,24 +390,90 @@ class Handler(BaseHTTPRequestHandler):
 
 
 # --------------------------------------------------------------------------- #
-def tarefas_de_aquecimento():
+def tarefas_de_aquecimento(dados: NFLData):
     """
     (chave, construtor) das respostas que todo usuario acaba pedindo, na ordem
-    em que a tela as pede: meta, partidas de cada semana e, jogo a jogo (semana 1
-    primeiro, que e a tela padrao), detalhe, jogadas e comentarista. O tracking
-    fica de fora: 8.557 jogadas sao caras de pre-montar e a pre-carga do
-    navegador cobre a navegacao.
+    em que a tela as pede: meta, jogadores e, jogo a jogo (a semana atual
+    primeiro, depois da mais recente para a mais antiga), detalhe, jogadas e
+    comentarista dos jogos ja disputados da temporada atual. As outras
+    temporadas: sob demanda. A lista de jogos nao entra: ela nao e guardada.
     """
     urls = ["/api/meta", "/api/players?limit=60"]
-    jogos = DATA.games.sort_values(["week", "gameId"])
-    urls += [f"/api/games?week={int(w)}" for w in jogos["week"].unique()]
-    for g in jogos["gameId"]:
+    j = dados.jogos[(dados.jogos["season"] == dados.atual) & dados.jogos["home_score"].notna()]
+    semana = dados.meta()["currentWeek"]
+    j = j.assign(_outra=(j["week"] != semana)).sort_values(["_outra", "week", "gameId"],
+                                                          ascending=[True, False, True])
+    for g in j["gameId"]:
         urls += [f"/api/games/{g}", f"/api/games/{g}/plays", f"/api/games/{g}/broadcast"]
     for url in urls:
         u = urlparse(url)
         query = parse_qs(u.query)
-        fn, params, conhecidos = router.match(u.path)
-        yield chave_cache(u.path, query, conhecidos), (lambda fn=fn, q=query, p=params: fn(q, p))
+        fn, params, conhecidos, _c = router.match(u.path)
+        yield _chave(dados, u.path, query, conhecidos), (lambda fn=fn, q=query, p=params: fn(dados, q, p))
+
+
+def _log(m: str) -> None:
+    print(m, flush=True)
+
+
+def trocar_dados(novo: NFLData, log=_log) -> None:
+    """Troca os dados em uso, limpa as respostas antigas e reaquece (7.3)."""
+    global DATA
+    DATA = novo
+    CACHE.limpar()
+    CACHE.aquecer(tarefas_de_aquecimento(novo), log=log)
+
+
+def atualizar(offline: bool = False, log=_log) -> bool:
+    """
+    Um ciclo de atualizacao: sincroniza, monta e, se algo mudou, carrega os
+    dados novos e troca. Nunca derruba o servidor: sem internet ou com erro,
+    loga e segue com a copia em uso (7.5). Devolve True se trocou os dados.
+    """
+    try:
+        sinc, mont = montar.sincronizar_e_montar(DADOS_DIR, progresso=log,
+                                                 rede=fontes.SemAcesso() if offline else None)
+    except Exception as e:  # noqa: BLE001
+        log(f"[aviso] atualizacao falhou ({e!r}); seguindo com os dados em uso")
+        return False
+    if not (sinc.mudou or mont.temporadas or mont.globais):
+        if not sinc.sem_rede:
+            # nada novo, mas a data da ultima atualizacao (/api/meta) mudou
+            CACHE.limpar()
+            CACHE.aquecer(tarefas_de_aquecimento(DATA), log=log)
+        return False
+    log(f"atualizacao: {len(sinc.baixados)} arquivos novos, temporadas {mont.temporadas}; recarregando...")
+    try:
+        novo = NFLData(DADOS_DIR)
+    except Exception as e:  # noqa: BLE001
+        log(f"[aviso] dados novos ilegiveis ({e!r}); seguindo com os dados em uso")
+        return False
+    trocar_dados(novo, log=log)
+    log("atualizacao: dados novos em uso")
+    return True
+
+
+def ciclo_de_atualizacao(parar: threading.Event, intervalo_s: float, primeira_espera_s: float,
+                         offline: bool = False, log=_log, passo=None) -> threading.Thread:
+    """
+    Atualiza depois de `primeira_espera_s` e, a partir dai, a cada `intervalo_s`
+    (7.2). `passo` substitui atualizar() nos testes.
+    """
+    passo = passo or (lambda: atualizar(offline=offline, log=log))
+
+    def rodar():
+        espera = primeira_espera_s
+        while not parar.wait(espera):
+            passo()
+            espera = intervalo_s
+
+    t = threading.Thread(target=rodar, name="atualizacao", daemon=True)
+    t.start()
+    return t
+
+
+def _tem_copia_montada() -> bool:
+    return (DADOS_DIR / "jogos.npz").exists() and any((DADOS_DIR / "temporadas").glob("*/jogadores.npz"))
 
 
 def parser() -> argparse.ArgumentParser:
@@ -384,6 +482,8 @@ def parser() -> argparse.ArgumentParser:
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--max-pendentes", type=int, default=MAX_PENDENTES,
                     help="requisicoes /api simultaneas antes de responder 503 (padrao: %(default)s)")
+    ap.add_argument("--offline", action="store_true",
+                    help="nao acessa a internet: usa so a copia local (testes e medicoes)")
     return ap
 
 
@@ -392,21 +492,32 @@ def main() -> int:
 
     global DATA, _vagas
     _vagas = threading.BoundedSemaphore(args.max_pendentes)
-    # Prepara so o que falta (1a execucao, jogo novo ou alterado). Com o cache
-    # completo, e so uma conferencia de tamanhos/datas.
-    try:
-        ensure_cache(DATA_DIR, CACHE_DIR, progress=lambda m: print(m, flush=True))
-    except FileNotFoundError as e:
-        print(f"[erro] {e}")
-        return 1
-    print("carregando dataset NFL Big Data Bowl 2023...")
+    intervalo = float(os.environ.get("NFL_INTERVALO_ATUALIZACAO_S") or INTERVALO_ATUALIZACAO_S)
+    rede = fontes.SemAcesso() if args.offline else None
+
+    ja_atualizou = False
+    if not _tem_copia_montada():
+        # Primeira subida: baixa e monta tudo antes de servir, mostrando o progresso.
+        print("primeira carga: baixando e montando os dados do nflverse (2021 em diante)...", flush=True)
+        try:
+            montar.sincronizar_e_montar(DADOS_DIR, progresso=_log, rede=rede)
+        except fontes.SemDados as e:
+            print(f"\n[erro] Sem dados para subir o app: {e}\n"
+                  "       Conecte-se a internet e rode de novo: a primeira carga baixa os dados "
+                  "do nflverse (~330 MB, alguns minutos).", flush=True)
+            return 1
+        ja_atualizou = True
+
+    print("carregando os dados...", flush=True)
     t0 = time.perf_counter()
-    DATA = NFLData(DATA_DIR, CACHE_DIR)
+    try:
+        DATA = NFLData(DADOS_DIR)
+    except (FileNotFoundError, OSError, ValueError, KeyError) as e:
+        print(f"[erro] dados locais ilegiveis ({e!r}). Apague a pasta {DADOS_DIR} e rode de novo.", flush=True)
+        return 1
     c = DATA.meta()["counts"]
-    print(
-        f"  pronto em {time.perf_counter() - t0:.1f}s — "
-        f"{c['games']} jogos, {c['plays']} jogadas, {c['players']} jogadores"
-    )
+    print(f"  pronto em {time.perf_counter() - t0:.1f}s: temporadas {min(DATA.temporadas)}-{DATA.atual}, "
+          f"{c['played']} jogos disputados e {c['plays']} jogadas em {DATA.atual}", flush=True)
 
     if not (APP_DIR / "index.html").is_file():
         print(f"[aviso] {APP_DIR / 'index.html'} nao existe; a API funciona, a UI nao.")
@@ -416,13 +527,18 @@ def main() -> int:
     print(f"\nservindo em {url}")
     if args.host == "0.0.0.0":
         print("[aviso] escutando em todas as interfaces, sem autenticacao. Use so em rede confiavel.")
-    print("ctrl+c para parar\n")
+    print("ctrl+c para parar\n", flush=True)
     # O socket ja esta escutando: o app atende enquanto o cache aquece.
-    CACHE.aquecer(tarefas_de_aquecimento(), log=lambda m: print(m, flush=True))
+    CACHE.aquecer(tarefas_de_aquecimento(DATA), log=_log)
+    # Com copia local, a busca por dados novos (7.1) roda em 2o plano logo apos a subida.
+    parar = threading.Event()
+    ciclo_de_atualizacao(parar, intervalo, primeira_espera_s=intervalo if ja_atualizou else 1.0,
+                         offline=args.offline)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\nencerrando...")
+        parar.set()
         httpd.shutdown()
     return 0
 

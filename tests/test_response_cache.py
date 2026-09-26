@@ -106,3 +106,37 @@ def test_aquecer_pula_falhas_e_loga_inicio_e_fim():
     assert any("falhou /b" in l for l in linhas)
     assert linhas[-1].startswith("aquecimento: concluido")
     assert c.stats()["itens"] == 2
+
+
+# --------------------------------------------------------- dados-externos 6.2
+def test_limpar_esquece_as_respostas():
+    c = CacheDeRespostas()
+    c.get_or_build("/api/meta", lambda: {"v": 1})
+    c.limpar()
+    assert c.stats()["itens"] == 0 and c.stats()["bytes"] == 0
+    r, hit = c.get_or_build("/api/meta", lambda: {"v": 2})
+    assert not hit and json.loads(r.corpo()) == {"v": 2}
+
+
+def test_resposta_montada_com_dados_velhos_nao_entra_depois_do_limpar():
+    """A troca de dados no meio de uma montagem: quem esperava recebe, mas o cache não guarda."""
+    c = CacheDeRespostas()
+    montando, pode_terminar = threading.Event(), threading.Event()
+
+    def velho():
+        montando.set()
+        pode_terminar.wait(5)
+        return {"dados": "velhos"}
+
+    out = []
+    t = threading.Thread(target=lambda: out.append(c.get_or_build("/api/games", velho)))
+    t.start()
+    montando.wait(5)
+    c.limpar()                                   # os dados foram trocados aqui
+    novo, hit = c.get_or_build("/api/games", lambda: {"dados": "novos"})
+    assert not hit and json.loads(novo.corpo()) == {"dados": "novos"}   # não esperou pela montagem velha
+    pode_terminar.set()
+    t.join(5)
+    assert json.loads(out[0][0].corpo()) == {"dados": "velhos"}        # quem já pedia recebe a sua
+    r, hit = c.get_or_build("/api/games", lambda: pytest.fail("deveria estar no cache"))
+    assert hit and json.loads(r.corpo()) == {"dados": "novos"}

@@ -6,7 +6,8 @@ Teste de carga: N usuarios fazendo a "sessao tipica" ao mesmo tempo
     python tools/carga.py --usuarios 10 --check      # sai com erro se falhar alguma meta
     python tools/carga.py --usuarios 10 --sem-pausa  # estresse: cliques sem intervalo
 
-Sessao tipica (7 requisicoes): detalhe do jogo, lista de jogadas, 3 trackings,
+Sessao tipica (7 requisicoes), na semana mais recente disputada (NFR 1 da spec
+dados-externos): detalhe do jogo, lista de jogadas, 3 pranchetas,
 comentarista e lista do olheiro, com uma pausa de 1 a 2 s entre um clique e o
 proximo, como uma pessoa real (requirements v0.3). So o tempo de cada resposta
 e medido; a pausa nao entra na conta. Cada usuario faz 2 sessoes. Sorteios com
@@ -30,18 +31,17 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from servidor_local import pico_memoria_mb, servidor  # noqa: E402
+from servidor_local import jogos_da_semana_recente, pico_memoria_mb, servidor  # noqa: E402
 
 META_P95_MS = 300     # 1.1
-META_MEMORIA_MB = 600  # 6.5
+META_MEMORIA_MB = 1024  # NFR 5 dados-externos (6 temporadas carregadas)
 
 
 def sessoes(base: str, n: int, semente: int = 2021) -> list[list[str]]:
     j = lambda p: json.load(urllib.request.urlopen(base + p))  # noqa: E731
     rnd = random.Random(semente)
-    jogos = [g["gameId"] for g in j("/api/games")]
-    escolhidos = rnd.sample(jogos, 20)
-    com = {g: [p["playId"] for p in j(f"/api/games/{g}/plays") if p["hasTracking"]] for g in escolhidos}
+    escolhidos = jogos_da_semana_recente(base)
+    com = {g: [p["playId"] for p in j(f"/api/games/{g}/plays") if p["hasFormation"]] for g in escolhidos}
     out = []
     for _ in range(n):
         g = rnd.choice(escolhidos)

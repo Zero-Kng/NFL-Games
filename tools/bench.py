@@ -1,5 +1,6 @@
 """
-Tempos por rota com 1 usuario (NFR 1 da spec otimizacao-desempenho).
+Tempos por rota com 1 usuario (NFR 1 das specs otimizacao-desempenho e dados-externos),
+medidos na semana mais recente disputada.
 
     python tools/bench.py            # imprime a tabela
     python tools/bench.py --check    # sai com erro se alguma meta por rota falhar
@@ -22,17 +23,17 @@ import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from servidor_local import servidor  # noqa: E402
+from servidor_local import jogos_da_semana_recente, servidor  # noqa: E402
 
 # (rotulo, meta em ms no servidor, criterio) -- so as linhas com meta sao checadas
 METAS = {
-    "tracking, 1o acesso ao jogo": (60, "2.1"),
-    "tracking, jogo ja acessado": (20, "2.2"),
-    "jogada sem tracking (404)": (20, "2.4"),
+    "prancheta, 1o acesso ao jogo": (60, "2.1"),
+    "prancheta, jogo ja acessado": (20, "2.2"),
+    "jogada sem formacao (404)": (20, "2.4"),
     "detalhe do jogo": (60, "4.2"),
     "busca de jogadores (300)": (30, "5.3"),
 }
-META_STARTUP_S = (5.0, "6.2")
+META_STARTUP_S = (10.0, "NFR 2 dados-externos")
 
 
 def medir(base: str, path: str) -> tuple[float, float, int]:
@@ -61,32 +62,30 @@ def main() -> int:
     with servidor() as srv:
         b = srv.url
         j = lambda p: json.load(urllib.request.urlopen(b + p))  # noqa: E731
-        jogos = [g["gameId"] for g in j("/api/games")]
-        amostra = jogos[::25][:5]  # 5 jogos espalhados pela temporada
+        jogos = jogos_da_semana_recente(b)
+        amostra = jogos[::3][:5]  # 5 jogos da semana
         jogadas = {g: j(f"/api/games/{g}/plays") for g in amostra}
-        com = {g: [p["playId"] for p in v if p["hasTracking"]] for g, v in jogadas.items()}
-        # No dataset atual toda jogada tem tracking (hasTracking nunca e falso);
-        # o 404 de 2.4 e exercitado com um playId que nao existe no jogo.
-        sem = [(g, p["playId"]) for g, v in jogadas.items() for p in v if not p["hasTracking"]]
-        sem = (sem + [(g, 1) for g in amostra])[:3]
+        com = {g: [p["playId"] for p in v if p["hasFormation"]] for g, v in jogadas.items()}
+        # Chutes nao tem formacao: o 404 de 2.4 sai deles.
+        sem = [(g, p["playId"]) for g, v in jogadas.items() for p in v if not p["hasFormation"]][:3]
         ids = [p["nflId"] for p in j("/api/players?limit=10")]
 
         linhas: dict[str, list[str]] = {
             "meta": ["/api/meta"],
-            "partidas da semana": [f"/api/games?week={w}" for w in (1, 3, 5)],
-            "detalhe do jogo": [f"/api/games/{g}" for g in jogos[1::20][:5]],
-            "lista de jogadas": [f"/api/games/{g}/plays" for g in jogos[2::20][:5]],
-            "tracking, 1o acesso ao jogo": [f"/api/games/{g}/plays/{com[g][0]}/tracking" for g in amostra],
-            "tracking, jogo ja acessado": [f"/api/games/{amostra[0]}/plays/{p}/tracking" for p in com[amostra[0]][1:6]],
+            "partidas da semana": [f"/api/games?week={w}" for w in (1, 2, 3)],
+            "detalhe do jogo": [f"/api/games/{g}" for g in jogos[1::3][:5]],
+            "lista de jogadas": [f"/api/games/{g}/plays" for g in jogos[2::3][:5]],
+            "prancheta, 1o acesso ao jogo": [f"/api/games/{g}/plays/{com[g][0]}/tracking" for g in amostra],
+            "prancheta, jogo ja acessado": [f"/api/games/{amostra[0]}/plays/{p}/tracking" for p in com[amostra[0]][1:6]],
             "formacao no snap": [f"/api/games/{amostra[1]}/plays/{p}/formation" for p in com[amostra[1]][1:4]],
-            "jogada sem tracking (404)": [f"/api/games/{g}/plays/{p}/tracking" for g, p in sem[:3]],
-            "comentarista": [f"/api/games/{g}/broadcast" for g in jogos[3::20][:3]],
+            "jogada sem formacao (404)": [f"/api/games/{g}/plays/{p}/tracking" for g, p in sem[:3]],
+            "comentarista": [f"/api/games/{g}/broadcast" for g in jogos[3::3][:3]],
             "lista do olheiro (40)": ["/api/players?limit=40"],
             "busca de jogadores (300)": ["/api/players?q=a&limit=300", "/api/players?q=e&limit=300",
                                          "/api/players?q=o&limit=300"],
             "perfil do jogador": [f"/api/players/{i}" for i in ids[:3]],
             "comparacao": [f"/api/compare?a={ids[0]}&b={ids[1]}", f"/api/compare?a={ids[2]}&b={ids[3]}"],
-            "lideres": ["/api/leaders?metric=pressureRate&role=Pass+Rush"],
+            "lideres": ["/api/leaders?metric=pressao_snap&role=EDGE"],
         }
 
         print(f"startup do servidor: {srv.startup_s:.1f}s   ({time.strftime('%Y-%m-%d %H:%M')})\n")

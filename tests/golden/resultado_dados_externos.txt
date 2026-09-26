@@ -1,0 +1,31 @@
+Medicao final da spec dados-externos (tarefa 9.1)
+Data: 2026-09-26 · Windows 11 · Python 3.14 · servidor em --offline, dados de 2021 a 2026
+Semana medida (NFR 1): a mais recente disputada por inteiro (2026, semana 2)
+
+Requisitos nao funcionais
+-------------------------
+NFR 1  desempenho (bench, 1 usuario, tempo no servidor):
+         prancheta, 1o acesso ao jogo      5 ms   (meta 60)   ok
+         prancheta, jogo ja acessado       1 ms   (meta 20)   ok
+         jogada sem formacao (404)         2 ms   (meta 20)   ok
+         detalhe do jogo                   0 ms   (meta 60)   ok
+         busca de jogadores (300)         12 ms   (meta 30)   ok
+       carga, 10 usuarios com pausa de 1-2 s: 140 requisicoes, 0 erros,
+         p50 15 ms, p95 27 ms              (meta p95 300)      ok
+NFR 2  subida com copia local             3,8 s  (meta 10 s)  ok
+NFR 3  primeira carga completa, pasta vazia, conexao domestica:
+         103 s: 60 arquivos baixados (~330 MB), 6 temporadas montadas,
+         323 MB de brutos descartados no fim   (meta 5 min)   ok
+NFR 4  disco em dados/                    50 MB  (meta 1 GB)  ok
+         (pico durante a primeira carga, antes do descarte: ~380 MB)
+NFR 5  memoria do servidor, pico na carga 495 MB (meta 1 GB)  ok
+         (na troca diaria os dois conjuntos convivem alguns segundos: ~290 MB cada)
+
+Testes
+------
+pytest tests                  152 passed (inclui 30 de navegador no Edge headless)
+tools/golden.py check         2116/2116 URLs identicas (temporadas 2021-2025 e erros)
+tools/bench.py --check        METAS OK
+tools/carga.py --usuarios 10  METAS OK
+
+Nenhuma meta falhou (9.4).
