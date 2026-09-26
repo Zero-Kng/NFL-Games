@@ -292,7 +292,7 @@ async function boot() {
   } catch (e) {
     $('inicio').classList.add('active');
     $('inicio').innerHTML = '<section class="block">' + oops(
-      'API indisponível. Rode python server/serve.py (ou o RODAR.bat) e abra http://127.0.0.1:8000. ' +
+      'API indisponível. Abra o NFL-Games (ou rode python rodar.py) e acesse http://127.0.0.1:8000. ' +
       'Detalhe: ' + e.message) + '</section>';
     $('filters').hidden = true;
     return;

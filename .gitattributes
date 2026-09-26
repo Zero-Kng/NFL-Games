@@ -1,0 +1,2 @@
+# Scripts de terminal: o sh nao aceita CRLF.
+*.sh text eol=lf

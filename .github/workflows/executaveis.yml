@@ -1,0 +1,75 @@
+# Gera os executaveis do app (tools/empacotar.py) em Windows e em Linux.
+#  - Em toda versao marcada (git tag v1.0 && git push origin v1.0): anexa
+#    NFL-Games.exe e nfl-games a pagina da versao em Releases.
+#  - Em pull requests que mexem no app ou no empacotamento, e manualmente (aba
+#    Actions > Executaveis > Run workflow): so gera, confere e guarda os
+#    arquivos como artefatos da execucao, sem publicar nada.
+name: Executaveis
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths:
+      - "rodar.py"
+      - "tools/empacotar.py"
+      - "server/**"
+      - "etl/**"
+      - "app/**"
+      - ".github/workflows/executaveis.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write            # anexar os arquivos a Release
+
+jobs:
+  empacotar:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            arquivo: dist/NFL-Games.exe
+          # Ubuntu mais antigo disponivel: o binario usa a glibc de quem o gera e
+          # roda nas distribuicoes com glibc igual ou mais nova.
+          - os: ubuntu-22.04
+            arquivo: dist/nfl-games
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Dependencias
+        run: python -m pip install pandas numpy "pyinstaller>=6.10"
+
+      - name: Empacotar
+        run: python tools/empacotar.py
+
+      # Sem dados e sem internet, o executavel tem de subir o Python, o pandas e o
+      # servidor e sair com a mensagem de "sem dados" (codigo 1): prova que nada
+      # ficou de fora do pacote, sem baixar os 330 MB do nflverse.
+      - name: Conferir o executavel
+        shell: bash
+        run: |
+          mkdir vazio && cp "${{ matrix.arquivo }}" vazio/
+          set +e
+          saida=$(cd vazio && ./$(basename "${{ matrix.arquivo }}") --offline --sem-navegador --port 8123 2>&1)
+          codigo=$?
+          set -e
+          echo "$saida"
+          test "$codigo" = "1"
+          echo "$saida" | grep -q "Sem dados para subir o app"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: executavel-${{ matrix.os }}
+          path: ${{ matrix.arquivo }}
+
+      - name: Anexar a versao
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.arquivo }}

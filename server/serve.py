@@ -46,8 +46,10 @@ from data_layer import NFLData  # noqa: E402
 from response_cache import CacheDeRespostas, Resposta, serializar  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-APP_DIR = ROOT / "app"
-# NFL_DADOS: outra pasta de dados (testes da subida sem dados).
+# NFL_APP e NFL_DADOS: outras pastas para a interface e os dados. O executável
+# (rodar.py empacotado) usa a interface de dentro dele e os dados ao lado do
+# .exe; os testes da subida sem dados usam uma pasta vazia.
+APP_DIR = Path(os.environ.get("NFL_APP") or ROOT / "app")
 DADOS_DIR = Path(os.environ.get("NFL_DADOS") or fontes.DADOS)
 
 GZIP_MIN_BYTES = 2048

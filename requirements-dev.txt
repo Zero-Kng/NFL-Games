@@ -3,3 +3,4 @@
 # O Playwright usa o Edge ja instalado (channel="msedge"): NAO rode "playwright install".
 pytest>=9
 playwright>=1.50
+pyinstaller>=6.10        # tools/empacotar.py: o executavel (NFL-Games.exe / nfl-games)

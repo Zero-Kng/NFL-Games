@@ -109,7 +109,7 @@ MARCAR_PRONTA = """
 new MutationObserver((_m, obs) => {
   // Pronta = partidas, notícias do carrossel e os dois cartões preenchidos.
   if (document.querySelector('#jogosLista .match') && document.querySelector('#heroTrack .slide') &&
-      /\d/.test((document.getElementById('tileAvaliados') || {}).textContent || '')) {
+      /[0-9]/.test((document.getElementById('tileAvaliados') || {}).textContent || '')) {
     window.__prontaEm = performance.now();
     obs.disconnect();
   }
