@@ -12,7 +12,7 @@ import {
   spin, oops, none, into,
 } from '../ui.js';
 import { ler as lerConfig, aoMudar } from '../config.js';
-import { Field } from '../prancheta.js';
+import { Field, coresDosLados } from '../prancheta.js';
 import { S, ir, sincronizarUrl } from '../main.js';
 import { estadoDoJogo } from './inicio.js';
 
@@ -290,12 +290,7 @@ async function coachLineup() {
     body.innerHTML =
       '<div class="card">' +
         '<div class="card-head"><h3>Prancheta</h3><span class="muted" id="fieldSub"></span></div>' +
-        '<div class="field-legend">' +
-          '<span><i class="sw circ"></i>Ataque</span>' +
-          '<span><i class="sw quad"></i>Defesa</span>' +
-          '<span><i class="sw los"></i>Linha de scrimmage</span>' +
-          '<span><i class="sw fd"></i>1ª descida</span>' +
-        '</div>' +
+        '<div class="field-legend" id="fieldLegend"></div>' +
         '<div class="field-wrap" id="fieldWrap"><div class="field" id="field"></div></div>' +
         '<div id="avisoField"></div>' +
         '<div id="dotInfo"></div>' +
@@ -326,11 +321,11 @@ async function coachLineup() {
 async function loadFieldPlay(my) {
   const gameId = J.gameId, playId = S.playId;
   const card = J.plays.find((q) => q.playId === playId) || {};
-  if (FV) FV.pause();
   if (!card.hasFormation) {
     // 5.8: sem nenhum dado de formação, os dados da jogada e a mensagem no lugar da prancheta.
     FV = null;
     $('fieldWrap').innerHTML = '<div class="formacao-indisponivel">Formação indisponível para esta jogada.</div>';
+    $('fieldLegend').innerHTML = '';
     $('avisoField').innerHTML = '';
     $('fieldSub').textContent = '';
     $('dotInfo').innerHTML = '';
@@ -345,6 +340,7 @@ async function loadFieldPlay(my) {
   FV.onSelect = (pl) => { $('dotInfo').innerHTML = pl ? dotCard(pl) : ''; };
 
   $('fieldSub').textContent = 'ataque joga para cima';
+  $('fieldLegend').innerHTML = legendaHtml(p, coresDosLados(p, teamOf));
   $('avisoField').innerHTML = tr.ilustrativo
     ? '<p class="aviso"><b>Esquema ilustrativo:</b> posições-modelo da formação, não o alinhamento real da jogada.' +
       (tr.generico ? ' A fonte ainda não publicou os jogadores desta jogada: posições genéricas, sem nomes.' : '') +
@@ -369,6 +365,15 @@ function prefetchVizinhas(gameId, playId) {
   [lista[i + 1], lista[i - 1]].forEach((q) => {
     if (q) api.tracking(gameId, q.playId).catch(() => {});
   });
+}
+
+// Quem ataca e quem defende, com a cor e o formato de cada lado no campo.
+function legendaHtml(p, cores) {
+  const lado = (forma, time, cor, papel) => time
+    ? '<span><i class="sw ' + forma + '" style="background:' + esc(cor || teamOf(time).primary) + '"></i>' +
+      esc(time) + ' · ' + papel + '</span>' : '';
+  return lado('circ', p.offense, cores.offense, 'ataque') + lado('quad', p.defense, cores.defense, 'defesa') +
+    '<span><i class="sw los"></i>Linha de scrimmage</span><span><i class="sw fd"></i>1ª descida</span>';
 }
 
 // Só as linhas com dado: o que a fonte não tem fica fora.

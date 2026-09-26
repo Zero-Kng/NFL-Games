@@ -865,3 +865,70 @@ def test_ui_materia_nao_consulta_jogo_a_jogar(servidor, pagina):
     assert "A JOGAR" in pagina.inner_text("#jogoCab")
     pagina.wait_for_timeout(300)
     assert pagina.summary == [] and pagina.eval_on_selector("#materia", "m => m.hidden") is True
+
+
+# ================================================================ Tarefa 5: prancheta
+GENERICA = "?season=2026&week=1&game=2026090900&screen=jogo&play=64"   # SEA x NE, posições genéricas
+
+
+def cores_dos_pontos(pg):
+    return pg.eval_on_selector_all("#field .player-dot:not(.ball)", """ds => {
+        const c = { offense: new Set(), defense: new Set() };
+        ds.forEach((d) => c[d.classList.contains('def') ? 'defense' : 'offense'].add(getComputedStyle(d).backgroundColor));
+        return { offense: [...c.offense], defense: [...c.defense], def: ds.filter((d) => d.classList.contains('def')).length };
+    }""")
+
+
+def test_ui_prancheta_esquema_ilustrativo_sem_animacao(servidor, pagina):
+    """5.3: um quadro só, com o aviso de esquema ilustrativo e sem controles de animação."""
+    abrir_jogo(pagina, servidor.url, JOGO + "&play=55")
+    esperar_prancheta(pagina)
+    assert "Esquema ilustrativo" in pagina.inner_text("#avisoField")
+    assert pagina.query_selector("#jogoCorpo input[type=range], #btnPlay, #frameRange, #speedPick") is None
+    c = cores_dos_pontos(pagina)
+    assert c["def"] == 11 and len(c["offense"]) == 1 and len(c["defense"]) == 1
+    legenda = pagina.inner_text("#fieldLegend")
+    assert "TB · ataque" in legenda and "DAL · defesa" in legenda
+
+
+def test_ui_prancheta_jogador_tocado_fica_destacado(servidor, pagina):
+    """Tocar num jogador destaca só ele (no app antigo a comparação de ids nunca batia); de novo, desfaz."""
+    abrir_jogo(pagina, servidor.url, JOGO + "&play=55")
+    esperar_prancheta(pagina)
+    pagina.eval_on_selector_all("#field .player-dot:not(.ball)", "ds => ds[8].click()")
+    assert pagina.eval_on_selector_all("#field .player-dot.selected", "ds => ds.length") == 1
+    assert pagina.eval_on_selector_all("#field .player-dot.dim", "ds => ds.length") == 21
+    assert "Chris Godwin" in pagina.inner_text("#dotInfo")
+    pagina.eval_on_selector_all("#field .player-dot:not(.ball)", "ds => ds[8].click()")
+    assert pagina.query_selector("#field .player-dot.selected, #field .player-dot.dim") is None
+    assert pagina.inner_text("#dotInfo") == ""
+
+
+def test_ui_prancheta_posicoes_genericas(servidor, pagina):
+    """Jogada sem os nomes na fonte: posições genéricas com o aviso, e os lados com cores diferentes
+    mesmo quando os times têm a mesma cor (SEA e NE: #002244)."""
+    abrir_jogo(pagina, servidor.url, GENERICA)
+    esperar_prancheta(pagina)
+    assert "posições genéricas, sem nomes" in pagina.inner_text("#avisoField")
+    assert pagina.eval_on_selector_all("#field .player-dot:not(.ball)", "ds => ds.length") == 22
+    c = cores_dos_pontos(pagina)
+    assert c["offense"] == ["rgb(0, 34, 68)"] and len(c["defense"]) == 1 and c["defense"] != c["offense"]
+    assert "SEA · ataque" in pagina.inner_text("#fieldLegend") and "NE · defesa" in pagina.inner_text("#fieldLegend")
+    pagina.eval_on_selector("#field .player-dot:not(.ball)", "d => d.click()")
+    assert "Posição genérica" in pagina.inner_text("#dotInfo")
+    assert pagina.query_selector("#dotInfo [data-player]") is None       # sem nome, não leva a um perfil
+
+
+def test_ui_prancheta_cores_dos_lados(servidor, pagina):
+    abrir(pagina, servidor.url)
+    r = pagina.evaluate("""async () => {
+        const m = await import('/js/prancheta.js');
+        const meta = await (await fetch('/api/meta')).json();
+        const t = (a) => meta.teams[a];
+        return [m.coresDosLados({ offense: 'SEA', defense: 'NE' }, t), m.coresDosLados({ offense: 'TB', defense: 'DAL' }, t),
+                m.coresDosLados({}, t), m.fundoClaro('#FFB612'), m.fundoClaro('#002244')];
+    }""")
+    meta = api(servidor.url, "/api/meta")["teams"]
+    assert r[0] == {"offense": meta["SEA"]["primary"], "defense": meta["NE"]["secondary"]}
+    assert r[1] == {"offense": meta["TB"]["primary"], "defense": meta["DAL"]["primary"]}
+    assert r[2] == {} and r[3] is True and r[4] is False

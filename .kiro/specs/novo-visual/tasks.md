@@ -87,10 +87,17 @@
       - O Replay já usa a velocidade das Configurações (1,4 s ÷ velocidade) e troca na hora com `aoMudar`; a tela de Configurações continua na tarefa 8.
     - `tests/test_ui_novo.py`: +17 testes (5.1–5.9, a velocidade do Replay e os testes de matéria da `test_ui_dados.py` adaptados, incluindo "jogo a jogar não consulta a ESPN"). Suíte: 234. Verificador de design: limpo.
 
-- [ ] 5. Prancheta no visual novo
+- [x] 5. Prancheta no visual novo
   - _Depende de: 4_
-  - [ ] 5.1 `js/prancheta.js`: `Field` **movido** do `app.js` como está (esquema de 1 quadro, aviso "Esquema ilustrativo", sem controles de animação), com o visual novo. Sem interpolação: o antigo Requisito 10 saiu (Q7).
+  - [x] 5.1 `js/prancheta.js`: `Field` **movido** do `app.js` como está (esquema de 1 quadro, aviso "Esquema ilustrativo", sem controles de animação), com o visual novo. Sem interpolação: o antigo Requisito 10 saiu (Q7).
   - _Requisitos: 5.3, 5.8_
+  - **Feito (2026-09-26):** o `Field` já tinha sido movido na tarefa 4; aqui ficou a passada de visual e o que sobrou do movimento.
+    - Saíram `play`, `pause`, `toggle`, `setSpeed`, `clockAt` e `onFrame`: sem tracking, toda formação tem 1 quadro (Q7).
+    - **Cores dos lados:** cada lado usa a primária do seu time; se as duas forem parecidas, a defesa usa a secundária do time dela (`coresDosLados`). SEA e NE, por exemplo, são o mesmo azul-marinho (`#002244`) e ficavam idênticos no campo. Em fundo claro (secundárias douradas ou prateadas), o número do jogador fica escuro.
+    - **Legenda:** diz quem ataca e quem defende ("TB · ataque", "DAL · defesa"), com a cor e o formato (círculo e quadrado) de cada lado.
+    - Rótulos das jardas afastados das linhas laterais (antes ficavam em cima delas); o ponto sob o mouse ou com foco vem para a frente (na linha, os números se sobrepõem); texto do ponto em 12 px.
+    - Posição genérica (2026, a fonte ainda sem os jogadores): o rótulo diz "Posição genérica · OL · ataque", e o cartão não leva a um perfil.
+    - `tests/test_ui_novo.py`: +4 testes (esquema de 1 quadro sem controles, jogador tocado destacado, posições genéricas com as cores dos lados, `coresDosLados`). Suíte: 238. Verificador de design: limpo.
 
 - [ ] 6. Tela Jogadores
   - _Depende de: 2_

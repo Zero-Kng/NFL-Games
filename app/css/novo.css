@@ -371,8 +371,9 @@ button.row-card:hover { border-color: var(--line-strong); }
 .field-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 10px; font-size: 12px; color: var(--text-2); }
 .field-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .sw { width: 12px; height: 12px; display: inline-block; }
-.sw.circ { border-radius: 50%; background: var(--text); }
-.sw.quad { border-radius: 3px; background: var(--text); }
+.sw.circ, .sw.quad { width: 14px; height: 14px; border: 1.5px solid #fff; }
+.sw.circ { border-radius: 50%; }
+.sw.quad { border-radius: 4px; }
 .sw.los { height: 3px; background: #3b82f6; }
 .sw.fd { height: 0; border-top: 2px dashed #facc15; }
 .field-wrap { position: relative; }
@@ -393,6 +394,8 @@ button.row-card:hover { border-color: var(--line-strong); }
 .player-dot .num { pointer-events: none; }
 .player-dot.ball { width: 12px; height: 12px; background: #8b4513; border: 1.5px solid #fff; border-radius: 50% / 42%; z-index: 4; cursor: default; }
 .player-dot.selected { box-shadow: 0 0 0 3px var(--gold), 0 2px 6px rgba(0, 0, 0, .5); z-index: 6; }
+.player-dot.claro { color: #0b1322; }
+.player-dot:hover, .player-dot:focus-visible { z-index: 5; }
 .player-dot.dim { opacity: .42; }
 #dotInfo:not(:empty) { margin-top: 12px; }
 .formacao-indisponivel {

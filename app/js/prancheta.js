@@ -1,16 +1,34 @@
 /* ==========================================================================
    Prancheta: o esquema ilustrativo de uma jogada (posições-modelo da
-   formação). Field movido do app.js como está (spec novo-visual, tarefa 4);
-   a única mudança é receber teamOf, que antes era global.
+   formação), num quadro só. Field movido do app.js (spec novo-visual,
+   tarefas 4 e 5): recebe teamOf, que antes era global, e perdeu a animação
+   (play/pause/velocidade), que não tem uso sem tracking (Q7).
    ========================================================================== */
 import { isNum } from './ui.js';
 
 const FIELD_W = 53.3;
 
+const rgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return null; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+// fundo claro (secundárias douradas, prateadas): número escuro para ser legível
+export const fundoClaro = (h) => { const c = rgb(h); return !!c && (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) > 150; };
+const distancia = (a, b) => { const x = rgb(a), y = rgb(b); return x && y ? Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) : 999; };
+
 /**
- * Desenha e anima o tracking real. x do dataset (0–120) vai no eixo
- * vertical e y (0–53.3) no horizontal; quando playDirection é 'left' os
- * eixos são espelhados para o ataque sempre jogar para cima.
+ * Cor de cada lado: a primária de cada time. Se as duas forem parecidas
+ * (SEA e NE são o mesmo azul-marinho), a defesa usa a secundária do seu time.
+ */
+export function coresDosLados(play, teamOf) {
+  if (!play.offense || !play.defense) return {};
+  const at = teamOf(play.offense), df = teamOf(play.defense);
+  let defesa = df.primary;
+  if (distancia(at.primary, defesa) < 80 && df.secondary && distancia(at.primary, df.secondary) >= 80) defesa = df.secondary;
+  return { offense: at.primary, defense: defesa };
+}
+
+/**
+ * Desenha a formação. x (0–120) vai no eixo vertical e y (0–53.3) no
+ * horizontal; quando playDirection é 'left' os eixos são espelhados para o
+ * ataque sempre jogar para cima.
  */
 export function Field(root, data, teamOf) {
   this.root = root;
@@ -18,9 +36,8 @@ export function Field(root, data, teamOf) {
   this.teamOf = teamOf;
   this.flip = data.playDirection === 'left';
   this.frame = 0;
-  this.speed = 1;
-  this.timer = null;
   this.selected = null;
+  this.cores = coresDosLados(data.play || {}, teamOf);
   this._viewport();
   this._marks();
   this._dots();
@@ -62,10 +79,10 @@ Field.prototype._marks = function () {
       (goal ? 0.95 : ten ? 0.5 : 0.22) + ')" stroke-width="' + (goal ? 2.5 : ten ? 1.5 : 1) + '"/>');
     if (ten && yard > 0 && yard < 100) {
       const lbl = yard <= 50 ? yard : 100 - yard;
-      L.push('<text x="6" y="' + top + '%" dy="-4" font-size="12" font-weight="700" ' +
-        'fill="rgba(255,255,255,.6)" font-family="Barlow Condensed,sans-serif">' + lbl + '</text>');
-      L.push('<text x="94%" y="' + top + '%" dy="-4" font-size="12" font-weight="700" ' +
-        'fill="rgba(255,255,255,.6)" font-family="Barlow Condensed,sans-serif">' + lbl + '</text>');
+      L.push('<text x="12" y="' + top + '%" dy="-5" font-size="13" font-weight="700" ' +
+        'fill="rgba(255,255,255,.7)" font-family="Barlow Condensed,sans-serif">' + lbl + '</text>');
+      L.push('<text x="100%" dx="-12" y="' + top + '%" dy="-5" text-anchor="end" font-size="13" font-weight="700" ' +
+        'fill="rgba(255,255,255,.7)" font-family="Barlow Condensed,sans-serif">' + lbl + '</text>');
     }
   }
   const los = this.data.lineOfScrimmage;
@@ -92,10 +109,13 @@ Field.prototype._dots = function () {
     const def = p.side === 'defense';
     const d = document.createElement('div');
     d.className = 'player-dot' + (p.role === 'Pass' ? ' qb' : '') + (def ? ' def' : '');
-    d.style.background = self.teamOf(p.team).primary;
+    const cor = self.cores[def ? 'defense' : 'offense'] || self.teamOf(p.team).primary;
+    d.style.background = cor;
+    if (fundoClaro(cor)) d.classList.add('claro');
     d.setAttribute('role', 'button');
     d.setAttribute('tabindex', '0');
-    d.title = (p.name || '') + ' · ' + (p.linedUp || p.position || '') + ' · #' + (p.jersey || '');
+    d.title = [p.name || 'Posição genérica', p.linedUp || p.position, p.jersey ? '#' + p.jersey : '',
+      def ? 'defesa' : 'ataque'].filter(Boolean).join(' · ');
     d.setAttribute('aria-label', d.title);
     d.innerHTML = '<span class="num">' + (p.jersey || '') + '</span>';
     const pick = () => self.select(p.nflId);
@@ -133,7 +153,6 @@ Field.prototype.setFrame = function (i) {
     this.ball.style.left = q.left + '%';
     this.ball.style.top = q.top + '%';
   } else this.ball.style.display = 'none';
-  if (this.onFrame) this.onFrame(this.frame);
 };
 
 // ids de jogador são texto (gsis: 00-0033077)
@@ -147,30 +166,4 @@ Field.prototype.select = function (id) {
   if (this.onSelect) {
     this.onSelect(sel === null ? null : this.data.players.filter((p) => p.nflId === sel)[0]);
   }
-};
-
-Field.prototype.play = function () {
-  if (this.timer) return;
-  if (this.frame >= this.data.frameCount - 1) this.setFrame(0);
-  const self = this;
-  this.timer = setInterval(() => {
-    if (self.frame >= self.data.frameCount - 1) return self.pause();
-    self.setFrame(self.frame + 1);
-  }, 100 / this.speed);
-  if (this.onState) this.onState(true);
-};
-
-Field.prototype.pause = function () {
-  clearInterval(this.timer);
-  this.timer = null;
-  if (this.onState) this.onState(false);
-};
-
-Field.prototype.toggle = function () { this.timer ? this.pause() : this.play(); };
-Field.prototype.setSpeed = function (s) {
-  this.speed = s;
-  if (this.timer) { this.pause(); this.play(); }
-};
-Field.prototype.clockAt = function (i) {
-  return ((i === undefined ? this.frame : i) - (this.data.snapIndex || 0)) / (this.data.fps || 10);
 };
