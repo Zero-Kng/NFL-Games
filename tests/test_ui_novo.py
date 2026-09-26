@@ -633,3 +633,235 @@ def test_ui_encerrado_prevalece_nflverse(servidor, pagina):
     esperar(pagina, "document.querySelector('.match').dataset.estado === 'aovivo'")
     terceiro = pagina.eval_on_selector_all(".match", "ms => [ms[2].dataset.estado, ms[2].innerText]")
     assert terceiro[0] == "final" and "24" in terceiro[1] and "20" in terceiro[1] and "AO VIVO" not in terceiro[1]
+
+
+# ================================================================ Tarefa 4: página Jogo
+JOGO = "?season=2021&week=1&game=2021090900&screen=jogo"          # DAL 29 x 31 TB
+MATERIA = {"headline": "Brady lança 4 TDs e Bucs vencem", "description": "Tom Brady não piscou.",
+           "published": "2021-09-10T06:32:45Z", "source": "AP",
+           "links": {"web": {"href": "http://www.espn.com/nfl/recap?gameId=401326322"}}}
+
+
+def abrir_jogo(pg, base, query=JOGO):
+    abrir(pg, base, query)
+    esperar(pg, "document.getElementById('jogo').classList.contains('active') && document.querySelector('#jogoCab .jogo-cab')")
+
+
+def esperar_prancheta(pg):
+    esperar(pg, "document.querySelectorAll('#field .player-dot:not(.ball)').length > 0 || "
+                "document.querySelector('#fieldWrap .formacao-indisponivel')")
+
+
+def aba(pg, nome):
+    pg.click(f"#jogoAbas [data-aba={nome}]")
+    esperar(pg, f"document.querySelector('#jogoAbas [aria-selected=true]').dataset.aba === '{nome}'")
+
+
+def simular_materia(pg, materia=None, status=200):
+    pg.summary = []
+
+    def rota(route):
+        if "/summary" not in route.request.url:
+            return route.fulfill(status=404, body="")
+        pg.summary.append(route.request.url)
+        if status != 200:
+            return route.fulfill(status=status, body="erro simulado")
+        corpo = {"header": {"competitions": [{"status": {"type": {"state": "post"}}, "competitors": []}]}}
+        if materia:
+            corpo["article"] = materia
+        return route.fulfill(status=200, content_type="application/json", body=json.dumps(corpo))
+
+    pg.route("https://site.api.espn.com/**", rota)
+
+
+def test_ui_jogo_cabecalho_da_partida(servidor, pagina):
+    """5.1: placar, os dois times e a semana; nos playoffs, o nome da rodada."""
+    abrir_jogo(pagina, servidor.url)
+    t = pagina.inner_text("#jogoCab")
+    assert "Cowboys" in t and "Buccaneers" in t and "29" in t and "31" in t and "Semana 1" in t and "FINAL" in t
+    assert pagina.eval_on_selector("#jogoCab .team.win .name", "e => e.textContent") == "Buccaneers"
+    sb = api(servidor.url, "/api/games?season=2021&week=22")[0]["gameId"]
+    abrir_jogo(pagina, servidor.url, f"?season=2021&week=22&game={sb}&screen=jogo")
+    assert "Super Bowl" in pagina.inner_text("#jogoCab")
+
+
+def test_ui_jogo_5_abas(servidor, pagina):
+    """5.2."""
+    abrir_jogo(pagina, servidor.url)
+    abas = pagina.eval_on_selector_all("#jogoAbas [role=tab]", "bs => bs.map(b => b.innerText.trim())")
+    assert abas == ["Prancheta", "Jogadas", "Replay", "Estatísticas", "Playbook"]
+    assert pagina.eval_on_selector("#jogoAbas [aria-selected=true]", "b => b.dataset.aba") == "prancheta"
+    pagina.focus("#aba-prancheta")                                     # setas do teclado entre as abas
+    pagina.keyboard.press("ArrowRight")
+    esperar(pagina, "document.activeElement.id === 'aba-jogadas' && "
+                    "document.querySelector('#jogoAbas [aria-selected=true]').dataset.aba === 'jogadas'")
+
+
+def test_ui_abas_do_antigo_treinador(servidor, pagina):
+    """5.3: prancheta com os 22 jogadores, jogadas por quarto, estatísticas e playbook."""
+    abrir_jogo(pagina, servidor.url)
+    esperar_prancheta(pagina)
+    assert pagina.eval_on_selector_all("#field .player-dot:not(.ball)", "ds => ds.length") == 22
+    assert "Esquema ilustrativo" in pagina.inner_text("#avisoField")
+    pagina.eval_on_selector("#field .player-dot:not(.ball)", "d => d.click()")   # tocar num jogador mostra quem é
+    esperar(pagina, "document.querySelector('#dotInfo .row-card')")
+    pagina.click("#nextPlay")
+    esperar(pagina, "new URLSearchParams(location.search).get('play') !== '55'")
+    aba(pagina, "jogadas")
+    plays = api(servidor.url, "/api/games/2021090900/plays")
+    esperar(pagina, "document.querySelectorAll('#jogoCorpo .play-row').length > 0")
+    assert pagina.eval_on_selector_all("#jogoCorpo .play-row", "rs => rs.length") == len(plays)
+    quartos = pagina.eval_on_selector_all("#jogoCorpo .sec-head h3", "hs => hs.map(h => h.textContent)")
+    assert quartos[:4] == ["1º quarto", "2º quarto", "3º quarto", "4º quarto"]
+    aba(pagina, "estatisticas")
+    esperar(pagina, "document.getElementById('jogoCorpo').innerText.includes('Jardas totais')")
+    assert "Pressão e proteção".upper() in pagina.inner_text("#jogoCorpo").upper()
+    aba(pagina, "playbook")
+    esperar(pagina, "document.getElementById('jogoCorpo').innerText.toUpperCase().includes('FORMAÇÕES · TB')")
+
+
+def test_ui_replay_narrado_placar_e_acumulado(servidor, pagina):
+    """5.4: narração cronológica, placar do momento e painel acumulado; uma jogada a cada 1,4 s."""
+    pagina.clock.install(time=AGORA)
+    abrir_jogo(pagina, servidor.url, JOGO + "&aba=replay")
+    esperar(pagina, "document.querySelectorAll('#bcFeed .tl-item').length === 1")
+    bc = api(servidor.url, "/api/games/2021090900/broadcast")
+    assert pagina.inner_text("#bcPos") == f"1/{len(bc['feed'])}"
+    pagina.click("#bcPlay")
+    pagina.clock.fast_forward(1400 * 3 + 100)
+    esperar(pagina, "document.getElementById('bcPos').textContent.startsWith('4/')")
+    assert pagina.eval_on_selector_all("#bcFeed .tl-item", "is => is.length") == 4
+    assert bc["feed"][3]["narration"]["headline"] in pagina.inner_text("#bcFeed .tl-item[aria-current=true]")
+    assert "Jardas" in pagina.inner_text("#bcPanel")
+    pagina.click("#bcPlay")                                            # pausa
+    pagina.clock.fast_forward(5000)
+    assert pagina.inner_text("#bcPos").startswith("4/")
+    pagina.eval_on_selector("#bcRange", "r => { r.value = String(r.max); r.dispatchEvent(new Event('input', { bubbles: true })); }")
+    esperar(pagina, f"document.getElementById('bcPos').textContent === '{len(bc['feed'])}/{len(bc['feed'])}'")
+    fim = bc["feed"][-1]["score"]
+    placar = pagina.eval_on_selector_all("#bcScore .big", "bs => bs.map(b => Number(b.textContent))")
+    assert placar == [fim["away"], fim["home"]] == [29, 31]
+
+
+def test_ui_replay_na_velocidade_das_configuracoes(servidor, contexto):
+    """11.2 (parte do Replay): 2× avança uma jogada a cada 0,7 s."""
+    contexto.add_init_script("localStorage.setItem('nfl.config.v2', JSON.stringify({velocidadeReplay: 2}));")
+    pg = contexto.new_page()
+    pg.clock.install(time=AGORA)
+    abrir_jogo(pg, servidor.url, JOGO + "&aba=replay")
+    esperar(pg, "document.getElementById('bcPlay')")
+    pg.click("#bcPlay")
+    pg.clock.fast_forward(700 * 4 + 100)
+    esperar(pg, "document.getElementById('bcPos').textContent.startsWith('5/')")
+
+
+def test_ui_jogada_em_jogadas_ou_replay_abre_prancheta(servidor, pagina):
+    """5.5."""
+    abrir_jogo(pagina, servidor.url, JOGO + "&aba=jogadas")
+    esperar(pagina, "document.querySelectorAll('#jogoCorpo .play-row').length > 20")
+    alvo = pagina.eval_on_selector_all("#jogoCorpo .play-row", "rs => rs[20].dataset.play")
+    pagina.click(f"#jogoCorpo .play-row[data-play='{alvo}']")
+    esperar(pagina, "document.querySelector('#jogoAbas [aria-selected=true]').dataset.aba === 'prancheta'")
+    esperar_prancheta(pagina)
+    assert pagina.eval_on_selector("#playPick", "s => s.value") == alvo
+    aba(pagina, "replay")
+    esperar(pagina, "document.querySelector('#bcFeed .tl-item')")
+    alvo = pagina.eval_on_selector("#bcFeed .tl-item", "i => i.dataset.play")
+    pagina.click("#bcFeed .tl-item")
+    esperar(pagina, "document.querySelector('#jogoAbas [aria-selected=true]').dataset.aba === 'prancheta'")
+    esperar(pagina, f"document.getElementById('playPick') && document.getElementById('playPick').value === '{alvo}'")
+
+
+def test_ui_trocar_aba_mantem_jogo_e_jogada(servidor, pagina):
+    """5.6."""
+    abrir_jogo(pagina, servidor.url, JOGO + "&play=253")
+    esperar_prancheta(pagina)
+    assert pagina.eval_on_selector("#playPick", "s => s.value") == "253"
+    for nome in ("jogadas", "replay", "estatisticas", "playbook", "prancheta"):
+        aba(pagina, nome)
+    esperar_prancheta(pagina)
+    assert pagina.eval_on_selector("#playPick", "s => s.value") == "253"
+    assert "Cowboys" in pagina.inner_text("#jogoCab")
+    ir_para(pagina, "inicio")                                          # ida e volta pela barra
+    ir_para(pagina, "jogo")
+    esperar_prancheta(pagina)
+    assert pagina.eval_on_selector("#playPick", "s => s.value") == "253"
+
+
+def test_ui_jogo_sem_partida_abre_primeira_da_semana(servidor, pagina):
+    """5.7."""
+    abrir(pagina, servidor.url, "?season=2021&week=2")
+    ir_para(pagina, "jogo")
+    primeiro = api(servidor.url, "/api/games?season=2021&week=2")[0]
+    esperar(pagina, "document.querySelector('#jogoCab .jogo-cab')")
+    assert primeiro["home"]["nick"] in pagina.inner_text("#jogoCab")
+    assert f"game={primeiro['gameId']}" in pagina.url
+
+
+def test_ui_jogada_sem_formacao_mostra_aviso(servidor, pagina):
+    """5.8: os dados da jogada e a mensagem no lugar da prancheta."""
+    abrir_jogo(pagina, servidor.url)
+    esperar(pagina, "document.getElementById('playPick') && document.getElementById('playPick').options.length > 100")
+    pagina.evaluate("""() => {
+        const s = document.getElementById('playPick');
+        s.value = [...s.options].find((o) => o.text.includes('sem formação')).value;
+        s.dispatchEvent(new Event('change', { bubbles: true }));
+    }""")
+    esperar(pagina, "document.getElementById('fieldWrap') && "
+                    "document.getElementById('fieldWrap').innerText.includes('Formação indisponível para esta jogada')")
+    assert pagina.inner_text("#playMeta").strip() != ""
+    assert pagina.query_selector("#field .player-dot") is None
+    aba(pagina, "jogadas")
+    esperar(pagina, "document.querySelector('.play-row')")
+    assert "SEM DADOS DE FORMAÇÃO" in pagina.inner_text("#jogoCorpo")
+
+
+# ------------------------------------------ 5.9: matéria da ESPN (os testes da test_ui_dados.py, adaptados)
+def test_ui_materia_no_topo_da_pagina_jogo(servidor, pagina):
+    simular_materia(pagina, MATERIA)
+    abrir_jogo(pagina, servidor.url)
+    esperar(pagina, "!document.getElementById('materia').hidden")
+    ordem = pagina.eval_on_selector_all("#jogo > section", "ss => ss.map(s => s.id || s.firstElementChild.id)")
+    assert ordem[:3] == ["jogoCabBlock", "materia", "jogoAbas"]
+    t = pagina.inner_text("#materia")
+    assert "BRADY LANÇA 4 TDS" in t.upper() and "Tom Brady não piscou." in t
+    assert "10/09/2021" in t and "AP · ESPN" in t
+    assert pagina.eval_on_selector("#materia a", "a => a.href") == "https://www.espn.com/nfl/recap?gameId=401326322"
+    assert "event=401326322" in pagina.summary[0]
+
+
+@pytest.mark.parametrize("caso", ["erro", "sem_materia"])
+def test_ui_materia_indisponivel_some(servidor, pagina, caso):
+    simular_materia(pagina, None, status=500 if caso == "erro" else 200)
+    abrir_jogo(pagina, servidor.url)
+    esperar_prancheta(pagina)                                          # o resto da página segue
+    pagina.wait_for_timeout(300)
+    assert len(pagina.summary) == 1
+    assert pagina.eval_on_selector("#materia", "m => m.hidden") is True
+
+
+@pytest.mark.parametrize("href", ["https://evil.example.com/nfl/recap", "javascript:alert(1)",
+                                  "https://espn.com.evil.io/x"])
+def test_ui_link_fora_da_espn_nao_exibido(servidor, pagina, href):
+    simular_materia(pagina, {**MATERIA, "links": {"web": {"href": href}}})
+    abrir_jogo(pagina, servidor.url)
+    esperar(pagina, "!document.getElementById('materia').hidden")
+    assert pagina.query_selector("#materia a") is None and "Brady" in pagina.inner_text("#materia")
+
+
+def test_ui_materia_texto_externo_nao_vira_html(servidor, pagina):
+    simular_materia(pagina, {**MATERIA, "headline": '<img src=x onerror="window.__xss=1">Manchete',
+                             "description": "<b>negrito</b>"})
+    abrir_jogo(pagina, servidor.url)
+    esperar(pagina, "!document.getElementById('materia').hidden")
+    assert pagina.query_selector("#materia img") is None and pagina.query_selector("#materia b") is None
+    assert "<img src=x" in pagina.text_content("#materia") and pagina.evaluate("window.__xss") is None
+
+
+def test_ui_materia_nao_consulta_jogo_a_jogar(servidor, pagina):
+    simular_materia(pagina, MATERIA)
+    agendado = next(g for g in api(servidor.url, "/api/games?season=2026&week=18") if g["status"] == "agendado")
+    abrir_jogo(pagina, servidor.url, f"?season=2026&week=18&game={agendado['gameId']}&screen=jogo")
+    assert "A JOGAR" in pagina.inner_text("#jogoCab")
+    pagina.wait_for_timeout(300)
+    assert pagina.summary == [] and pagina.eval_on_selector("#materia", "m => m.hidden") is True

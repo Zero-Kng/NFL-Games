@@ -8,6 +8,7 @@ import { api } from './api.js';
 import { $, esc, icone, oops } from './ui.js';
 import { reduzirMovimento, aoMudarMovimento } from './config.js';
 import * as inicio from './telas/inicio.js';
+import * as jogo from './telas/jogo.js';
 
 /* ------------------------------- estado ------------------------------- */
 export const S = {
@@ -37,7 +38,7 @@ function esqueleto(titulo, tarefa) {
 }
 export const TELAS = {
   inicio: { titulo: 'Início', filtros: ['temporada', 'semana'], render: inicio.render, sair: inicio.sair },
-  jogo: { titulo: 'Jogo', filtros: [], render: esqueleto('Jogo', 4) },
+  jogo: { titulo: 'Jogo', filtros: [], render: jogo.render, sair: jogo.sair },
   jogadores: { titulo: 'Jogadores', filtros: ['temporada'], render: esqueleto('Jogadores', 6) },
   noticias: { titulo: 'Notícias', filtros: ['temporada', 'semana'], render: esqueleto('Notícias', 7) },
   config: { titulo: 'Configurações', filtros: [], render: esqueleto('Configurações', 8) },
@@ -139,13 +140,14 @@ export function selecionarJogo(gameId, opcoes) {
   ir('jogo', { aba: opcoes.aba });
 }
 
-function sincronizarUrl() {
+export function sincronizarUrl() {
   const u = new URLSearchParams();
   if (S.season) u.set('season', S.season);
   if (S.week) u.set('week', S.week);
   if (S.gameId) u.set('game', S.gameId);
   if (S.tela !== 'inicio') u.set('screen', S.tela);
   if (S.tela === 'jogo' && S.jogoAba !== 'prancheta') u.set('aba', S.jogoAba);
+  if (S.tela === 'jogo' && S.jogoAba === 'prancheta' && S.playId) u.set('play', S.playId);
   history.replaceState(null, '', location.pathname + '?' + u.toString());
 }
 

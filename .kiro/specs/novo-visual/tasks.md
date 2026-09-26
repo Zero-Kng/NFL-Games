@@ -68,14 +68,24 @@
     - Verificador de design: as linhas de jarda do slide (do rascunho) foram registradas como exceção em `.impeccable/config.json`; fora isso, limpo.
     - `tests/test_ui_novo.py`: +24 testes (4.1–4.8, 3.3, 3.4, 7.2, 7.4, 7.5, S.1 no carrossel, filtro por time e os 7 testes de cartão e ao vivo da `test_ui_dados.py` adaptados). Suíte: 217.
 
-- [ ] 4. Página Jogo: cabeçalho, abas e conteúdo movido
+- [x] 4. Página Jogo: cabeçalho, abas e conteúdo movido
   - _Depende de: 2_
-  - [ ] 4.1 Cabeçalho da partida (placar, times, semana) e 5 abas: Prancheta, Jogadas, Replay, Estatísticas, Playbook. A aba, a partida e a jogada ficam em `S`.
-  - [ ] 4.2 **Mover** para `js/telas/jogo.js`: `coachLineup`, `loadFieldPlay`, `prefetchVizinhas`, `ensurePlays`, `playRow`, `coachPlays`, `coachStats`, `coachBook`, `renderBroadcast`, `paintBc` e os controles do replay, com o HTML no visual novo e os contadores `seq` preservados.
-  - [ ] 4.3 Tocar numa jogada em Jogadas ou em Replay abre a Prancheta com ela.
-  - [ ] 4.4 Caminho infeliz: sem partida escolhida, abre a 1ª da semana; jogada sem formação mostra os dados da jogada e "formação indisponível para esta jogada".
-  - [ ] 4.5 Matéria da ESPN logo abaixo do placar da página Jogo: **mover** `renderMateria`, `linkEspn` e `conferirPlacar` (só `*.espn.com`, `http`→`https`, some sem matéria).
+  - [x] 4.1 Cabeçalho da partida (placar, times, semana) e 5 abas: Prancheta, Jogadas, Replay, Estatísticas, Playbook. A aba, a partida e a jogada ficam em `S`.
+  - [x] 4.2 **Mover** para `js/telas/jogo.js`: `coachLineup`, `loadFieldPlay`, `prefetchVizinhas`, `ensurePlays`, `playRow`, `coachPlays`, `coachStats`, `coachBook`, `renderBroadcast`, `paintBc` e os controles do replay, com o HTML no visual novo e os contadores `seq` preservados.
+  - [x] 4.3 Tocar numa jogada em Jogadas ou em Replay abre a Prancheta com ela.
+  - [x] 4.4 Caminho infeliz: sem partida escolhida, abre a 1ª da semana; jogada sem formação mostra os dados da jogada e "formação indisponível para esta jogada".
+  - [x] 4.5 Matéria da ESPN logo abaixo do placar da página Jogo: **mover** `renderMateria`, `linkEspn` e `conferirPlacar` (só `*.espn.com`, `http`→`https`, some sem matéria).
   - _Requisitos: 5.1–5.9_
+  - **Feito (2026-09-26):** `app/js/telas/jogo.js` (registrado em `TELAS.jogo`) e os componentes da página em `novo.css`.
+    - Ordem da página: cabeçalho da partida (placar, times, rodada, temporada e estádio), matéria da ESPN, abas e o conteúdo da aba. Abas com `role="tab"` e setas do teclado; a aba ativa rola para a vista.
+    - Funções **movidas** com a mesma lógica e os mesmos contadores `seq`: `ensurePlays`, `coachLineup`, `loadFieldPlay`, `prefetchVizinhas`, `playMetaHTML`, `playRow`, `coachPlays`, `coachStats`, `coachBook`, `renderBroadcast`, `paintBc`, os controles do replay, `renderMateria`, `linkEspn` e `conferirPlacar`. O que foi carregado da partida (jogo, jogadas, replay) fica guardado até trocar de partida; `sair()` para o replay e descarta a prancheta em voo.
+    - Jogadas e itens da narração são `<button data-play>`: tocar abre a Prancheta com a jogada (5.5). A jogada vai para a URL (`&play=`), que o boot já lia.
+    - **Decisões (Claude):**
+      - O `Field` foi movido já nesta tarefa para `js/prancheta.js`, porque a aba Prancheta precisa dele; a tarefa 5 fica com a passada de visual. Três ajustes no movido: os ids de jogador agora são texto, e o `Number(k) === sel` antigo nunca batia (o jogador tocado não ficava destacado); os números de jarda passaram de 11 para 12 px; o quadrado da defesa virou classe (`.def`).
+      - Sem os controles de animação da prancheta: toda formação tem 1 quadro (`frameCount` = 1), então eles já ficavam sempre ocultos. `Field.play/pause` continuam no arquivo; a tarefa 5 decide.
+      - A narração do replay traz um emoji como ícone (da API, que não muda); a tela nova não mostra o emoji e usa o tom da jogada como cor do marcador.
+      - O Replay já usa a velocidade das Configurações (1,4 s ÷ velocidade) e troca na hora com `aoMudar`; a tela de Configurações continua na tarefa 8.
+    - `tests/test_ui_novo.py`: +17 testes (5.1–5.9, a velocidade do Replay e os testes de matéria da `test_ui_dados.py` adaptados, incluindo "jogo a jogar não consulta a ESPN"). Suíte: 234. Verificador de design: limpo.
 
 - [ ] 5. Prancheta no visual novo
   - _Depende de: 4_

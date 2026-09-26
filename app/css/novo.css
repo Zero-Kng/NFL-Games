@@ -277,6 +277,196 @@ body {
 .badge-ot { font-weight: 700; color: var(--red-soft); }
 .live-falha { display: block; margin-top: 2px; color: var(--red-soft); }
 
+/* ---------- Peças comuns: cartão, linhas, chips de dado, botões ---------- */
+.badge.lg { width: 52px; height: 52px; border-radius: 14px; font-size: 18px; }
+.card {
+  padding: 16px; margin-bottom: 12px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--line);
+}
+.card-head, .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.card-head h3, .sec-head h3 { font: 700 19px/1.1 var(--font-display); letter-spacing: .3px; text-transform: uppercase; }
+.sec-head { margin: 18px 0 10px; }
+.sec-head:first-child { margin-top: 4px; }
+.stat-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 16px;
+  padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px;
+}
+.stat-row:first-of-type { border-top: 0; }
+.stat-row .k { color: var(--text-2); }
+.stat-row .v { font-weight: 600; text-align: right; }
+.delta { margin-left: 4px; font-size: 12px; font-weight: 700; }
+.delta.up { color: #4ade80; }
+.delta.down { color: var(--red-soft); }
+.delta.flat { color: var(--text-3); }
+.rate {
+  flex-shrink: 0; min-width: 40px; padding: 4px 8px; border-radius: 10px; text-align: center;
+  font: 800 18px/1 var(--font-display); background: rgba(255, 203, 61, .14); color: var(--gold);
+}
+.rate.na { font-size: 14px; background: var(--surface-3); color: var(--text-2); }
+.row-card {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; text-align: left;
+  border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--line);
+}
+.row-card .grow { flex: 1; min-width: 0; }
+.row-card b { display: block; font: 700 17px var(--font-display); letter-spacing: .2px; }
+.row-card small { display: block; color: var(--text-2); font-size: 13px; }
+button.row-card:hover { border-color: var(--line-strong); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag-chip {
+  padding: 3px 8px; border-radius: 8px; font-size: 12px; font-weight: 700; letter-spacing: .3px;
+  background: var(--surface-3); color: var(--text-2);
+}
+.tag-chip.red { background: rgba(229, 32, 46, .18); color: var(--red-soft); }
+.tag-chip.blue { background: rgba(47, 107, 208, .22); color: var(--blue-soft); }
+.tag-chip.amber { background: rgba(255, 203, 61, .14); color: var(--gold); }
+.tag-chip.green { background: rgba(74, 222, 128, .14); color: #4ade80; }
+.tag-chip.purple { background: rgba(167, 139, 250, .18); color: #c4b5fd; }
+.select {
+  width: 100%; min-height: var(--tap); padding: 0 12px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text); font-size: 14px;
+}
+.btn-row { display: flex; gap: 8px; margin-top: 10px; }
+.btn-sec {
+  flex: 1; min-height: var(--tap); padding: 0 14px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--line); font-size: 14px; font-weight: 600; color: var(--text-2);
+}
+.btn-sec:hover { color: var(--text); border-color: var(--line-strong); }
+.aviso { margin-top: 10px; font-size: 13px; line-height: 1.45; color: var(--text-2); }
+.aviso b { color: var(--text); }
+
+/* ---------- Jogo: cabeçalho da partida e matéria ---------- */
+.jogo-cab {
+  padding: 16px; border-radius: var(--radius); border: 1px solid var(--line);
+  background:
+    radial-gradient(90% 120% at 0% 0%, rgba(29, 79, 163, .3), transparent 60%),
+    radial-gradient(90% 120% at 100% 0%, rgba(229, 32, 46, .22), transparent 60%),
+    var(--surface);
+}
+.jogo-rodada { text-align: center; font-size: 13px; color: var(--text-2); margin-bottom: 12px; }
+.jogo-placar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; text-align: center; }
+.jogo-placar .team { font-size: 14px; }
+.score.big { font-size: 44px; }
+.materia { padding: 16px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); }
+.materia h3 { font: 700 20px/1.1 var(--font-display); text-transform: uppercase; }
+.materia p { margin-top: 8px; font-size: 14px; color: var(--text-2); }
+.materia-rodape { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: 13px; color: var(--text-3); }
+.materia-rodape a { min-height: var(--tap); display: inline-flex; align-items: center; font-weight: 600; color: var(--red-soft); text-decoration: none; }
+.materia-rodape a:hover { text-decoration: underline; }
+
+/* ---------- Jogo: abas ---------- */
+.tabs {
+  display: flex; gap: 4px; padding: 4px; overflow-x: auto; scrollbar-width: none;
+  border-radius: 16px; background: var(--surface); border: 1px solid var(--line);
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  flex: 1 0 auto; min-height: var(--tap); padding: 0 10px; border-radius: 12px;
+  font-size: 14px; font-weight: 600; color: var(--text-2); white-space: nowrap;
+  transition: background .2s, color .2s;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { background: var(--red); color: #fff; }
+
+/* ---------- Jogo: prancheta ---------- */
+.field-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 10px; font-size: 12px; color: var(--text-2); }
+.field-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; display: inline-block; }
+.sw.circ { border-radius: 50%; background: var(--text); }
+.sw.quad { border-radius: 3px; background: var(--text); }
+.sw.los { height: 3px; background: #3b82f6; }
+.sw.fd { height: 0; border-top: 2px dashed #facc15; }
+.field-wrap { position: relative; }
+.field {
+  position: relative; height: 420px; overflow: hidden; border-radius: 12px; touch-action: manipulation;
+  background: linear-gradient(180deg, #0c7a37, #09652d);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .35);
+}
+.field svg.marks { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.player-dot {
+  position: absolute; width: 26px; height: 26px; border-radius: 50%; transform: translate(-50%, -50%);
+  display: grid; place-items: center; z-index: 3; cursor: pointer; user-select: none;
+  color: #fff; font: 700 12px/1 var(--font-display); border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .4);
+}
+.player-dot.def { border-radius: 7px; }
+.player-dot.qb { box-shadow: 0 0 0 2px var(--gold), 0 1px 3px rgba(0, 0, 0, .4); }
+.player-dot .num { pointer-events: none; }
+.player-dot.ball { width: 12px; height: 12px; background: #8b4513; border: 1.5px solid #fff; border-radius: 50% / 42%; z-index: 4; cursor: default; }
+.player-dot.selected { box-shadow: 0 0 0 3px var(--gold), 0 2px 6px rgba(0, 0, 0, .5); z-index: 6; }
+.player-dot.dim { opacity: .42; }
+#dotInfo:not(:empty) { margin-top: 12px; }
+.formacao-indisponivel {
+  display: grid; place-items: center; min-height: 160px; padding: 20px; text-align: center;
+  border-radius: 12px; border: 1px dashed var(--line-strong); color: var(--text-2); font-size: 14px;
+}
+.play-desc { display: block; font-size: 14px; line-height: 1.45; color: var(--text); margin-bottom: 8px; }
+
+/* ---------- Jogo: lista de jogadas ---------- */
+.play-row {
+  width: 100%; display: block; padding: 12px 14px; text-align: left;
+  border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line);
+  transition: background .2s, border-color .2s;
+}
+.play-row:hover { background: var(--surface-2); }
+.play-row[aria-current="true"] { border-color: var(--red); }
+.play-row.td { background: linear-gradient(90deg, rgba(229, 32, 46, .14), transparent 60%), var(--surface); }
+.play-row.big { background: linear-gradient(90deg, rgba(74, 222, 128, .1), transparent 60%), var(--surface); }
+.play-row.sack, .play-row.turnover { background: linear-gradient(90deg, rgba(255, 203, 61, .1), transparent 60%), var(--surface); }
+.play-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.play-head .sit { font-weight: 700; font-size: 14px; }
+.play-head .clk { font-size: 13px; color: var(--text-3); }
+.play-head .gain { margin-left: auto; font: 800 20px/1 var(--font-display); }
+.gain.pos { color: #4ade80; }
+.gain.neg { color: var(--red-soft); }
+.gain.zero { color: var(--text-3); }
+.play-row .play-desc { margin-bottom: 0; font-size: 13px; color: var(--text-2); }
+
+/* ---------- Jogo: comparação entre os times ---------- */
+.cmp-lados { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: 700; font-size: 14px; }
+.cmp-lados span { display: inline-flex; align-items: center; gap: 8px; }
+.cmp { margin-bottom: 12px; }
+.cmp-label { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; font-size: 13px; font-weight: 600; }
+.cmp-label .l { color: var(--blue-soft); }
+.cmp-label .r { color: var(--red-soft); }
+.cmp-label .mid { color: var(--text-2); font-weight: 500; text-align: center; }
+.bar { display: flex; gap: 2px; height: 8px; border-radius: 5px; overflow: hidden; background: var(--surface-3); }
+.bar .fill-l { background: var(--blue-soft); }
+.bar .fill-r { background: var(--red); }
+.tend { margin-bottom: 12px; }
+.tend-top { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 5px; font-size: 13px; }
+.tend-top .l { font-weight: 700; }
+.tend-top .r { color: var(--text-2); text-align: right; }
+.tend-bar { height: 8px; border-radius: 5px; overflow: hidden; background: var(--surface-3); }
+.tend-bar span { display: block; height: 100%; background: var(--blue-soft); border-radius: 5px; }
+.tend-bar.def span { background: var(--red); }
+
+/* ---------- Jogo: replay ---------- */
+.live-score { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; text-align: center; }
+.live-score .team { color: var(--text-2); }
+.live-score .big { font: 800 44px/1 var(--font-display); color: var(--text-2); }
+.live-score .big.lead { color: var(--text); }
+.live-score .center { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.live-score .qtr { padding: 3px 10px; border-radius: 10px; background: var(--red); color: #fff; font-size: 13px; font-weight: 700; }
+.live-score .situ { font-size: 13px; color: var(--text-2); line-height: 1.35; }
+.bc-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.bc-bar input[type="range"] { flex: 1; min-width: 0; height: var(--tap); accent-color: var(--red); }
+.bc-bar .pos { min-width: 64px; text-align: right; font: 700 16px var(--font-display); color: var(--text-2); }
+.timeline { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.tl-item {
+  width: 100%; display: flex; gap: 12px; padding: 12px 14px; text-align: left;
+  border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line);
+}
+.tl-item:hover { background: var(--surface-2); }
+.tl-item::before { content: ""; flex-shrink: 0; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--text-3); }
+.tl-item.td::before { background: var(--red); }
+.tl-item.big::before { background: #4ade80; }
+.tl-item.sack::before, .tl-item.turnover::before { background: var(--gold); }
+.tl-item[aria-current="true"] { border-color: var(--line-strong); background: var(--surface-2); }
+.tl-item .time { flex-shrink: 0; width: 44px; font: 700 16px/1.2 var(--font-display); color: var(--text-3); }
+.tl-item .ev { font-size: 13px; color: var(--text-2); }
+.tl-item .ev b { display: block; margin-bottom: 2px; font-size: 14px; color: var(--text); }
+.tl-item .ctx { display: block; margin-top: 4px; font-size: 12px; color: var(--text-3); }
+
 /* ---------- Barra inferior ---------- */
 .bottom-nav {
   position: fixed; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 25;
