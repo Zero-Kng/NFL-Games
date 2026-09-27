@@ -140,7 +140,18 @@ body {
 .chips {
   display: flex; gap: 8px; overflow-x: auto; padding: 2px 16px 2px 2px;
   scrollbar-width: none; scroll-snap-type: x proximity;
+  /* o chip que para no encaixe (ou recebe foco) fica fora da borda esmaecida */
+  scroll-padding-inline: var(--fade-chips);
+  --fade-chips: 28px;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fade-ini), #000 calc(100% - var(--fade-fim)), transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 var(--fade-ini), #000 calc(100% - var(--fade-fim)), transparent);
+  transition: --fade-ini .2s var(--ease-out), --fade-fim .2s var(--ease-out);
 }
+/* o main.js marca de que lado ainda há chips para rolar */
+.chips[data-antes] { --fade-ini: var(--fade-chips); }
+.chips[data-depois] { --fade-fim: var(--fade-chips); }
+@property --fade-ini { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --fade-fim { syntax: "<length>"; inherits: false; initial-value: 0px; }
 .chips::-webkit-scrollbar { display: none; }
 .chip {
   flex-shrink: 0; min-height: var(--tap); padding: 0 16px; border-radius: 999px;

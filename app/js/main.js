@@ -78,8 +78,20 @@ function centralizarAtivos() {
     const box = $(id);
     const ativo = box.querySelector('[aria-pressed="true"]');
     if (ativo) box.scrollLeft = ativo.offsetLeft - (box.clientWidth - ativo.offsetWidth) / 2;
+    marcarBordas(box);
   });
 }
+
+// Esmaece a borda da faixa de chips só do lado em que ainda há chips para rolar,
+// em vez de cortá-los secos rente ao rótulo (app.css, .chips[data-antes|data-depois]).
+function marcarBordas(box) {
+  const resto = box.scrollWidth - box.clientWidth - box.scrollLeft;
+  box.toggleAttribute('data-antes', box.scrollLeft > 1);
+  box.toggleAttribute('data-depois', resto > 1);
+}
+['seasonChips', 'weekChips'].forEach((id) =>
+  $(id).addEventListener('scroll', (e) => marcarBordas(e.currentTarget), { passive: true }));
+window.addEventListener('resize', () => ['seasonChips', 'weekChips'].forEach((id) => marcarBordas($(id))));
 
 export function mudarTemporada(season) {
   if (season === S.season) return;
