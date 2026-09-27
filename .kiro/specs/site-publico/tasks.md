@@ -224,7 +224,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - A fixture de sessão virou `servidor_real` (`servidor` segue como apelido). Com a fixture parametrizada do mesmo nome, o pytest recriava o servidor a cada troca de parâmetro, e a bateria levava mais de 40 min, parecendo travada.
   - _Requisitos: 1.6, 1.7, 2.1_
 
-- [ ] 6. Publicação diária no Pages
+- [x] 6. Publicação diária no Pages
   - **Arquivos:**
     - criar `.github/workflows/pages.yml`;
     - modificar `README.md`: seção "Abrir no celular", com o link, como adicionar à tela inicial, a atualização diária e o que fazer se o GitHub pausar o agendamento; também a árvore de pastas, com `tools/exportar.py` e `site/`;
@@ -232,7 +232,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - teste em `tests/test_infra.py`.
   - **Consome:** a CLI da tarefa 2 (`python tools/exportar.py --saida site --processos 4`).
   - **Produz:** o workflow do componente 6 do design, exatamente com os gatilhos, as permissões, o `concurrency` e os passos listados lá.
-  - [ ] 6.1 Escrever `test_workflow_pages` em `tests/test_infra.py`, lendo o YAML com `yaml.safe_load` (instalar antes: `python -m pip install -r requirements-dev.txt`). Confere:
+  - [x] 6.1 Escrever `test_workflow_pages` em `tests/test_infra.py`, lendo o YAML com `yaml.safe_load` (instalar antes: `python -m pip install -r requirements-dev.txt`). Confere:
     - o cron `0 10 * * *`;
     - o `push` na `main` com os `paths` do design;
     - o `workflow_dispatch`;
@@ -240,11 +240,14 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `concurrency.group == "pages"`;
     - os passos em ordem: `montar.py`, `exportar.py`, `upload-pages-artifact` com `path: site` e `deploy-pages`;
     - nenhum passo com `git push` ou `contents: write`.
-  - [ ] 6.2 Rodar `pytest tests/test_infra.py -k pages -v`. Esperado: FAIL.
-  - [ ] 6.3 Escrever o workflow e a seção do README.
-  - [ ] 6.4 Rodar `pytest tests/test_infra.py -v`. Esperado: PASS.
-  - [ ] 6.5 Commit: `Workflow de publicação diária no GitHub Pages e instruções para abrir no celular (site-publico, tarefa 6)`.
+  - [x] 6.2 Rodar `pytest tests/test_infra.py -k pages -v`. Esperado: FAIL.
+  - [x] 6.3 Escrever o workflow e a seção do README.
+  - [x] 6.4 Rodar `pytest tests/test_infra.py -v`. Esperado: PASS.
+  - [x] 6.5 Commit: `Workflow de publicação diária no GitHub Pages e instruções para abrir no celular (site-publico, tarefa 6)`.
   - [ ] 6.6 Avisar o José que a branch está pronta para a PR. O deploy só roda depois do merge na `main`, porque o ambiente `github-pages` só aceita a branch padrão.
+  - **Feito (2026-09-27):** `.github/workflows/pages.yml`, com `timeout-minutes: 45` e `configure-pages` antes do upload. `test_workflow_pages` passa.
+    - O `montar.py` registrava as falhas de download e saía com 0, e o Actions republicaria sem avisar. Ganhou `main()` com `--estrito`, que sai com 1 se alguma fonte falhou; o workflow usa essa opção (`test_main_estrito_falha_quando_uma_fonte_falha`). O PC segue igual: sem a opção, continua com a cópia local.
+    - README: seção "No celular" no topo de "Como executar", e a árvore de pastas com `fonte-estatica.js`, `exportar` e `site/`. `requirements-dev.txt` ganhou `pyyaml>=6`.
   - _Requisitos: 1.1, 1.4, 3.1–3.4, 3.6, RNF 4, RNF 5, segurança 1 e 2_
 
 - [ ] 7. Primeiro deploy e medições

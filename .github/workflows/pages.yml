@@ -1,0 +1,70 @@
+# Publica o app no GitHub Pages (spec site-publico): https://zero-kng.github.io/NFL-Games/
+#  - Todo dia as 10:00 UTC (7h de Brasilia), depois das atualizacoes noturnas do nflverse.
+#  - A cada push na main que mexa no app, no servidor, no ETL ou no exportador.
+#  - Manualmente: aba Actions > Pages > Run workflow.
+# Sincroniza as fontes (a pasta dados/ fica no cache do Actions: so baixa o que mudou),
+# monta, exporta as respostas da API em arquivos (tools/exportar.py) e publica o site/.
+# Os dados nao passam pelo Git. Se qualquer passo falhar, nada e publicado: o site
+# continua com a ultima versao, e o GitHub avisa por e-mail.
+name: Pages
+
+on:
+  schedule:
+    - cron: "0 10 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - "server/**"
+      - "etl/**"
+      - "tools/exportar.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Dependencias
+        run: python -m pip install pandas numpy
+
+      - name: Copia dos dados (cache)
+        uses: actions/cache@v4
+        with:
+          path: dados
+          key: dados-${{ github.run_id }}
+          restore-keys: dados-
+
+      - name: Sincronizar e montar os dados
+        run: python etl/montar.py --estrito
+
+      - name: Exportar o site
+        run: python tools/exportar.py --saida site --processos 4
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

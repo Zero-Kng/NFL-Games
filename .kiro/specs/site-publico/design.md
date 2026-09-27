@@ -164,7 +164,7 @@ concurrency: {group: pages, cancel-in-progress: false}
 Um job `publicar` (ubuntu-latest):
 1. `actions/checkout` e `actions/setup-python` (3.12), depois `pip install pandas numpy`.
 2. `actions/cache` da pasta `dados/`: `key: dados-${{ github.run_id }}` e `restore-keys: dados-`. Assim restaura sempre a cópia mais recente e salva a nova.
-3. `python etl/montar.py`.
+3. `python etl/montar.py --estrito`: sai com erro se alguma fonte falhar, para não republicar sem aviso (critério 3.4). Sem `--estrito`, que é o uso no PC, ele segue com a cópia local.
 4. `python tools/exportar.py --saida site --processos 4`, que termina verificando o resultado.
 5. `actions/upload-pages-artifact` (`path: site`) e `actions/deploy-pages`.
 
