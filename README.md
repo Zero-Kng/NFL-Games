@@ -316,7 +316,7 @@ Todos os endpoints são `GET` e devolvem JSON. Sem `season`, vale a temporada at
 
 | Rota | Retorno |
 |---|---|
-| `/api/estado` | a carga dos dados: `pronto`, `fase` (`preparando`, `carregando`, `pronto` ou `erro`), `mensagem` e `primeiraCarga`. Responde desde o primeiro segundo; as outras rotas respondem 503 até `pronto` |
+| `/api/estado` | a carga dos dados: `pronto`, `fase` (`iniciando`, `preparando`, `carregando`, `pronto` ou `erro`), `mensagem` e `primeiraCarga`. Responde desde o primeiro segundo; as outras rotas respondem 503 até `pronto` |
 | `/api/meta` | temporadas, semanas e rodadas, 32 times, médias da liga, fontes, créditos e última atualização |
 | `/api/games?season=&week=&date=` | partidas, com status (`agendado`, `sem_resultado`, `encerrado`) |
 | `/api/games/{id}` | detalhe + estatísticas + tendências + destaques |
