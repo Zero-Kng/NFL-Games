@@ -102,7 +102,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - O `versao.json` é gravado por último, para só apontar para uma exportação completa.
   - _Requisitos: 1.3, 2.1, 3.2 (base), RNF 1, segurança 1_
 
-- [ ] 3. Fonte estática no navegador
+- [x] 3. Fonte estática no navegador
   - **Arquivos:**
     - criar `app/js/fonte-estatica.js`;
     - modificar `app/js/api.js` (a troca de fonte e o leitor opcional no `get`);
@@ -132,7 +132,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `plays` de um jogo inexistente devolve `[]`, como o servidor.
     - `game` de um jogo inexistente dá 404 `jogo {id} nao encontrado`.
     - `broadcast` dá 404 quando o bundle não existe ou quando traz `null`.
-  - [ ] 3.1 Escrever `tests/test_fonte_estatica.py`. Cada teste abre `site` no Edge e chama a fonte pela página:
+  - [x] 3.1 Escrever `tests/test_fonte_estatica.py`. Cada teste abre `site` no Edge e chama a fonte pela página:
     - chamada: `await (await import(new URL('js/api.js', document.baseURI).href)).api.X(...)`;
     - comparação: com o `NFLData(dados, hoje=H)`, sendo `H` o mesmo instante do `page.clock.set_fixed_time(H)`.
 
@@ -154,16 +154,20 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `test_fuso_do_aparelho_nao_muda_semana_nem_status`: contexto com `timezone_id="America/Sao_Paulo"` e `H` = quinta de rodada às 23h30 em Brasília. `meta().currentWeek` e o `status` iguais aos do servidor com o mesmo `H`.
     - `test_caminhos_relativos`: nenhum pedido da página vai para fora de `/NFL-Games/`, exceto as fontes do Google e a ESPN (conferido com `page.on("request")`).
     - `test_mensagem_de_abertura`: com `api/versao.json` respondendo 404 (via `route`), a tela mostra exatamente a mensagem 4.3.
-  - [ ] 3.2 Rodar `pytest tests/test_fonte_estatica.py -v`. Esperado: FAIL, porque ainda não existe fonte estática. A primeira execução exporta o site, o que leva alguns minutos.
-  - [ ] 3.3 Implementar `tools/servidor_estatico.py`, com `ThreadingHTTPServer` numa thread e porta livre de `servidor_local.porta_livre`, e as fixtures do conftest.
-  - [ ] 3.4 Implementar `fonte-estatica.js`, a troca em `api.js` e a mensagem em `main.js`.
+  - [x] 3.2 Rodar `pytest tests/test_fonte_estatica.py -v`. Esperado: FAIL, porque ainda não existe fonte estática. A primeira execução exporta o site, o que leva alguns minutos.
+  - [x] 3.3 Implementar `tools/servidor_estatico.py`, com `ThreadingHTTPServer` numa thread e porta livre de `servidor_local.porta_livre`, e as fixtures do conftest.
+  - [x] 3.4 Implementar `fonte-estatica.js`, a troca em `api.js` e a mensagem em `main.js`.
     - A fonte lê `api/versao.json` com `buscar(url, {cache: 'no-store'})` e guarda a promessa da versão. Todo caminho é `api/{versao}/...`.
     - Os bundles de jogo e de pranchetas passam pelo `get(path, lerGz)`, o que dá o cache de sessão de graça.
     - Na mensagem da abertura, `main.js` usa `ESTATICO` para escolher o texto. A espera por 503 segue só para `!ESTATICO`.
-  - [ ] 3.5 Rodar `pytest tests/test_fonte_estatica.py -v`. Esperado: PASS.
-  - [ ] 3.6 Rodar a bateria atual no PC: `pytest tests/test_ui.py tests/test_ui_dados.py tests/test_ui_novo.py -q`. Esperado: os 155 passam, porque nada mudou para a fonte `servidor`.
-  - [ ] 3.7 Regenerar o `.exe` da raiz e conferir que ele sobe.
-  - [ ] 3.8 Commit: `Fonte estática: a interface lê os arquivos exportados quando está no site (site-publico, tarefa 3)`.
+  - [x] 3.5 Rodar `pytest tests/test_fonte_estatica.py -v`. Esperado: PASS.
+  - [x] 3.6 Rodar a bateria atual no PC: `pytest tests/test_ui.py tests/test_ui_dados.py tests/test_ui_novo.py -q`. Esperado: os 155 passam, porque nada mudou para a fonte `servidor`.
+  - [x] 3.7 Regenerar o `.exe` da raiz e conferir que ele sobe.
+  - [x] 3.8 Commit: `Fonte estática: a interface lê os arquivos exportados quando está no site (site-publico, tarefa 3)`.
+  - **Feito (2026-09-27):** `tests/test_fonte_estatica.py`, 14 testes contra o servidor real (ou a `NFLData` com a data do relógio do Playwright). Bateria do PC: 155 passaram.
+    - Busca em `toUpperCase`, e não em `toLowerCase`: o pandas compara em `upper()` (design corrigido).
+    - `site_local` serve o conteúdo da própria pasta do site. A chave do cache de testes não inclui `app/`: a fixture recopia a interface a cada sessão (`exportar.copiar_interface`), sem reexportar os dados.
+    - `plays`, `games` e `news` de semana ou jogo inexistente devolvem `[]`, como o servidor.
   - _Requisitos: 1.2, 2.1–2.6, 4.2, 4.3, segurança 3 e 4_
 
 - [ ] 4. Troca de versão no meio do uso

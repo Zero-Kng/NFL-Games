@@ -90,6 +90,15 @@ def _fatias(itens: list, n: int) -> list[list]:
 
 
 # --------------------------------------------------------------- exportar
+def copiar_interface(saida: Path) -> None:
+    """Copia app/ para `saida` com a marca que faz o api.js usar a fonte estática."""
+    shutil.copytree(ROOT / "app", saida, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
+    index = saida / "index.html"
+    html = index.read_text(encoding="utf-8")
+    if MARCA not in html:
+        index.write_text(html.replace("</head>", MARCA + "\n</head>", 1), encoding="utf-8")
+
+
 def exportar(dados: Path, saida: Path, temporadas: set[int] | None = None, processos: int = 4,
              agora: datetime | None = None) -> str:
     """Exporta para `saida` e devolve a versão (AAAAMMDDTHHMM, UTC)."""
@@ -101,13 +110,7 @@ def exportar(dados: Path, saida: Path, temporadas: set[int] | None = None, proce
     saida = Path(saida)
     saida.mkdir(parents=True, exist_ok=True)
 
-    # interface: cópia de app/ com a marca que troca a fonte de dados (api.js)
-    shutil.copytree(ROOT / "app", saida, dirs_exist_ok=True, ignore=shutil.ignore_patterns("__pycache__"))
-    index = saida / "index.html"
-    html = index.read_text(encoding="utf-8")
-    if MARCA not in html:
-        index.write_text(html.replace("</head>", MARCA + "\n</head>", 1), encoding="utf-8")
-
+    copiar_interface(saida)
     if (saida / "api").exists():
         shutil.rmtree(saida / "api")        # versões antigas não vão junto
     destino = saida / "api" / versao

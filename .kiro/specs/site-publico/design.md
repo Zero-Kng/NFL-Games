@@ -132,7 +132,7 @@ Sem `ano`, vale a temporada atual (`meta.season`), como no servidor.
 
 **Regra C, jogadores** (espelha `players_list`): `jogadores.json` já vem ordenado por rating e volume (ordenação estável, Decisão 5). O filtro mantém a ordem e aplica, nesta ordem:
 - `rated` (padrão: só avaliados);
-- `q`: o nome contém o termo, sem diferenciar maiúsculas, com `toLowerCase` nos dois lados (o mesmo que o `str.lower()` do Python, que não depende do idioma);
+- `q`: o nome contém o termo, sem diferenciar maiúsculas, com `toUpperCase` nos dois lados (o mesmo que o pandas faz em `str.contains(case=False, regex=False)`: compara em `upper()`);
 - `position`: lista separada por vírgula, comparada em maiúsculas;
 - `role` e `team`, em maiúsculas;
 - limite: padrão 40, máximo 300.
