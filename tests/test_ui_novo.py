@@ -259,6 +259,21 @@ def test_ui_abre_na_semana_mais_recente(servidor, pagina):
     assert pagina.eval_on_selector("#seasonChips [aria-pressed=true]", "b => Number(b.dataset.season)") == meta["season"]
 
 
+def test_ui_chips_esmaecem_so_onde_ha_mais_para_rolar(servidor, pagina):
+    """Os chips não ficam cortados secos rente ao rótulo: a borda esmaece do lado em que ainda há chips."""
+    abrir(pagina, servidor.url, "?season=2024&week=1")
+    bordas = "b => [b.hasAttribute('data-antes'), b.hasAttribute('data-depois')]"
+    assert pagina.eval_on_selector("#weekChips", bordas) == [False, True]       # no começo
+    pagina.eval_on_selector("#weekChips", "b => { b.style.scrollSnapType = 'none'; b.scrollLeft = 150; }")
+    esperar(pagina, "document.getElementById('weekChips').hasAttribute('data-antes')")
+    assert pagina.eval_on_selector("#weekChips", bordas) == [True, True]        # no meio
+    pagina.eval_on_selector("#weekChips", "b => { b.scrollLeft = b.scrollWidth; }")
+    esperar(pagina, "!document.getElementById('weekChips').hasAttribute('data-depois')")
+    assert pagina.eval_on_selector("#weekChips", bordas) == [True, False]       # no fim
+    # a máscara acompanha a marca (depois da transição de 0,2 s)
+    esperar(pagina, "getComputedStyle(document.getElementById('weekChips')).getPropertyValue('--fade-ini').trim() === '28px'")
+
+
 def test_ui_filtros_so_nas_telas_que_usam(servidor, pagina):
     abrir(pagina, servidor.url)
     ir_para(pagina, "jogadores")
