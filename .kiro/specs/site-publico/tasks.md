@@ -49,20 +49,21 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
 
 ## Tarefas
 
-- [ ] 1. Ordenação estável da lista de jogadores no servidor
+- [x] 1. Ordenação estável da lista de jogadores no servidor
   - **Arquivos:** modificar `server/data_layer.py` (`players_list`, o `sort_values`); teste em `tests/test_servidor_dados.py`.
   - **Produz:** `NFLData.players_list` com empates de `rating` e `volume` na ordem da tabela `t.jogadores`. A tarefa 2 grava a lista completa nessa ordem.
-  - [ ] 1.1 Escrever `test_players_list_empates_na_ordem_da_tabela`:
+  - [x] 1.1 Escrever `test_players_list_empates_na_ordem_da_tabela`:
     - para 2021, pega a tabela `t.jogadores` (avaliados);
     - ordena com `sort_values(["rating", "volume"], ascending=[False, False], na_position="last", kind="stable")`;
     - confere que `players_list(2021, limit=300)` devolve os `nflId` nessa ordem.
     - Repete com `rated_only=False` e com `position="WR"`.
-  - [ ] 1.2 Rodar `pytest tests/test_servidor_dados.py -k empates -v`. Esperado: FAIL, ou PASS por sorte. Se passar, confirmar que o teste compara listas com pelo menos um empate (`assert` de que existe empate).
-  - [ ] 1.3 Acrescentar `kind="stable"` ao `sort_values` de `players_list`.
-  - [ ] 1.4 Rodar `pytest tests/test_servidor_dados.py -v` e `python tools/golden.py check`.
+  - [x] 1.2 Rodar `pytest tests/test_servidor_dados.py -k empates -v`. Esperado: FAIL, ou PASS por sorte. Se passar, confirmar que o teste compara listas com pelo menos um empate (`assert` de que existe empate).
+  - [x] 1.3 Acrescentar `kind="stable"` ao `sort_values` de `players_list`.
+  - [x] 1.4 Rodar `pytest tests/test_servidor_dados.py -v` e `python tools/golden.py check`.
     - Esperado: PASS e 2116/2116.
     - Se o golden acusar diferença: conferir à mão que é só ordem entre empatados, registrar aqui quais URLs mudaram, recapturar com `python tools/golden.py capture` e rodar o `check` de novo.
-  - [ ] 1.5 Commit: `Lista de jogadores com ordenação estável: empatados ficam na ordem da tabela (site-publico, tarefa 1)`.
+  - [x] 1.5 Commit: `Lista de jogadores com ordenação estável: empatados ficam na ordem da tabela (site-publico, tarefa 1)`.
+  - **Feito (2026-09-27):** o teste passou já na 1ª execução, com empates reais nos três casos. Motivo: o pandas ignora `kind` ao ordenar por várias colunas e usa sempre um método estável. O código do servidor não mudou (só um comentário registrando a dependência); o teste fica como garantia. Golden não se aplica (nenhuma resposta mudou).
   - _Requisitos: 2.2_
 
 - [ ] 2. Exportador `tools/exportar.py`
