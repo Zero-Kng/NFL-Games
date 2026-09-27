@@ -28,6 +28,7 @@ import json
 import mimetypes
 import os
 import re
+import socket
 import sys
 import threading
 import time
@@ -91,6 +92,16 @@ class Server(ThreadingHTTPServer):
     # sistema operacional recusa. 128 cobre rajadas bem acima da carga-alvo.
     request_queue_size = 128
     daemon_threads = True
+    # No Windows, o SO_REUSEADDR (padrao do HTTPServer) deixa dois programas se
+    # ligarem a mesma porta sem erro: o app diria "servindo em :8000" e as
+    # conexoes iriam para o outro (ex.: um runserver de outro projeto). La a
+    # porta fica so nossa (SO_EXCLUSIVEADDRUSE), e porta ocupada vira erro.
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
 
 
 # --------------------------------------------------------------------------- #
@@ -533,7 +544,12 @@ def main() -> int:
 
     # A porta abre antes da carga: o navegador ja mostra a tela de carregamento
     # (a interface acompanha /api/estado) enquanto os dados sao preparados.
-    httpd = Server((args.host, args.port), Handler)
+    try:
+        httpd = Server((args.host, args.port), Handler)
+    except OSError:
+        print(f"[erro] a porta {args.port} esta ocupada por outro programa (ou nao pode ser usada).\n"
+              "       Feche o outro programa ou escolha outra porta, por exemplo: --port 9000", flush=True)
+        return 1
     threading.Thread(target=httpd.serve_forever, name="http", daemon=True).start()
     url = f"http://{'127.0.0.1' if args.host == '0.0.0.0' else args.host}:{args.port}"
     print(f"servindo em {url} (a pagina mostra o progresso da carga)")

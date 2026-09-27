@@ -51,7 +51,7 @@ As opções valem para o executável, o `rodar.py` e o `rodar.sh`:
 |---|---|
 | (nenhuma) | uso normal: sobe com a cópia local e busca o que mudou em segundo plano |
 | `--offline` | não acessa a internet, usa só a cópia em `dados/` (testes, medições, apresentação sem rede) |
-| `--port 9000` | outra porta |
+| `--port 9000` | outra porta. Sem ela, o app usa a 8000 ou, se outro programa estiver nela, a próxima livre (8001, 8002…), e avisa no terminal |
 | `--sem-navegador` | não abre o navegador; só mostra o endereço |
 | `--host 0.0.0.0` | abre para a rede local (ver o aviso abaixo) |
 
@@ -400,7 +400,7 @@ vizinhas no navegador e descarte de respostas atrasadas.
 | `503 servidor ocupado` | Mais de 64 requisições simultâneas. O navegador pode tentar de novo em 2 s. |
 | `ModuleNotFoundError: pandas` | `python -m pip install pandas numpy` |
 | Tela em branco abrindo o arquivo direto | É o caso do `file://`. Acesse por `http://127.0.0.1:8000`. |
-| Porta 8000 ocupada | `--port 9000` (no executável, no `rodar.py` ou no `rodar.sh`) |
+| O terminal avisa que a porta 8000 está ocupada | Outro programa (ex.: um `runserver` de outro projeto) está nela: o app usa a próxima livre e abre o navegador nela. Com `--port` ocupada, ele sai explicando. |
 | Acentos quebrados no terminal do Windows | `$env:PYTHONIOENCODING='utf-8'` antes do comando. |
 
 ---

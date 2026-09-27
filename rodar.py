@@ -27,6 +27,8 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent
 PYTHON_MINIMO = (3, 10)
+PORTA_PADRAO = 8000
+PORTAS_A_TENTAR = 20                                    # 8000 ocupada: tenta 8001, 8002... ate 8019
 BIBLIOTECAS = ("pandas", "numpy")
 PYTHON = "python" if os.name == "nt" else "python3"     # o nome que a pessoa digita no terminal
 CONGELADO = bool(getattr(sys, "frozen", False))          # rodando como executavel (PyInstaller)
@@ -71,10 +73,38 @@ def pastas(congelado: bool = CONGELADO, interno: Path | None = None,
 def ler_opcoes(argv: list[str] | None) -> tuple[argparse.Namespace, list[str]]:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="127.0.0.1")
-    ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--port", type=int, default=None,
+                    help=f"porta (padrao: {PORTA_PADRAO}, ou a proxima livre se ela estiver ocupada)")
     ap.add_argument("--offline", action="store_true", help="usa so a copia local em dados/, sem internet")
     ap.add_argument("--sem-navegador", action="store_true", help="nao abre o navegador")
     return ap.parse_known_args(argv)
+
+
+def porta_disponivel(host: str, porta: int) -> bool:
+    """Se da para o servidor se ligar a porta agora (a mesma exigencia de exclusividade dele)."""
+    with socket.socket() as s:
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        try:
+            s.bind((host, porta))
+        except OSError:
+            return False
+    return True
+
+
+def escolher_porta(host: str, pedida: int | None, inicial: int | None = None) -> tuple[int, bool]:
+    """
+    (porta, trocou). Porta pedida (--port) fica como esta: ocupada, o servidor
+    explica o erro. Sem pedido, a padrao ou, se outro programa estiver nela, a
+    proxima livre, para o duplo clique funcionar com outro projeto aberto.
+    """
+    if pedida is not None:
+        return pedida, False
+    inicial = PORTA_PADRAO if inicial is None else inicial
+    for porta in range(inicial, inicial + PORTAS_A_TENTAR):
+        if porta_disponivel(host, porta):
+            return porta, porta != inicial
+    return inicial, False
 
 
 def opcoes_servidor(args: argparse.Namespace, extras: list[str]) -> list[str]:
@@ -157,6 +187,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     args, extras = ler_opcoes(argv)
+    padrao = PORTA_PADRAO
+    args.port, trocou = escolher_porta(args.host, args.port)
+    if trocou:
+        print(f"[aviso] a porta {padrao} esta ocupada por outro programa; usando a {args.port}.", flush=True)
     app, dados = pastas()
     os.environ.setdefault("NFL_APP", str(app))
     os.environ.setdefault("NFL_DADOS", str(dados))
