@@ -188,7 +188,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
   - **Feito (2026-09-27):** a checagem de versão fica no `ler()` da fonte, e vale para toda leitura, não só para as rotas com "não encontrado". O teste troca para a tela Jogadores, e não para a aba "jogadas", porque o arquivo do jogo já está no cache da sessão. A recarga é conferida pelo evento `load`: o `expect_navigation` também aceitava o `pushState` do app. `test_fonte_estatica.py`: 16 testes.
   - _Requisitos: 3.5, 4.4_
 
-- [ ] 5. A bateria de interface nas duas fontes
+- [x] 5. A bateria de interface nas duas fontes
   - **Arquivos:**
     - modificar `tests/test_ui.py`, `tests/test_ui_dados.py` e `tests/test_ui_novo.py`;
     - `tests/conftest.py` ganha `Alvo` e `simular_api`;
@@ -205,20 +205,23 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
       - na fonte `servidor`, vira `pg.route` como hoje;
       - na `estatico`, traduz para o arquivo do Data Model. Nos jogos, junta as sobrescritas de `game` e `plays` sobre o bundle real, gzipado.
     - A marca `so_servidor(motivo: str)` pula o teste na fonte `estatico`.
-  - [ ] 5.1 Trocar nos três módulos:
+  - [x] 5.1 Trocar nos três módulos:
     - `api(servidor.url, ...)` e `urlopen(f"{base}/api...")` por `servidor.api`;
     - todo `pg.route("**/api/...")` por `simular_api`;
     - `fetch('/api/meta')` e `import('/js/...')` dentro de `evaluate` pela API da página, com URL relativa a `document.baseURI`.
-  - [ ] 5.2 Trocar em `test_ui_busca_corta_em_100_caracteres` a observação do pedido de rede por um espião em `api.players`: substituir a função no objeto `api` importado e guardar o `q`. Assim o teste vale nas duas fontes.
-  - [ ] 5.3 Marcar `so_servidor`, cada um com o motivo na marca, e listar aqui ao terminar:
+  - [x] 5.2 Trocar em `test_ui_busca_corta_em_100_caracteres` a observação do pedido de rede por um espião em `api.players`: substituir a função no objeto `api` importado e guardar o `q`. Assim o teste vale nas duas fontes.
+  - [x] 5.3 Marcar `so_servidor`, cada um com o motivo na marca, e listar aqui ao terminar:
     - os testes da tela de carregamento (`_simular_carga`);
     - `test_ui_troca_rapida_mostra_so_a_ultima_jogada`, `test_ui_prefetch_falho_carrega_normal`, `test_ui_prefetch_so_depois_da_jogada_escolhida` e `test_ui_busca_resposta_antiga_descartada`, que dependem de um pedido por prancheta ou por busca.
-  - [ ] 5.4 Rodar `pytest tests/test_ui.py tests/test_ui_dados.py tests/test_ui_novo.py -q`.
+  - [x] 5.4 Rodar `pytest tests/test_ui.py tests/test_ui_dados.py tests/test_ui_novo.py -q`.
     - Esperado: todos passam nas duas fontes, e os pulados são só os de 5.3.
     - Qualquer outra falha em `[estatico]` é defeito do site: corrigir na `fonte-estatica.js`, com teste na `test_fonte_estatica.py`, e nunca marcar `so_servidor` para esconder.
-  - [ ] 5.5 Rodar a suíte inteira: `pytest -q`. Esperado: tudo passa.
-  - [ ] 5.6 Regenerar o `.exe` da raiz, se alguma correção tocou `app/`.
-  - [ ] 5.7 Commit: `Testes de interface rodam contra o PC e contra o site (site-publico, tarefa 5)`.
+  - [x] 5.5 Rodar a suíte inteira: `pytest -q`. Esperado: tudo passa.
+  - [x] 5.6 Regenerar o `.exe` da raiz, se alguma correção tocou `app/`.
+  - [x] 5.7 Commit: `Testes de interface rodam contra o PC e contra o site (site-publico, tarefa 5)`.
+  - **Feito (2026-09-27):** bateria de interface nas duas fontes: **301 passaram, 9 pulados** (4 min). Suíte inteira: 506 passaram, 12 pulados (os 9 abaixo e os 3 do `test_executavel.py`, que só rodam com `NFL_EMPACOTAR=1`). Nenhuma falha em `[estatico]`.
+    - Só no PC (`so_servidor`): os 5 testes da tela de carregamento (`test_ui_tela_de_carregamento_ate_os_dados_ficarem_prontos`, `test_ui_carregamento_da_copia_local_sem_aviso_de_minutos`, `..._mostra_o_erro`, `..._com_o_servidor_encerrado`, `..._sem_animacao_com_movimento_reduzido`) e os 4 do `test_ui.py` que atrasam ou derrubam um pedido específico (`test_ui_troca_rapida_mostra_so_a_ultima_jogada`, `test_ui_prefetch_falho_carrega_normal`, `test_ui_prefetch_so_depois_da_jogada_escolhida`, `test_ui_busca_resposta_antiga_descartada`).
+    - A fixture de sessão virou `servidor_real` (`servidor` segue como apelido). Com a fixture parametrizada do mesmo nome, o pytest recriava o servidor a cada troca de parâmetro, e a bateria levava mais de 40 min, parecendo travada.
   - _Requisitos: 1.6, 1.7, 2.1_
 
 - [ ] 6. Publicação diária no Pages
