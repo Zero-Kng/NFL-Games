@@ -66,7 +66,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
   - **Feito (2026-09-27):** o teste passou já na 1ª execução, com empates reais nos três casos. Motivo: o pandas ignora `kind` ao ordenar por várias colunas e usa sempre um método estável. O código do servidor não mudou (só um comentário registrando a dependência); o teste fica como garantia. Golden não se aplica (nenhuma resposta mudou).
   - _Requisitos: 2.2_
 
-- [ ] 2. Exportador `tools/exportar.py`
+- [x] 2. Exportador `tools/exportar.py`
   - **Arquivos:** criar `tools/exportar.py`; teste em `tests/test_exportar.py`; `.gitignore` ganha `site/`.
   - **Consome:** `NFLData(dados: Path, hoje=None)` e os métodos `meta`, `games_list`, `game`, `game_plays`, `broadcast`, `play_tracking`, `players_list`, `player`, `news` e `summary` (`server/data_layer.py`).
   - **Produz:**
@@ -78,7 +78,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - As pranchetas saem como um dicionário `{"<playId>": tracking}`, só com os lances que têm prancheta. **Todo jogo** da temporada ganha os dois arquivos, inclusive os futuros (`plays: []`, pranchetas `{}`).
     - `jogadores.json` é `players_list(ano, rated_only=False, limit=10**6)`.
     - Os perfis saem para todo `nflId` de `t.jogadores.index`.
-  - [ ] 2.1 Escrever os testes em `tests/test_exportar.py`. Uma fixture de módulo exporta `--temporadas 2021` para uma pasta temporária, com `processos=4`. Testes:
+  - [x] 2.1 Escrever os testes em `tests/test_exportar.py`. Uma fixture de módulo exporta `--temporadas 2021` para uma pasta temporária, com `processos=4`. Testes:
     - `test_versao_e_marca`: `api/versao.json` tem `versao` no formato `\d{8}T\d{4}`; `index.html` contém `<meta name="nfl-dados" content="estatico">`; `css/app.css` e `js/api.js` existem.
     - `test_meta_igual_ao_servidor`: `meta.json` é igual a `NFLData.meta()`.
     - `test_semanas_iguais_ao_servidor`: toda semana de 2021 é igual a `games_list(2021, semana)`.
@@ -89,14 +89,17 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `test_verificar_acusa_problemas`: `verificar` numa cópia sem `meta.json` e com `limite_bytes=1` devolve dois problemas; na exportação boa, `[]`.
     - `test_gravacao_atomica`: depois de exportar, nenhum `*.tmp` sobra em `saida`.
     - Os campos `status` e `currentWeek` são comparados com o `NFLData` criado com o mesmo `hoje` passado ao exportar (`agora`).
-  - [ ] 2.2 Rodar `pytest tests/test_exportar.py -v`. Esperado: FAIL (`ModuleNotFoundError: exportar`).
-  - [ ] 2.3 Implementar `tools/exportar.py`.
+  - [x] 2.2 Rodar `pytest tests/test_exportar.py -v`. Esperado: FAIL (`ModuleNotFoundError: exportar`).
+  - [x] 2.3 Implementar `tools/exportar.py`.
     - Os jogos são divididos em `processos` fatias, com `concurrent.futures.ProcessPoolExecutor`. Cada processo cria o próprio `NFLData`.
     - O processo principal copia `app/` (sem `__pycache__`), injeta a marca antes de `</head>` e grava `meta`, `versao`, semanas, jogadores, perfis, notícias e resumo.
     - Com `temporadas`, o `meta.json` continua completo.
-  - [ ] 2.4 Rodar `pytest tests/test_exportar.py -v`. Esperado: PASS.
-  - [ ] 2.5 Exportar tudo (`python tools/exportar.py --saida site`) e anotar aqui o tempo e o tamanho total, contra ~6 min e ~200 MB do design. `verificar` tem de sair sem problemas.
-  - [ ] 2.6 Commit: `Exportador do site: respostas da API em arquivos, com os jogos em gzip (site-publico, tarefa 2)`.
+  - [x] 2.4 Rodar `pytest tests/test_exportar.py -v`. Esperado: PASS.
+  - [x] 2.5 Exportar tudo (`python tools/exportar.py --saida site`) e anotar aqui o tempo e o tamanho total, contra ~6 min e ~200 MB do design. `verificar` tem de sair sem problemas.
+  - [x] 2.6 Commit: `Exportador do site: respostas da API em arquivos, com os jogos em gzip (site-publico, tarefa 2)`.
+  - **Feito (2026-09-27):** `tests/test_exportar.py`, 10 testes. Exportação completa: **272 s com 4 processos, 156 MB, 15.607 arquivos** (design: ~6 min e ~200 MB); verificação sem problemas.
+    - O `meta.json` é comparado sem a `ultimaAtualizacao`: ela vem do `dados/manifest.json` lido na hora, e um app aberto que sincroniza durante o teste a muda.
+    - O `versao.json` é gravado por último, para só apontar para uma exportação completa.
   - _Requisitos: 1.3, 2.1, 3.2 (base), RNF 1, segurança 1_
 
 - [ ] 3. Fonte estática no navegador
