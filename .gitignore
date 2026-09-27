@@ -2,9 +2,8 @@
 # fica ignorado ate a pasta ser apagada das maquinas.
 cache/
 
-# Dataset antigo (Big Data Bowl 2023, 826 MB). O app nao o le mais. Enquanto
-# estiver versionado, a regra nao vale para ele: sai com
-#   git rm -r --cached nfl-big-data-bowl-regional-event-data-main
+# Dataset antigo (Big Data Bowl 2023, 826 MB). O app nao o le mais e ele saiu do
+# versionamento; fica ignorado ate a pasta ser apagada das maquinas.
 nfl-big-data-bowl-regional-event-data-main/
 
 # Dados baixados do nflverse e tabelas montadas (etl/fontes.py, etl/montar.py).
