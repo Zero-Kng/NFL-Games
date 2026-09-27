@@ -278,3 +278,42 @@ def test_mensagem_de_abertura(navegador, site):
     ctx.close()
     assert MSG_ABERTURA in texto
     assert "rodar.py" not in texto and "NFL-Games" not in texto
+
+
+# ------------------------------------------------ tarefa 4: troca de versão (4.4)
+def test_versao_nova_recarrega_no_mesmo_lugar(navegador, site_exportado, tmp_path):
+    """Publicação nova no meio do uso: a sessão aberta recarrega na versão nova, sem misturar dias."""
+    import os
+    import shutil
+    import exportar
+    from servidor_estatico import site_local
+    copia = tmp_path / "NFL-Games"
+    shutil.copytree(site_exportado, copia, copy_function=os.link)      # links: rápido, e não mexe no original
+    v1 = json.loads((copia / "api" / "versao.json").read_text(encoding="utf-8"))["versao"]
+    v2 = "29990101T0000"
+    with site_local(copia) as url:
+        pg = nova_pagina(navegador, url)
+        pg.goto(url + "/?season=2025&week=1")
+        pg.wait_for_function("document.querySelector('#jogosLista .match')")
+        (copia / "api" / v1).rename(copia / "api" / v2)                 # o Pages troca o site inteiro
+        exportar.gravar_json(copia / "api" / "versao.json", {"versao": v2})
+        pedidos = []
+        with pg.expect_event("load", timeout=10000):                    # recarga de verdade (não pushState)
+            pg.click(".nav-item[data-go=jogadores]")                    # pede jogadores.json da versão antiga: 404
+            pg.on("request", lambda r: pedidos.append(r.url))
+        pg.wait_for_function("document.querySelector('#scoutBody .row-card')")
+        assert "screen=jogadores" in pg.url and "season=2025" in pg.url
+        dados = [u for u in pedidos if "/api/" in u and not u.endswith("versao.json")]
+        assert dados and all(f"/api/{v2}/" in u for u in dados), dados
+        pg.context.close()
+
+
+def test_404_de_verdade_nao_recarrega(pagina):
+    r = pagina.evaluate("""async () => {
+        const f = await import(new URL('js/fonte-estatica.js', document.baseURI).href);
+        const a = await import(new URL('js/api.js', document.baseURI).href);
+        const fonte = f.fonteEstatica({ get: a.get, recarregar: () => { window.__recarregou = true; } });
+        try { await fonte.player('00-0000000', 2021); return 'resolveu'; }
+        catch (e) { return [e.status, e.message, window.__recarregou || false]; }
+    }""")
+    assert r == [404, "jogador sem dados na temporada", False]

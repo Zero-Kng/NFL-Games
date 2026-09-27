@@ -84,14 +84,29 @@ export async function lerGz(res) {
 }
 
 /* ------------------------------- a fonte ------------------------------- */
-export function fonteEstatica({ get, buscar = (u, o) => fetch(u, o), agora = () => Date.now() }) {
-  let versaoP = null;
-  const versao = () => versaoP || (versaoP = buscar('api/versao.json', { cache: 'no-store' })
+export function fonteEstatica({ get, buscar = (u, o) => fetch(u, o), agora = () => Date.now(),
+                                recarregar = () => location.reload() }) {
+  const lerVersao = () => buscar('api/versao.json', { cache: 'no-store' })
     .then((r) => { if (!r.ok) throw erro(r.status, 'HTTP ' + r.status); return r.json(); })
-    .then((j) => j.versao)
-    .catch((e) => { versaoP = null; throw e; }));
+    .then((j) => j.versao);
+  let versaoP = null;
+  const versao = () => versaoP || (versaoP = lerVersao().catch((e) => { versaoP = null; throw e; }));
 
-  const ler = async (rel, leitor) => get('api/' + (await versao()) + '/' + rel, leitor);
+  // Cada publicação fica em api/{versao}/ e apaga a anterior (4.4). Um 404 pode ser
+  // uma sessão aberta antes da publicação: se a versão mudou, a página recarrega (o
+  // estado está na URL) e a leitura nunca termina, para a tela não mostrar um erro.
+  async function ler(rel, leitor) {
+    const v = await versao();
+    try {
+      return await get('api/' + v + '/' + rel, leitor);
+    } catch (e) {
+      if (e.status === 404 && (await lerVersao().catch(() => v)) !== v) {
+        recarregar();
+        return new Promise(() => {});
+      }
+      throw e;
+    }
+  }
 
   /** 404 do arquivo vira a resposta do servidor para aquela rota: um erro com a mensagem dele, ou um valor. */
   async function se404(promessa, resposta) {

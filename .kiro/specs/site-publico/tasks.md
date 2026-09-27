@@ -170,21 +170,22 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `plays`, `games` e `news` de semana ou jogo inexistente devolvem `[]`, como o servidor.
   - _Requisitos: 1.2, 2.1–2.6, 4.2, 4.3, segurança 3 e 4_
 
-- [ ] 4. Troca de versão no meio do uso
+- [x] 4. Troca de versão no meio do uso
   - **Arquivos:** modificar `app/js/fonte-estatica.js`; teste em `tests/test_fonte_estatica.py`.
   - **Consome:** `fonteEstatica({ ..., recarregar })` e `site_local` (tarefa 3).
   - **Produz:** comportamento. Num 404, relê `api/versao.json` com `cache: 'no-store'`. Se a versão mudou, chama `recarregar()` e devolve uma promessa que não resolve, para a tela não piscar um erro. Senão, lança o 404 com a mensagem da rota.
-  - [ ] 4.1 Escrever `test_versao_nova_recarrega_no_mesmo_lugar`:
+  - [x] 4.1 Escrever `test_versao_nova_recarrega_no_mesmo_lugar`:
     - copia o site exportado para uma pasta temporária e abre `?screen=jogo&season=2025&week=1&game={id}`;
     - com a página aberta, renomeia `api/{v}` para `api/{v2}` e grava `versao.json` com `v2`;
     - troca de aba para "jogadas" e espera o `load` de uma navegação nova;
     - confere que a URL é a mesma, que as jogadas aparecem e que todos os pedidos depois da recarga usam `api/{v2}/`.
-  - [ ] 4.2 Escrever `test_404_de_verdade_nao_recarrega`: `player('00-0000000', 2021)` rejeita com `jogador sem dados na temporada`, e `recarregar` não é chamado. Conferir com `fonteEstatica({get, recarregar: () => window.__recarregou = true})`, montada na página.
-  - [ ] 4.3 Rodar os dois testes. Esperado: FAIL no 4.1.
-  - [ ] 4.4 Implementar a checagem de versão no caminho de erro da fonte.
-  - [ ] 4.5 Rodar `pytest tests/test_fonte_estatica.py -v`. Esperado: PASS.
-  - [ ] 4.6 Regenerar o `.exe` da raiz e conferir que ele sobe.
-  - [ ] 4.7 Commit: `Site recarrega sozinho quando sai uma versão nova dos dados, sem misturar dias (site-publico, tarefa 4)`.
+  - [x] 4.2 Escrever `test_404_de_verdade_nao_recarrega`: `player('00-0000000', 2021)` rejeita com `jogador sem dados na temporada`, e `recarregar` não é chamado. Conferir com `fonteEstatica({get, recarregar: () => window.__recarregou = true})`, montada na página.
+  - [x] 4.3 Rodar os dois testes. Esperado: FAIL no 4.1.
+  - [x] 4.4 Implementar a checagem de versão no caminho de erro da fonte.
+  - [x] 4.5 Rodar `pytest tests/test_fonte_estatica.py -v`. Esperado: PASS.
+  - [x] 4.6 Regenerar o `.exe` da raiz e conferir que ele sobe.
+  - [x] 4.7 Commit: `Site recarrega sozinho quando sai uma versão nova dos dados, sem misturar dias (site-publico, tarefa 4)`.
+  - **Feito (2026-09-27):** a checagem de versão fica no `ler()` da fonte, e vale para toda leitura, não só para as rotas com "não encontrado". O teste troca para a tela Jogadores, e não para a aba "jogadas", porque o arquivo do jogo já está no cache da sessão. A recarga é conferida pelo evento `load`: o `expect_navigation` também aceitava o `pushState` do app. `test_fonte_estatica.py`: 16 testes.
   - _Requisitos: 3.5, 4.4_
 
 - [ ] 5. A bateria de interface nas duas fontes
