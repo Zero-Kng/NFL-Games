@@ -63,7 +63,7 @@ def test_responde_durante_a_carga_e_libera_a_api_quando_pronto():
         status, _h, corpo = _esperar_porta(url, proc)
         assert time.time() - t0 < 3                                   # a porta abre antes da carga terminar
         estado = json.loads(corpo)
-        assert status == 200 and estado["pronto"] is False and estado["fase"] == "carregando"
+        assert status == 200 and estado["pronto"] is False and estado["fase"] in ("iniciando", "carregando")
         assert estado["mensagem"] and estado["primeiraCarga"] is False
 
         status, h, corpo = _get(url + "/api/meta")                    # a API espera os dados
@@ -128,8 +128,21 @@ def test_primeira_carga_interrompida_aparece_como_primeira_carga(tmp_path):
             if visto and visto[-1]["fase"] == "erro":
                 break
             time.sleep(0.05)
-        assert visto and all(e["primeiraCarga"] for e in visto)
+        # "iniciando": a porta abriu antes de o servidor saber se e a primeira carga
+        depois = [e for e in visto if e["fase"] != "iniciando"]
+        assert depois and all(e["primeiraCarga"] for e in depois)
         assert any("completando a primeira carga" in e["mensagem"] or e["fase"] == "erro" for e in visto)
     finally:
         proc.kill()
         proc.wait(10)
+
+
+def test_servidor_abre_a_porta_sem_esperar_o_pandas():
+    """A porta (e a tela de carregamento) nao espera o pandas e o numpy: importar o servidor
+    usa so a biblioteca padrao; o ETL e a camada de dados entram depois de a porta abrir."""
+    codigo = ("import sys; sys.path[:0] = [r'%s', r'%s']; import serve; "
+              "print(sorted(m for m in ('pandas', 'numpy', 'montar', 'data_layer') if m in sys.modules))")
+    r = subprocess.run([sys.executable, "-c", codigo % (ROOT / "server", ROOT / "etl")],
+                       capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "[]", r.stdout

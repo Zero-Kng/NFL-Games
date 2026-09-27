@@ -41,10 +41,22 @@ from urllib.parse import parse_qs, unquote, urlencode, urlparse
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "etl"))
 
-import fontes  # noqa: E402
-import montar  # noqa: E402
-from data_layer import NFLData  # noqa: E402
-from response_cache import CacheDeRespostas, Resposta, serializar  # noqa: E402
+import fontes  # noqa: E402  (so biblioteca padrao)
+from response_cache import CacheDeRespostas, Resposta, serializar  # noqa: E402  (idem)
+
+# O ETL (montar) e a camada de dados (NFLData) trazem o pandas e o numpy, que
+# levam ~1 s para importar (~2 s no executavel). Eles entram so depois de a
+# porta abrir (_carregar_pesados): o navegador ja mostra a tela de carregamento.
+montar = None
+NFLData = None
+
+
+def _carregar_pesados() -> None:
+    global montar, NFLData
+    if NFLData is None:
+        import montar as _montar
+        from data_layer import NFLData as _NFLData
+        montar, NFLData = _montar, _NFLData
 
 ROOT = Path(__file__).resolve().parents[1]
 # NFL_APP e NFL_DADOS: outras pastas para a interface e os dados. O executável
@@ -81,10 +93,11 @@ _ESPERA_ERRO_S = float(os.environ.get("NFL_ESPERA_ERRO_S", "3"))
 
 # A carga dos dados, para a tela de carregamento (/api/estado). O servidor abre a
 # porta antes de carregar: a interface ja sai, e a API responde 503 ate os dados
-# ficarem prontos. fase: "preparando" (baixando/montando na primeira carga),
+# ficarem prontos. fase: "iniciando" (a porta abriu; o servidor ainda carrega o
+# pandas e ve o que falta), "preparando" (baixando/montando na primeira carga),
 # "carregando" (lendo a copia local), "pronto" ou "erro". mensagem: a ultima
 # linha de progresso, a mesma do terminal.
-ESTADO = {"pronto": False, "fase": "carregando", "mensagem": "iniciando o servidor...", "primeiraCarga": False}
+ESTADO = {"pronto": False, "fase": "iniciando", "mensagem": "iniciando o servidor...", "primeiraCarga": False}
 
 
 class Server(ThreadingHTTPServer):
@@ -482,6 +495,7 @@ def atualizar(offline: bool = False, log=_log) -> bool:
     loga e segue com a copia em uso (7.5). Devolve True se trocou os dados.
     """
     try:
+        _carregar_pesados()
         sinc, mont = montar.sincronizar_e_montar(DADOS_DIR, progresso=log,
                                                  rede=fontes.SemAcesso() if offline else None)
     except Exception as e:  # noqa: BLE001
@@ -581,6 +595,7 @@ def _carregar_e_servir(args, parar: threading.Event) -> int:
     intervalo = float(os.environ.get("NFL_INTERVALO_ATUALIZACAO_S") or INTERVALO_ATUALIZACAO_S)
     rede = fontes.SemAcesso() if args.offline else None
 
+    _carregar_pesados()                                   # a porta ja esta aberta
     ja_atualizou = False
     faltam = montar.temporadas_faltando(DADOS_DIR)
     if faltam:
