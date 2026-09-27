@@ -124,7 +124,7 @@ export const api = ESTATICO ? fonteEstatica(get) : { /* as 11 funções de hoje 
 
 Sem `ano`, vale a temporada atual (`meta.season`), como no servidor.
 
-**Descompressão:** os `.json.gz` são lidos com `fetch` e `DecompressionStream('gzip')`. Se o navegador não tiver a `DecompressionStream`, a leitura lança um erro com a mensagem do critério 4.2, que a tela Jogo mostra no seu estado de erro.
+**Descompressão:** os `.json.gz` são lidos com `fetch` e `DecompressionStream('gzip')`, mas só quando os dois primeiros bytes são os do gzip (`1f 8b`). Se o servidor tiver mandado o arquivo com `Content-Encoding: gzip`, o navegador já o descompactou, e o texto é lido direto. Se o navegador não tiver a `DecompressionStream`, a leitura lança um erro com a mensagem do critério 4.2, que a tela Jogo mostra no seu estado de erro.
 
 **Regra A, semana atual** (espelha `_semana_atual`): `hoje` é a data em `America/New_York` (`Intl.DateTimeFormat('en-CA', {timeZone})`). A semana atual é a maior semana com alguma data `<= hoje`. Se nenhuma tiver começado, é a primeira semana.
 
@@ -243,9 +243,11 @@ site/
    - As fixtures de `test_ui.py`, `test_ui_dados.py` e `test_ui_novo.py` ganham o parâmetro `fonte`, com os valores `servidor` e `estatico`.
    - Em `estatico`, o `site/` é exportado uma vez por sessão de testes e reaproveitado enquanto a cópia de `dados/` e o código não mudarem.
    - Os testes que simulam respostas da API com `route()` passam a usar um auxiliar, `simular_api(pg, rota, resposta)`, que traduz a rota para o arquivo equivalente do site.
-   - **Só rodam na fonte `servidor`:**
+   - **Só rodam na fonte `servidor`** (marca `so_servidor`, cada uso com o motivo):
      - os testes da tela de carregamento do servidor (`_simular_carga`, respostas 503 e `/api/estado`), que é função exclusiva do PC;
-     - `tests/test_carregamento.py`.
+     - `tests/test_carregamento.py`;
+     - os testes do `test_ui.py` que atrasam ou derrubam **um pedido específico** ao servidor: a prancheta de um lance (`/plays/{id}/tracking`) ou uma busca (`q=...`). No site, as pranchetas de um jogo chegam num arquivo só e a busca não faz pedido. A regra que eles protegem ("só a última resposta vale") continua no código comum às duas fontes.
+   - Qualquer outro teste que falhe na fonte `estatico` é defeito do site, e não motivo para marcar `so_servidor`.
 4. **Troca de versão:** um teste publica duas versões seguidas no servidor de arquivos e confere que uma sessão aberta recarrega no mesmo lugar, sem misturar dados.
 5. **`golden.py check`:** deve continuar passando. Se a ordenação estável mudar alguma resposta, a diferença é só de ordem entre empatados, conferida à mão e registrada, e a foto é recapturada.
 6. **Depois do primeiro deploy:**
