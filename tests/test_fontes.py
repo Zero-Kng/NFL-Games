@@ -194,3 +194,22 @@ def test_catalogo_real_tem_as_9_releases():
     assert {f.release for f in real.CATALOGO} == {
         "schedules", "players", "rosters", "pbp", "pbp_participation", "ftn_charting",
         "stats_player", "pfr_advstats", "snap_counts"}
+
+
+# ------------------------------------------- site-publico, revisão final (3.1)
+@pytest.mark.parametrize("token", ["abc123", None])
+def test_token_do_github_so_na_api(monkeypatch, token):
+    """No Actions (GITHUB_TOKEN), a API do GitHub vai autenticada: sem isso o limite é de 60
+    chamadas/hora por IP compartilhado. Os downloads e o PC (sem a variável) seguem sem token."""
+    pedidos = []
+    monkeypatch.setattr(fontes.urllib.request, "urlopen", lambda req, timeout: pedidos.append(req))
+    if token:
+        monkeypatch.setenv("GITHUB_TOKEN", token)
+    else:
+        monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    rede = fontes.Rede()
+    rede._abrir(rede.api + "pbp")
+    rede._abrir(rede.download + "pbp/play_by_play_2026.csv.gz")
+    api, download = pedidos
+    assert api.get_header("Authorization") == (f"Bearer {token}" if token else None)
+    assert download.get_header("Authorization") is None

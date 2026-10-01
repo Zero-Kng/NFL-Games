@@ -262,6 +262,18 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
   - [ ] 7.6 Se algum RNF falhar: registrar aqui, corrigir numa tarefa nova e voltar a 7.1.
   - _Requisitos: 1.1, 1.4, RNF 1–4_
 
+- [x] Revisão final da branch (revisor independente, 2026-10-01): pronta para merge, com correções. Corrigido, cada item com teste que falhou antes:
+  - **Token do GitHub no workflow:** sem token, a API limita a 60 chamadas/hora por IP compartilhado, e com o `--estrito` a publicação diária falharia por isso. O `Rede._abrir` manda o `GITHUB_TOKEN`, quando existe, só para a API (`test_token_do_github_so_na_api`, `test_workflow_pages_autentica_a_api_do_github`).
+  - **Laço de recarga:** logo depois de um deploy, nós do CDN podem responder versões diferentes. Antes, eram 23 recargas em 4 s. Agora a mesma troca de versão recarrega no máximo uma vez a cada 30 s (`test_versao_instavel_nao_recarrega_em_laco`).
+  - **Semana atual sem depender do formato do `en-CA`:** a data em Nova York é montada com `formatToParts` (`test_semana_atual_nao_depende_do_formato_de_data`).
+  - Ficaram para decidir depois (Minor):
+    - `?game=-5` mostra "jogo -5 nao encontrado", e o PC mostra "rota desconhecida";
+    - `player(id)` sem temporada faz até 6 pedidos;
+    - `games(ano)` sem semana devolve `[]`;
+    - pandas e numpy sem versão fixa no workflow;
+    - a chave do site de teste não inclui `dados/*.npz`.
+  - Fora do escopo, com tarefa separada: `test_montar.py::test_formacao_e_jogadores_por_temporada` falha com os dados de 2026 de hoje (só 69% das jogadas com `qb_local`).
+
 ---
 
 ## Ordem de execução

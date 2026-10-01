@@ -31,3 +31,13 @@ def test_workflow_pages():
     upload = next(p for p in passos if "upload-pages-artifact" in p.get("uses", ""))
     assert upload["with"]["path"] == "site"
     assert "git push" not in texto and "contents: write" not in texto
+
+
+def test_workflow_pages_autentica_a_api_do_github():
+    """Revisão final: sem token, a API do GitHub limita a 60 chamadas/hora por IP, e o --estrito
+    faria a publicação diária falhar por isso."""
+    import yaml
+    from conftest import ROOT
+    wf = yaml.safe_load((ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8"))
+    montar = next(p for job in wf["jobs"].values() for p in job["steps"] if "etl/montar.py" in p.get("run", ""))
+    assert montar["env"]["GITHUB_TOKEN"] == "${{ github.token }}"

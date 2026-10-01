@@ -19,9 +19,16 @@ function erro(status, msg) {
 const DIA_NY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
 
 /** A última semana que já começou (alguma data <= hoje em Nova York); antes do 1º jogo, a primeira. */
+// AAAA-MM-DD montado das partes: o formato do en-CA já mudou numa versão do Chrome.
+function diaEmNovaYork(agoraMs) {
+  const p = DIA_NY.formatToParts(agoraMs);
+  const v = (tipo) => p.find((x) => x.type === tipo).value;
+  return v('year') + '-' + v('month') + '-' + v('day');
+}
+
 export function semanaAtual(semanas, agoraMs) {
   if (!semanas || !semanas.length) return null;
-  const hoje = DIA_NY.format(agoraMs);
+  const hoje = diaEmNovaYork(agoraMs);
   let atual = null;
   for (const w of semanas) if (w.dates.some((d) => d <= hoje)) atual = w.week;
   return atual === null ? semanas[0].week : atual;
@@ -100,12 +107,26 @@ export function fonteEstatica({ get, buscar = (u, o) => fetch(u, o), agora = () 
     try {
       return await get('api/' + v + '/' + rel, leitor);
     } catch (e) {
-      if (e.status === 404 && (await lerVersao().catch(() => v)) !== v) {
-        recarregar();
-        return new Promise(() => {});
+      if (e.status === 404) {
+        const nova = await lerVersao().catch(() => v);
+        if (nova !== v && podeRecarregar(v, nova)) {
+          recarregar();
+          return new Promise(() => {});
+        }
       }
       throw e;
     }
+  }
+
+  // Logo depois de um deploy, nós do CDN podem responder versões diferentes. A mesma troca
+  // (de -> para) recarrega no máximo uma vez a cada 30 s; na 2ª, a tela mostra o erro normal.
+  function podeRecarregar(de, para) {
+    try {
+      const ultima = JSON.parse(sessionStorage.getItem('nfl.recarga') || 'null');
+      if (ultima && ultima.de === de && ultima.para === para && Date.now() - ultima.quando < 30000) return false;
+      sessionStorage.setItem('nfl.recarga', JSON.stringify({ de, para, quando: Date.now() }));
+    } catch (e) { /* sem sessionStorage: recarrega (sem a trava) */ }
+    return true;
   }
 
   /** 404 do arquivo vira a resposta do servidor para aquela rota: um erro com a mensagem dele, ou um valor. */

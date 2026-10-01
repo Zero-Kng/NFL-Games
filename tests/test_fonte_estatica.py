@@ -295,7 +295,14 @@ def test_versao_nova_recarrega_no_mesmo_lugar(navegador, site_exportado, tmp_pat
         pg = nova_pagina(navegador, url)
         pg.goto(url + "/?season=2025&week=1")
         pg.wait_for_function("document.querySelector('#jogosLista .match')")
-        (copia / "api" / v1).rename(copia / "api" / v2)                 # o Pages troca o site inteiro
+        for tentativa in range(50):                                     # o Pages troca o site inteiro
+            try:                                                        # (no Windows, um arquivo recém-servido
+                (copia / "api" / v1).rename(copia / "api" / v2)         # pode ficar aberto por um instante)
+                break
+            except PermissionError:
+                if tentativa == 49:
+                    raise
+                pg.wait_for_timeout(100)
         exportar.gravar_json(copia / "api" / "versao.json", {"versao": v2})
         pedidos = []
         with pg.expect_event("load", timeout=10000):                    # recarga de verdade (não pushState)
@@ -317,3 +324,45 @@ def test_404_de_verdade_nao_recarrega(pagina):
         catch (e) { return [e.status, e.message, window.__recarregou || false]; }
     }""")
     assert r == [404, "jogador sem dados na temporada", False]
+
+
+# ------------------------------------------------------ revisão final (2.5)
+FORMATO_US = """(() => {
+  Object.defineProperty(Intl.DateTimeFormat.prototype, 'format', { get() { return (d) => {
+    const p = this.formatToParts(d); const v = (t) => p.find((x) => x.type === t).value;
+    return v('month') + '/' + v('day') + '/' + v('year'); }; } }); })();"""
+
+
+def test_semana_atual_nao_depende_do_formato_de_data(navegador, site, nfl):
+    """O en-CA já mudou de AAAA-MM-DD para M/D/AAAA numa versão do Chrome: a semana não pode mudar junto.
+    Relógio real: o relógio falso do Playwright troca o Intl.DateTimeFormat por um objeto dele."""
+    pg = nova_pagina(navegador, site, init=FORMATO_US)
+    assert pg.evaluate("new Intl.DateTimeFormat('en-CA').format(0).includes('/')"), "o formato não foi trocado"
+    m = chamar(pg, "api.meta()")["ok"]
+    pg.context.close()
+    ref = com_hoje(nfl, None).meta()
+    assert m["currentWeek"] == ref["currentWeek"]
+    assert [t["currentWeek"] for t in m["seasons"]] == [t["currentWeek"] for t in ref["seasons"]]
+
+
+def test_versao_instavel_nao_recarrega_em_laco(navegador, site):
+    """Logo depois de um deploy, nós do CDN podem responder versões diferentes: a página
+    recarrega uma vez, e não em laço (a 2ª vez seguida mostra o erro normal da tela)."""
+    ctx = navegador.new_context(viewport={"width": 430, "height": 860})
+    ctx.route("https://site.api.espn.com/**", lambda r: r.fulfill(status=404, body=""))
+    pg = ctx.new_page()
+    chamadas = {"n": 0}
+
+    def versao(route):
+        chamadas["n"] += 1
+        if chamadas["n"] % 2 == 0:                      # um nó do CDN já com a versão nova (que ainda não existe)
+            return route.fulfill(status=200, content_type="application/json", body='{"versao": "29990101T0000"}')
+        return route.continue_()
+
+    pg.route("**/api/versao.json", versao)
+    cargas = []
+    pg.on("load", lambda: cargas.append(1))
+    pg.goto(site + "/?screen=jogadores&season=2021&jogador=00-0000000")    # o perfil dá 404
+    pg.wait_for_timeout(4000)
+    ctx.close()
+    assert len(cargas) <= 2, f"{len(cargas)} cargas da página: laço de recarga"

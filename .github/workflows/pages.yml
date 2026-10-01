@@ -55,6 +55,9 @@ jobs:
           restore-keys: dados-
 
       - name: Sincronizar e montar os dados
+        # o token sobe o limite da API do GitHub (60/hora por IP compartilhado sem ele)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: python etl/montar.py --estrito
 
       - name: Exportar o site
