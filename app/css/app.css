@@ -173,6 +173,7 @@ body {
 .block { padding: 12px 16px 6px; }
 .block-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .block-head h2 { font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.1; letter-spacing: .3px; text-transform: uppercase; }
+.hero-semana { margin: -6px 0 10px; }       /* notícias de outra semana (4.7) */
 .link-btn {
   min-height: var(--tap); padding: 0 4px; display: inline-flex; align-items: center;
   font-size: 14px; font-weight: 600; color: var(--red-soft);

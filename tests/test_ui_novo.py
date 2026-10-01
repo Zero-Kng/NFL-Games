@@ -488,10 +488,41 @@ def test_ui_carrossel_parado_com_movimento_reduzido(servidor, navegador, motivo)
     ctx.close()
 
 
+def test_ui_semana_sem_noticias_mostra_a_anterior(servidor, pagina):
+    """4.7 (revisto, 2026-10-01): semana ainda sem notícias mostra as da semana anterior mais recente
+    que tem, com o rótulo da semana; a lista de jogos continua sendo da semana escolhida."""
+    simular_api(pagina, servidor, {"**/api/news?season=2021&week=3": []})
+    abrir_inicio(pagina, servidor.url, "?season=2021&week=3")
+    esperar(pagina, "!document.getElementById('heroBlock').hidden")
+    esperadas = [n["titulo"] for n in api(servidor.api, "/api/news?season=2021&week=2")[:4]]
+    titulos = pagina.eval_on_selector_all("#heroTrack .slide-title", "hs => hs.map(h => h.textContent)")
+    assert titulos == esperadas
+    assert pagina.is_visible("#heroSemana") and pagina.inner_text("#heroSemana") == "Notícias da Semana 2"
+    jogos = api(servidor.api, "/api/games?season=2021&week=3")
+    assert pagina.eval_on_selector_all("#jogosLista .match", "ms => ms.length") == len(jogos)
+
+
+def test_ui_noticias_da_propria_semana_sem_rotulo(servidor, pagina):
+    abrir_inicio(pagina, servidor.url, "?season=2021&week=2")
+    esperar(pagina, "!document.getElementById('heroBlock').hidden")
+    assert pagina.eval_on_selector("#heroSemana", "e => e.hidden") is True
+
+
+def test_ui_ver_todas_abre_a_semana_do_carrossel(servidor, pagina):
+    simular_api(pagina, servidor, {"**/api/news?season=2021&week=3": []})
+    abrir_inicio(pagina, servidor.url, "?season=2021&week=3")
+    esperar(pagina, "!document.getElementById('heroBlock').hidden")
+    pagina.click("#heroBlock .link-btn")
+    esperar(pagina, "document.getElementById('noticias').classList.contains('active')")
+    assert pagina.eval_on_selector("#weekChips [aria-pressed=true]", "b => b.dataset.week") == "2"
+    esperar(pagina, "document.querySelector('.news-item')")
+    assert "week=2" in pagina.url
+
+
 def test_ui_semana_sem_noticias_oculta_carrossel(servidor, pagina):
-    """4.7: sem notícias, o carrossel some e o resto do Início fica."""
+    """4.7: sem notícias na semana nem nas anteriores da temporada, o carrossel some e o resto do Início fica."""
     simular_noticias(pagina, servidor, [])
-    abrir_inicio(pagina, servidor.url)
+    abrir_inicio(pagina, servidor.url, "?season=2021&week=3")
     esperar(pagina, "document.querySelector('#jogosLista .match')")
     pagina.wait_for_timeout(200)
     assert pagina.eval_on_selector("#heroBlock", "e => e.hidden") is True

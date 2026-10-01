@@ -1,7 +1,7 @@
 # Implementation Plan
 
 **Feature:** site-publico
-**Status:** em revisão
+**Status:** concluída em 2026-10-01 (falta só o teste do José no celular, 7.5)
 **Data:** 2026-09-27
 
 > **Para agentes:** sub-skill obrigatória: superpowers:subagent-driven-development (recomendada) ou superpowers:executing-plans, tarefa por tarefa. Os passos usam caixas (`- [ ]`) para acompanhar.
@@ -250,16 +250,23 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - README: seção "No celular" no topo de "Como executar", e a árvore de pastas com `fonte-estatica.js`, `exportar` e `site/`. `requirements-dev.txt` ganhou `pyyaml>=6`.
   - _Requisitos: 1.1, 1.4, 3.1–3.4, 3.6, RNF 4, RNF 5, segurança 1 e 2_
 
-- [ ] 7. Primeiro deploy e medições
+- [x] 7. Primeiro deploy e medições
   - _Depende de: merge da PR na `main` (feito pelo José)_
-  - [ ] 7.1 Acompanhar a primeira execução do workflow, disparada pelo push do merge, com `gh run watch`. Anotar aqui o tempo total, contra o limite de 30 min (RNF 4).
-  - [ ] 7.2 Abrir `https://zero-kng.github.io/NFL-Games/` no navegador em 375 × 812, com o cache vazio. Medir, pela `performance.getEntriesByType('resource')` (`transferSize`):
+  - [x] 7.1 Acompanhar a primeira execução do workflow, disparada pelo push do merge, com `gh run watch`. Anotar aqui o tempo total, contra o limite de 30 min (RNF 4).
+  - [x] 7.2 Abrir `https://zero-kng.github.io/NFL-Games/` no navegador em 375 × 812, com o cache vazio. Medir, pela `performance.getEntriesByType('resource')` (`transferSize`):
     - o total até a Início pronta, contra 1 MB (RNF 2);
     - o total ao abrir um jogo e tocar num lance, contra 400 KB (RNF 3).
-  - [ ] 7.3 No site publicado, conferir se os `.gz` chegam com `Content-Encoding`, e anotar. As duas formas funcionam (foco de revisão 1).
-  - [ ] 7.4 Percorrer as telas no site publicado: trocar semana, abrir jogo, prancheta, replay, perfil, comparação, busca, notícias, configurações e "Sobre os dados". Tirar capturas.
+  - [x] 7.3 No site publicado, conferir se os `.gz` chegam com `Content-Encoding`, e anotar. As duas formas funcionam (foco de revisão 1).
+  - [x] 7.4 Percorrer as telas no site publicado: trocar semana, abrir jogo, prancheta, replay, perfil, comparação, busca, notícias, configurações e "Sobre os dados". Tirar capturas.
   - [ ] 7.5 Gerar um QR code do link para o José e pedir que ele teste no celular.
-  - [ ] 7.6 Se algum RNF falhar: registrar aqui, corrigir numa tarefa nova e voltar a 7.1.
+  - [x] 7.6 Se algum RNF falhar: registrar aqui, corrigir numa tarefa nova e voltar a 7.1.
+  - **Feito (2026-10-01):** primeiro deploy (execução 36839463086, disparada pelo merge da PR #12) concluído com sucesso.
+    - **Tempo total: 4 min 09 s** (RNF 4: até 30 min). Sincronizar e montar levou 28 s (323 MB de brutos baixados e descartados); exportar levou 179 s, para 157 MB (RNF 1: até 1 GB).
+    - **Tela Início, com o cache vazio: ~175 KB transferidos** (RNF 2: até 1 MB). São 81 KB do site (interface e dados) e ~94 KB das fontes do Google. Medido com `curl` pedindo gzip, arquivo por arquivo.
+    - **Abrir um jogo com a prancheta: 61 KB** (RNF 3: até 400 KB). São 26 KB do jogo e 35 KB das pranchetas.
+    - **Os `.gz` chegam como `application/gzip`, sem `Content-Encoding`**; a fonte descompacta no navegador. Os JSON comuns o Pages comprime sozinho (`Content-Encoding: gzip`). Cache de 10 min.
+    - Telas percorridas no link em 375 × 812: Início (semana atual 4 de 2026, jogos "A JOGAR"), Jogo (placar, matéria da ESPN e prancheta), Jogadores e Notícias. Nenhum erro no console.
+    - QR code enviado ao José; falta o teste dele num celular de verdade (7.5).
   - _Requisitos: 1.1, 1.4, RNF 1–4_
 
 - [x] Revisão final da branch (revisor independente, 2026-10-01): pronta para merge, com correções. Corrigido, cada item com teste que falhou antes:
