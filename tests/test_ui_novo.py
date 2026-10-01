@@ -863,12 +863,11 @@ def test_ui_jogada_sem_formacao_mostra_aviso(servidor, pagina):
 
 def test_ui_jogada_com_formacao_pendente(servidor, pagina):
     """FTN ainda não publicado: passes e corridas dizem "pendente", e anterior/próxima passam por eles."""
-    jogadas = api(servidor.url, "/api/games/2021090900/plays")
+    jogadas = api(servidor.api, "/api/games/2021090900/plays")
     for p in jogadas:      # jogo sem FTN: ninguém tem formação; só passes e corridas ficam "pendentes"
         p.update(hasFormation=False, semFormacao=True, formacaoPendente=p["playType"] in ("pass", "run"))
     pendentes = [p["playId"] for p in jogadas if p.get("formacaoPendente")]
-    pagina.route("**/api/games/2021090900/plays", lambda r: r.fulfill(
-        status=200, content_type="application/json", body=json.dumps(jogadas)))
+    simular_api(pagina, servidor, {"**/api/games/2021090900/plays": jogadas})
     abrir_jogo(pagina, servidor.url)
     esperar(pagina, "document.getElementById('fieldWrap') && "
                     "document.getElementById('fieldWrap').innerText.includes('Formação ainda não publicada')")
