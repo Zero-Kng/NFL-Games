@@ -13,6 +13,7 @@ import * as jogadores from './telas/jogadores.js';
 import * as noticias from './telas/noticias.js';
 import * as extras from './telas/extras.js';
 import { esperarDados } from './carregamento.js';
+import { iniciarPresenca } from './presenca.js';
 
 /* ------------------------------- estado ------------------------------- */
 export const S = {
@@ -290,6 +291,46 @@ function aplicarMovimento() {
   document.documentElement.dataset.movimento = reduzirMovimento() ? 'reduzido' : 'normal';
 }
 aoMudarMovimento(aplicarMovimento);
+
+/* ------------------------- encerrar o app (PC) ------------------------- */
+// Spec sem-terminal: o NFL-Games.exe roda sem terminal. Cada aba dá sinal de
+// presença (o app se encerra sozinho quando nenhuma dá), e o menu tem "Encerrar
+// o app". No site público não há servidor: nada disto existe lá.
+const pararPresenca = ESTATICO ? null : iniciarPresenca();
+
+if (!ESTATICO) {
+  $('sepEncerrar').hidden = false;
+  $('btnEncerrar').hidden = false;
+  $('btnEncerrar').addEventListener('click', () => {
+    setMenu(false);
+    $('dlgEncerrarErro').hidden = true;
+    $('dlgEncerrar').showModal();
+  });
+  $('btnEncerrarNao').addEventListener('click', () => $('dlgEncerrar').close());
+  $('btnEncerrarSim').addEventListener('click', encerrarApp);
+}
+
+async function encerrarApp() {
+  $('dlgEncerrarErro').hidden = true;
+  let encerrou;
+  try {
+    const r = await fetch('/api/encerrar', { method: 'POST', headers: { 'X-NFL-App': '1' } });
+    encerrou = r.ok;
+  } catch (e) {
+    encerrou = true;                       // o servidor já tinha parado: o objetivo foi cumprido
+  }
+  if (!encerrou) { $('dlgEncerrarErro').hidden = false; return; }
+  if (pararPresenca) pararPresenca();
+  if (TELAS[S.tela].sair) TELAS[S.tela].sair();
+  $('dlgEncerrar').close();
+  const tela = $('carregando');
+  tela.classList.remove('erro');
+  tela.classList.add('encerrado');
+  $('carregandoTitulo').textContent = 'O NFL Games foi encerrado.';
+  $('carregandoFase').textContent = 'Pode fechar esta aba.';
+  $('carregandoNota').hidden = true;
+  tela.hidden = false;
+}
 
 /* --------------------------------- boot -------------------------------- */
 // Links antigos (2.6): ?screen=coach|commentator|scout abrem a tela nova equivalente.

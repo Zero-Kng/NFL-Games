@@ -201,11 +201,12 @@ def test_ui_destino_ativo_destacado(servidor, pagina):
 
 
 def test_ui_menu_lateral_itens(servidor, pagina):
-    """2.3: os 4 destinos, Sobre os dados e Configurações."""
+    """2.3: os 4 destinos, Sobre os dados e Configurações; no PC, também "Encerrar o app" (sem-terminal, 4.1 e 4.2)."""
     abrir(pagina, servidor.url)
     pagina.click("#btnMenu")
-    itens = pagina.eval_on_selector_all("#sidebar .side-item", "bs => bs.map(b => b.innerText.trim())")
-    assert itens == ["Início", "Jogo", "Jogadores", "Notícias", "Sobre os dados", "Configurações"]
+    itens = pagina.eval_on_selector_all("#sidebar .side-item:not([hidden])", "bs => bs.map(b => b.innerText.trim())")
+    esperado = ["Início", "Jogo", "Jogadores", "Notícias", "Sobre os dados", "Configurações"]
+    assert itens == esperado + (["Encerrar o app"] if servidor.fonte == "servidor" else [])
     ir_para(pagina, "config")
     assert not pagina.eval_on_selector("#sidebar", "e => e.classList.contains('open')")
 
@@ -1741,3 +1742,101 @@ def test_ui_carregamento_sem_animacao_com_movimento_reduzido(servidor, navegador
     esperar(pg, "!document.getElementById('carregando').hidden")
     assert pg.eval_on_selector("#carregando .carregando-logo", "e => getComputedStyle(e).animationName") == "none"
     ctx.close()
+
+
+# ======================================================= sem-terminal, tarefa 3
+MSG_CONFIRMA = "Encerrar o NFL Games? As abas abertas param de funcionar."
+
+
+def abrir_dialogo_encerrar(pg):
+    pg.click("#btnMenu")
+    esperar(pg, "document.getElementById('sidebar').classList.contains('open')")
+    pg.click("#btnEncerrar")
+    esperar(pg, "document.getElementById('dlgEncerrar').open")
+
+
+def test_ui_encerrar_so_no_pc(servidor, pagina):
+    abrir(pagina, servidor.url)
+    pagina.click("#btnMenu")
+    esperar(pagina, "document.getElementById('sidebar').classList.contains('open')")
+    if servidor.fonte == "servidor":
+        assert pagina.is_visible("#btnEncerrar") and pagina.inner_text("#btnEncerrar").strip() == "Encerrar o app"
+    else:
+        assert pagina.is_hidden("#btnEncerrar")
+
+
+@pytest.mark.so_servidor("encerrar o app só existe no PC")
+def test_ui_encerrar_cancelar(servidor, pagina):
+    pedidos = []
+    pagina.on("request", lambda r: pedidos.append(r.url) if "/api/encerrar" in r.url else None)
+    abrir(pagina, servidor.url)
+    abrir_dialogo_encerrar(pagina)
+    assert MSG_CONFIRMA in pagina.inner_text("#dlgEncerrar")
+    pagina.click("#btnEncerrarNao")
+    esperar(pagina, "!document.getElementById('dlgEncerrar').open")
+    assert pedidos == []
+
+
+@pytest.mark.so_servidor("encerrar o app só existe no PC")
+def test_ui_encerrar_confirmado(servidor, pagina):
+    vistos = []
+
+    def encerrar(route):
+        vistos.append(route.request.headers)
+        route.fulfill(status=200, content_type="application/json", body='{"encerrando": true}')
+
+    pagina.route("**/api/encerrar", encerrar)
+    abrir_inicio(pagina, servidor.url)
+    abrir_dialogo_encerrar(pagina)
+    pagina.click("#btnEncerrarSim")
+    esperar(pagina, "document.querySelector('.carregando.encerrado') && !document.getElementById('carregando').hidden")
+    texto = pagina.text_content("#carregando")
+    assert "O NFL Games foi encerrado." in texto and "Pode fechar esta aba." in texto
+    assert vistos and vistos[0].get("x-nfl-app") == "1"
+    depois = []
+    pagina.on("request", lambda r: depois.append(r.url) if "/api/" in r.url else None)
+    pagina.clock.fast_forward(120000)
+    pagina.wait_for_timeout(300)
+    assert depois == []
+
+
+@pytest.mark.so_servidor("encerrar o app só existe no PC")
+def test_ui_encerrar_com_o_servidor_ja_parado(servidor, pagina):
+    pagina.route("**/api/encerrar", lambda r: r.abort())
+    abrir(pagina, servidor.url)
+    abrir_dialogo_encerrar(pagina)
+    pagina.click("#btnEncerrarSim")
+    esperar(pagina, "document.querySelector('.carregando.encerrado') && !document.getElementById('carregando').hidden")
+
+
+@pytest.mark.so_servidor("encerrar o app só existe no PC")
+def test_ui_encerrar_recusado(servidor, pagina):
+    pagina.route("**/api/encerrar", lambda r: r.fulfill(status=403, content_type="application/json",
+                                                         body='{"error": "pedido recusado"}'))
+    abrir(pagina, servidor.url)
+    abrir_dialogo_encerrar(pagina)
+    pagina.click("#btnEncerrarSim")
+    esperar(pagina, "document.getElementById('dlgEncerrar').innerText.includes('Não foi possível encerrar o app')")
+    assert pagina.query_selector(".carregando.encerrado") is None
+
+
+def test_ui_presenca(servidor, pagina):
+    sinais = []
+    pagina.on("request", lambda r: sinais.append(r) if "/api/presenca" in r.url else None)
+    pagina.clock.install(time=AGORA)
+    abrir(pagina, servidor.url)
+    pagina.wait_for_timeout(300)
+    if servidor.fonte == "estatico":
+        pagina.clock.fast_forward(60000)
+        pagina.wait_for_timeout(300)
+        assert sinais == []
+        return
+    esperar(pagina, "true")
+    assert len(sinais) >= 1
+    n = len(sinais)
+    pagina.clock.fast_forward(30000)
+    pagina.wait_for_timeout(300)
+    assert len(sinais) > n
+    corpos = [json.loads(s.post_data) for s in sinais]
+    assert {c["aba"] for c in corpos} == {corpos[0]["aba"]} and not any(c["saiu"] for c in corpos)
+    assert all(s.method == "POST" and s.headers.get("x-nfl-app") == "1" for s in sinais)

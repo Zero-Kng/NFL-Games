@@ -630,6 +630,17 @@ button.row-card:hover { border-color: var(--line-strong); }
 .carregando.erro .carregando-logo { animation: none; opacity: .5; }
 .carregando.erro .carregando-fase { color: var(--red-soft); }
 .carregando.erro .carregando-nota { color: var(--text-2); }
+/* app encerrado pelo menu (spec sem-terminal): a mesma tela, parada */
+.carregando.encerrado .carregando-logo { animation: none; }
+
+/* ---------- Diálogo de confirmação (Encerrar o app) ---------- */
+.dlg {
+  width: min(340px, calc(100% - 32px)); margin: auto; padding: 20px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius);
+  font-size: 15px; line-height: 1.45;
+}
+.dlg::backdrop { background: rgba(3, 6, 12, .7); }
+.dlg .btn-row { margin-top: 16px; }
 
 /* ---------- Barra inferior ---------- */
 .bottom-nav {

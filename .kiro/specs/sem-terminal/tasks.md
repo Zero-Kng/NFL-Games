@@ -116,7 +116,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
   - **Feito (2026-10-01):** `tests/test_encerrar.py`, 17 testes; golden 2116/2116. O `servidor_local.Servidor` ganhou o campo `proc`, para os testes conferirem a saída do processo.
   - _Requisitos: 2.3, 4.4, 5.3–5.8, RNF 2, segurança 1–4_
 
-- [ ] 3. Interface: presença e "Encerrar o app"
+- [x] 3. Interface: presença e "Encerrar o app"
   - **Arquivos:**
     - criar `app/js/presenca.js`;
     - modificar `app/index.html` (item `#btnEncerrar` depois de "Configurações", com um `.side-sep` antes, e o `<dialog id="dlgEncerrar">`), `app/js/main.js` e `app/css/app.css`;
@@ -126,22 +126,26 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `iniciarPresenca({ buscar = fetch, intervaloMs = 30000 } = {}) -> parar()`, que manda `POST /api/presenca` com `X-NFL-App: 1` e `{aba, saiu}`;
     - `encerrarApp()` em `main.js`;
     - o ícone de desligar como SVG em traço, no mesmo estilo dos outros itens do menu (`viewBox 0 0 24 24`, `path` com `M12 4v8` e um arco).
-  - [ ] 3.1 Escrever os testes, nas duas fontes, com a fixture `servidor` parametrizada que já existe:
+  - [x] 3.1 Escrever os testes, nas duas fontes, com a fixture `servidor` parametrizada que já existe:
     - `test_ui_encerrar_so_no_pc`: em `[servidor]`, `#btnEncerrar` visível no menu; em `[estatico]`, oculto.
     - `test_ui_encerrar_cancelar`, marcado `so_servidor("encerrar o app só existe no PC")`: abre o diálogo com o texto exato; "Cancelar" fecha, e nenhum `POST /api/encerrar` é feito (contado com `page.on("request")`).
     - `test_ui_encerrar_confirmado` (`so_servidor`): `route("**/api/encerrar")` responde 200 `{"encerrando": true}`. Confirmar manda o `POST` com `X-NFL-App: 1`, e a página mostra a tela final com o texto exato. Depois, com `clock.fast_forward(120000)`, nenhum pedido a `/api/` é feito.
     - `test_ui_encerrar_com_o_servidor_ja_parado` (`so_servidor`): `route(...).abort()` → mostra a tela final.
     - `test_ui_encerrar_recusado` (`so_servidor`): `route` responde 403 → aparece o aviso `Não foi possível encerrar o app`, e a tela atual continua.
     - `test_ui_presenca`: em `[servidor]`, há um `POST /api/presenca` logo na abertura e mais um depois de `clock.fast_forward(30000)`, com o mesmo `aba` e `saiu: false`. Em `[estatico]`, nenhum pedido de presença em 60 s.
-  - [ ] 3.2 Rodar `pytest tests/test_ui_novo.py -k "encerrar or presenca" -v`. Esperado: FAIL.
-  - [ ] 3.3 Implementar como no design (componente 6).
+  - [x] 3.2 Rodar `pytest tests/test_ui_novo.py -k "encerrar or presenca" -v`. Esperado: FAIL.
+  - [x] 3.3 Implementar como no design (componente 6).
     - **Presença:** começa no carregamento do `main.js`, antes do `boot()`, para a tela de carregamento também contar. A saída usa `fetch(..., {keepalive: true})` no `pagehide`.
     - **Tela final:** troca o `body.innerHTML` por uma `<main class="encerrado">` com `img/logo.png` e o texto. O CSS centraliza o conteúdo na tela e usa `--text-2`.
     - **Antes de trocar a tela:** chama `TELAS[S.tela].sair?.()` e o `parar()` da presença.
-  - [ ] 3.4 Rodar `pytest tests/test_ui_novo.py tests/test_ui_dados.py tests/test_ui.py -q`. Esperado: tudo passa nas duas fontes, e os pulados são os `so_servidor` de antes mais os novos.
-  - [ ] 3.5 Rodar o detector de design do Impeccable nos arquivos de `app/` alterados. Esperado: nenhum achado novo.
-  - [ ] 3.6 Regenerar o `.exe` da raiz e conferir que ele sobe.
-  - [ ] 3.7 Commit: `Interface: sinal de presença das abas e "Encerrar o app" no menu (sem-terminal, tarefa 3)`.
+  - [x] 3.4 Rodar `pytest tests/test_ui_novo.py tests/test_ui_dados.py tests/test_ui.py -q`. Esperado: tudo passa nas duas fontes, e os pulados são os `so_servidor` de antes mais os novos.
+  - [x] 3.5 Rodar o detector de design do Impeccable nos arquivos de `app/` alterados. Esperado: nenhum achado novo.
+  - [x] 3.6 Regenerar o `.exe` da raiz e conferir que ele sobe.
+  - [x] 3.7 Commit: `Interface: sinal de presença das abas e "Encerrar o app" no menu (sem-terminal, tarefa 3)`.
+  - **Feito (2026-10-01):** 6 testes novos, mais o `test_ui_menu_lateral_itens`, atualizado para considerar só os itens visíveis e esperar "Encerrar o app" no PC. Bateria nas duas fontes verde (315 + 2 corrigidos), sem achados do detector de design.
+    - A tela final reaproveita a tela de carregamento (`.carregando.encerrado`), e o aviso de recusa fica dentro do diálogo (`.aviso`): nenhum componente novo.
+    - Conferido no app local: encerrar pelo menu terminou o servidor com código 0 ("encerrado pelo app").
+    - O `.exe` não foi regenerado nesta tarefa: o da raiz está aberto, e a tarefa 5 o regenera sem console.
   - _Requisitos: 4.1–4.6, 5.1, 5.2_
 
 - [ ] 4. `rodar.py` no modo janela
