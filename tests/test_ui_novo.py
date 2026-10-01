@@ -892,6 +892,30 @@ def test_ui_jogada_sem_formacao_mostra_aviso(servidor, pagina):
     assert "SEM DADOS DE FORMAÇÃO" in pagina.inner_text("#jogoCorpo")
 
 
+def test_ui_jogada_com_formacao_pendente(servidor, pagina):
+    """FTN ainda não publicado: passes e corridas dizem "pendente", e anterior/próxima passam por eles."""
+    jogadas = api(servidor.api, "/api/games/2021090900/plays")
+    for p in jogadas:      # jogo sem FTN: ninguém tem formação; só passes e corridas ficam "pendentes"
+        p.update(hasFormation=False, semFormacao=True, formacaoPendente=p["playType"] in ("pass", "run"))
+    pendentes = [p["playId"] for p in jogadas if p.get("formacaoPendente")]
+    simular_api(pagina, servidor, {"**/api/games/2021090900/plays": jogadas})
+    abrir_jogo(pagina, servidor.url)
+    esperar(pagina, "document.getElementById('fieldWrap') && "
+                    "document.getElementById('fieldWrap').innerText.includes('Formação ainda não publicada')")
+    assert pagina.eval_on_selector("#playPick", "s => +s.value") == pendentes[0]     # abre no 1º lance, não no kickoff
+    assert "2 a 3 dias" in pagina.inner_text("#fieldWrap")
+    assert "FORMAÇÃO PENDENTE" in pagina.inner_text("#playMeta")
+    textos = pagina.eval_on_selector_all("#playPick option", "os => os.map(o => o.text)")
+    assert sum("formação pendente" in t for t in textos) == len(pendentes)
+    assert any("sem formação" in t for t in textos)                                  # os chutes seguem "sem formação"
+    pagina.click("#nextPlay")
+    esperar(pagina, f"+document.getElementById('playPick').value === {pendentes[1]}")
+    aba(pagina, "jogadas")
+    esperar(pagina, "document.querySelector('.play-row')")
+    corpo = pagina.inner_text("#jogoCorpo")
+    assert corpo.count("FORMAÇÃO PENDENTE") == len(pendentes)
+
+
 # ------------------------------------------ 5.9: matéria da ESPN (os testes da test_ui_dados.py, adaptados)
 def test_ui_materia_no_topo_da_pagina_jogo(servidor, pagina):
     simular_materia(pagina, MATERIA)

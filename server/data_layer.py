@@ -540,6 +540,8 @@ class NFLData:
         if flag(r.get("play_action")):
             tags.append("PLAY ACTION")
         tem_formacao = text(r.get("formacao")) is not None or text(r.get("qb_local")) in ("S", "U", "P")
+        # O FTN sai 2 a 3 dias depois do jogo: até lá o passe/corrida está "pendente", não "indisponível".
+        pendente = not tem_formacao and tipo in ("pass", "run") and flag(r.get("ftn_pendente"))
         card = {
             "gameId": int(r["gameId"]),
             "playId": int(r["play_id"]),
@@ -575,6 +577,7 @@ class NFLData:
             "score": {"home": num(r.get("total_home_score"), 0), "away": num(r.get("total_away_score"), 0)},
             "hasFormation": tem_formacao,
             "semFormacao": not tem_formacao,
+            "formacaoPendente": pendente,
             "tags": tags,
         }
         return {k: v for k, v in card.items() if v is not None or k in ("down", "yardsToGo", "passResult", "result")}

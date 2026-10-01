@@ -182,8 +182,8 @@ function ligar(el) {
     const jogador = t.closest('[data-player]');
     if (jogador) { S.playerId = jogador.dataset.player; ir('jogadores'); return; }
     if (t.closest('#prevPlay') || t.closest('#nextPlay')) {
-      // Anterior/próxima andam entre as jogadas com formação (os chutes ficam no seletor).
-      const list = J.plays.filter((p) => p.hasFormation || p.playId === S.playId);
+      // Anterior/próxima andam entre as jogadas com formação, ou à espera dela (os chutes ficam no seletor).
+      const list = J.plays.filter((p) => p.hasFormation || p.formacaoPendente || p.playId === S.playId);
       let idx = list.findIndex((p) => p.playId === S.playId);
       idx += t.closest('#nextPlay') ? 1 : -1;
       if (idx >= 0 && idx < list.length) { S.playId = list[idx].playId; sincronizarUrl(); coachLineup(); }
@@ -271,7 +271,7 @@ async function ensurePlays() {
     if (J.gameId === id) J.plays = plays;
   }
   if (!S.playId || !J.plays.some((p) => p.playId === S.playId)) {
-    const first = J.plays.filter((p) => p.hasFormation)[0] || J.plays[0];
+    const first = J.plays.find((p) => p.hasFormation) || J.plays.find((p) => p.formacaoPendente) || J.plays[0];
     S.playId = first ? first.playId : null;
   }
   return J.plays;
@@ -308,7 +308,7 @@ async function coachLineup() {
       'Q' + p.quarter + ' ' + esc(p.clock || '') + ' · ' + esc(p.offense || '') + ' · ' +
       (isNum(p.down) ? ordDown(p.down, p.yardsToGo) : esc(p.passResultLabel)) +
       (isNum(p.result) ? ' · ' + signed(p.result) + 'jd' : '') +
-      (p.hasFormation ? '' : ' · sem formação') + '</option>').join('');
+      (p.hasFormation ? '' : p.formacaoPendente ? ' · formação pendente' : ' · sem formação') + '</option>').join('');
 
     await loadFieldPlay(my);
   } catch (e) {
@@ -324,7 +324,10 @@ async function loadFieldPlay(my) {
   if (!card.hasFormation) {
     // 5.8: sem nenhum dado de formação, os dados da jogada e a mensagem no lugar da prancheta.
     FV = null;
-    $('fieldWrap').innerHTML = '<div class="formacao-indisponivel">Formação indisponível para esta jogada.</div>';
+    // FTN pendente: o nflverse publica a formação 2 a 3 dias depois do jogo.
+    $('fieldWrap').innerHTML = '<div class="formacao-indisponivel">' + (card.formacaoPendente
+      ? 'Formação ainda não publicada. Os dados de formação costumam chegar 2 a 3 dias depois do jogo.'
+      : 'Formação indisponível para esta jogada.') + '</div>';
     $('fieldLegend').innerHTML = '';
     $('avisoField').innerHTML = '';
     $('fieldSub').textContent = '';
@@ -376,6 +379,10 @@ function legendaHtml(p, cores) {
     '<span><i class="sw los"></i>Linha de scrimmage</span><span><i class="sw fd"></i>1ª descida</span>';
 }
 
+function chipSemFormacao(p) {
+  return '<span class="tag-chip">' + (p.formacaoPendente ? 'FORMAÇÃO PENDENTE' : 'SEM DADOS DE FORMAÇÃO') + '</span>';
+}
+
 // Só as linhas com dado: o que a fonte não tem fica fora.
 function playMetaHTML(p, f) {
   f = f || {};
@@ -394,7 +401,7 @@ function playMetaHTML(p, f) {
     ['EPA', isNum(p.epa) ? nm(p.epa, 2) : null],
   ].filter((r) => r[1] !== null && r[1] !== '');
   return '<p class="play-desc">' + esc(p.description) + '</p>' +
-    (p.semFormacao ? '<div class="tags"><span class="tag-chip">SEM DADOS DE FORMAÇÃO</span></div>' : '') +
+    (p.semFormacao ? '<div class="tags">' + chipSemFormacao(p) + '</div>' : '') +
     rows.map((r) => '<div class="stat-row"><span class="k">' + r[0] + '</span><span class="v">' + r[1] + '</span></div>').join('') +
     (p.tags && p.tags.length ? '<div class="tags">' + p.tags.map((t) =>
       '<span class="tag-chip ' + tagCls(t) + '">' + esc(t) + '</span>').join('') + '</div>' : '');
@@ -442,7 +449,7 @@ function playRow(p) {
   else if (p.passResult === 'IN' || p.tags.indexOf('FUMBLE') >= 0) tone = 'turnover';
   else if (p.result >= 20) tone = 'big';
   const gain = p.result > 0 ? 'pos' : p.result < 0 ? 'neg' : 'zero';
-  const chips = (p.semFormacao ? '<span class="tag-chip">SEM DADOS DE FORMAÇÃO</span>' : '') +
+  const chips = (p.semFormacao ? chipSemFormacao(p) : '') +
     (p.coverage ? '<span class="tag-chip blue">' + esc(p.coverage) + '</span>' : '') +
     (p.formation ? '<span class="tag-chip">' + esc(p.formation) + '</span>' : '') +
     (isNum(p.timeToThrow) ? '<span class="tag-chip">' + secs(p.timeToThrow) + ' pocket</span>' : '') +
