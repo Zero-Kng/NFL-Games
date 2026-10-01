@@ -88,6 +88,22 @@ def test_executavel_sobe_o_app_com_os_dados_ao_lado(executavel, tmp_path):
                 assert proc.poll() is None, "o executavel saiu antes de o app responder"
                 assert time.time() - t0 < 120, "o app nao respondeu em 120 s"
                 time.sleep(0.5)
+        # A porta abre antes de carregar os dados (tela de carregamento): a API
+        # responde 503 ate /api/estado dizer "pronto". Mesmo limite de 120 s.
+        estado = {"mensagem": "sem resposta de /api/estado"}
+        while True:
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{porta}/api/estado", timeout=5) as r:
+                    estado = json.load(r)
+            except OSError:
+                pass        # a carga ocupa o processo: a resposta pode atrasar
+            else:
+                if estado["pronto"]:
+                    break
+                assert estado["fase"] != "erro", f"o app falhou ao carregar: {estado['mensagem']}"
+            assert proc.poll() is None, "o executavel saiu antes de carregar os dados"
+            assert time.time() - t0 < 120, f"os dados nao carregaram em 120 s ({estado['mensagem']})"
+            time.sleep(0.5)
         with urllib.request.urlopen(f"http://127.0.0.1:{porta}/api/meta", timeout=10) as r:
             meta = json.load(r)
         assert len(meta["seasons"]) >= 5
