@@ -124,6 +124,27 @@ def test_jogada_sem_formacao_marcada(nfl):
     assert nfl.play_tracking(g, kick["playId"]) is None
 
 
+def _lance(**extra):
+    return {"gameId": 2026092700, "play_id": 1, "play_type": "pass", "desc": "", **extra}
+
+
+def test_lance_com_ftn_pendente_marcado(nfl):
+    """Passe/corrida de jogo cujo FTN ainda não saiu: "formação pendente", não "indisponível"."""
+    for tipo in ("pass", "run"):
+        card = nfl._play_card(_lance(play_type=tipo, ftn_pendente=True))
+        assert card["formacaoPendente"] and not card["hasFormation"], tipo
+
+
+@pytest.mark.parametrize("lance", [
+    _lance(play_type="kickoff", ftn_pendente=True),            # chute não tem formação, saia ou não o FTN
+    _lance(ftn_pendente=False),                                # FTN publicado e sem a jogada
+    _lance(),                                                  # tabela montada antes da coluna existir
+    _lance(ftn_pendente=True, qb_local="S"),                   # já tem formação
+])
+def test_lance_sem_ftn_pendente(nfl, lance):
+    assert nfl._play_card(lance)["formacaoPendente"] is False
+
+
 def test_compara_so_mesmo_grupo_e_temporada(nfl):
     """5.6: grupos diferentes -> sem linhas de comparação."""
     qb = nfl.players_list(2025, role="QB", limit=1)[0]["nflId"]
