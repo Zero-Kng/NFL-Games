@@ -93,7 +93,7 @@ Restrições de contexto que o implementador precisa respeitar:
 4. QUANDO o usuário tocar numa partida, O SISTEMA DEVE abrir a página do jogo com aquela partida.
 5. ENQUANTO o carrossel estiver visível e o usuário não estiver interagindo com ele, O SISTEMA DEVE avançar para a notícia seguinte a cada 5 segundos.
 6. SE o usuário tiver pedido redução de movimento, ENTÃO O SISTEMA DEVE deixar de avançar o carrossel sozinho.
-7. SE uma semana não tiver notícias geradas, ENTÃO O SISTEMA DEVE ocultar o carrossel e manter o restante do Início.
+7. SE uma semana não tiver notícias geradas, ENTÃO O SISTEMA DEVE exibir no carrossel as notícias da semana anterior mais recente da mesma temporada que tiver notícias, com o nome dessa semana; e, se nenhuma tiver, ocultar o carrossel e manter o restante do Início. *(Revisto em 2026-10-01, a pedido do José: antes, a semana sem notícias só ocultava o carrossel.)*
 8. O SISTEMA DEVE exibir na lista de jogos os mesmos estados de hoje: a jogar, resultado ainda não disponível, encerrado e AO VIVO (placar ao vivo da spec `dados-externos`).
 
 ### Requisito 5: Página "Jogo" (Treinador + Comentarista)
