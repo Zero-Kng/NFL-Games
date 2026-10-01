@@ -55,6 +55,7 @@ navegador (app do PC)
 3. **Resposta 200, ou falha de rede** (o servidor já tinha parado): a página para os próprios timers (presença, placar ao vivo, carrossel, replay) e troca o conteúdo pela tela final.
 4. **Resposta 403 ou outro erro:** aparece o aviso "Não foi possível encerrar o app", e a página segue.
 5. **No servidor:** responde 200 e, logo depois de enviar a resposta, aciona `PARAR`. O laço principal sai do `parar.wait(...)`, chama `httpd.shutdown()`, e `main()` devolve 0.
+6. **Se o servidor estiver no meio de uma carga longa** (o download da 1ª vez não olha o `PARAR`), uma thread `encerrar_em(5, terminou)` força a saída do processo (`os._exit(0)`, depois do flush do log) se o `main()` não terminar em 5 s (RNF 2). Os arquivos de dados são gravados de forma atômica (`.tmp` e depois `os.replace`), então a saída forçada não deixa arquivo pela metade.
 
 ### Fluxo: encerrar sozinho (Requisito 5)
 
@@ -89,6 +90,8 @@ def preparar_saida(dados: Path) -> Path | None
 def avisar(mensagem: str, mostrar=None) -> None
     # janela de aviso do Windows (ctypes.windll.user32.MessageBoxW, título "NFL Games",
     # ícone de erro). `mostrar` injetável nos testes.
+    # Com NFL_SEM_AVISO=1 (testes e GitHub Actions), só grava a mensagem no log: uma janela
+    # de aviso travaria o teste esperando um clique.
 
 def fechar_abertura() -> None
     # fecha a tela de abertura (pyi_splash.close()); sem tela de abertura, não faz nada
@@ -126,7 +129,7 @@ Regras do `verificar()`, em ordem:
 3. **Não sobrou aba e a saída tem pelo menos `saida_s`:** devolve `"a última aba do app foi fechada"`.
 4. **Todas as abas estão sem sinal há pelo menos `limite_s`:** devolve `"nenhuma aba do app deu sinal em 3 min"`.
 
-Os limites podem ser trocados por variáveis de ambiente (`NFL_PRESENCA_LIMITE_S`, `NFL_PRESENCA_SAIDA_S`) para os testes de integração. O id da aba é cortado em 64 caracteres, e há no máximo 100 abas guardadas: uma página não consegue encher a memória.
+Os limites podem ser trocados por variáveis de ambiente (`NFL_PRESENCA_LIMITE_S`, `NFL_PRESENCA_SAIDA_S`, e `NFL_VIGIA_S` para o intervalo da vigia) para os testes de integração. O id da aba é cortado em 64 caracteres, e há no máximo 100 abas guardadas: uma página não consegue encher a memória.
 
 ### 5. `server/serve.py`
 
