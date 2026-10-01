@@ -135,6 +135,11 @@ class Rede:
         if not (url.startswith(self.api) or url.startswith(self.download)):
             raise PermissionError(f"endereço fora das fontes permitidas: {url}")
         req = urllib.request.Request(url, headers={"User-Agent": "nfl-games", "Accept": "*/*"})
+        token = os.environ.get("GITHUB_TOKEN")
+        if token and url.startswith(self.api):
+            # No GitHub Actions (site-publico): sem token, a API limita a 60 chamadas/hora por
+            # IP, e os runners dividem IPs. Só a API recebe o token, nunca os downloads.
+            req.add_header("Authorization", f"Bearer {token}")
         return urllib.request.urlopen(req, timeout=self.timeout)
 
     def release(self, tag: str) -> list[dict]:

@@ -25,3 +25,6 @@ dist/
 build/
 /NFL-Games.exe
 /nfl-games
+
+# Site estatico gerado pelo tools/exportar.py (GitHub Pages; publicado pelo Actions, nao pelo Git)
+site/

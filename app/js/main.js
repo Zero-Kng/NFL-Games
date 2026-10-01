@@ -4,7 +4,7 @@
    e semana, barra inferior e roteador. Cada tela registra um render() (e,
    se precisar, um sair()).
    ========================================================================== */
-import { api, ultimo } from './api.js';
+import { api, ultimo, ESTATICO } from './api.js';
 import { $, esc, oops, badge, rateChip } from './ui.js';
 import { reduzirMovimento, aoMudarMovimento } from './config.js';
 import * as inicio from './telas/inicio.js';
@@ -304,14 +304,15 @@ async function boot() {
     S.meta = await api.meta();
   } catch (e) {
     // O servidor ja esta no ar, mas ainda carregando os dados: tela de carregamento e, pronto, de novo.
-    if (e.status === 503) {
+    if (!ESTATICO && e.status === 503) {
       if (await esperarDados()) boot();
       return;
     }
     $('inicio').classList.add('active');
-    $('inicio').innerHTML = '<section class="block">' + oops(
-      'API indisponível. Abra o NFL-Games (ou rode python rodar.py) e acesse http://127.0.0.1:8000. ' +
-      'Detalhe: ' + e.message) + '</section>';
+    $('inicio').innerHTML = '<section class="block">' + oops(ESTATICO
+      ? 'Não foi possível carregar os dados. Verifique a conexão e tente de novo.'   // site publicado (4.3)
+      : 'API indisponível. Abra o NFL-Games (ou rode python rodar.py) e acesse http://127.0.0.1:8000. ' +
+        'Detalhe: ' + e.message) + '</section>';
     $('filters').hidden = true;
     return;
   }

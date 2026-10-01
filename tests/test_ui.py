@@ -14,15 +14,23 @@ import urllib.request
 
 import pytest
 
+from conftest import FONTES, alvo_de
+
 playwright = pytest.importorskip("playwright.sync_api")
+
+
+@pytest.fixture(params=FONTES)
+def servidor(request, servidor_real):
+    """A página abre no app do PC ou no site exportado (site-publico, tarefa 5); `.api` é o servidor real."""
+    return alvo_de(request, servidor_real)
 
 SEMANA = 1
 
 
-def jogo(base):
+def jogo(alvo):
     """O 1o jogo da semana 1 da temporada padrao: o que a tela abre com ?week=1.
     (O seletor de temporada, e o ?season= no link, entram na tarefa 7 da spec dados-externos.)"""
-    with urllib.request.urlopen(f"{base}/api/games?week={SEMANA}") as r:
+    with urllib.request.urlopen(f"{alvo.api}/api/games?week={SEMANA}") as r:
         return json.load(r)[0]["gameId"]
 
 # Injetado antes de qualquer script da pagina.
@@ -82,13 +90,13 @@ def esperar(pg, cond: str, limite_ms: int = 10000) -> float:
     return ms
 
 
-def jogadas_com_tracking(base):
-    with urllib.request.urlopen(f"{base}/api/games/{jogo(base)}/plays") as r:
+def jogadas_com_tracking(alvo):
+    with urllib.request.urlopen(f"{alvo.api}/api/games/{jogo(alvo)}/plays") as r:
         return [p["playId"] for p in json.load(r) if p["hasFormation"]]
 
 
-def abrir_prancheta(pg, base):
-    pg.goto(f"{base}/?week={SEMANA}&game={jogo(base)}&screen=coach")
+def abrir_prancheta(pg, alvo):
+    pg.goto(f"{alvo.url}/?week={SEMANA}&game={jogo(alvo)}&screen=coach")
     esperar(pg, "document.querySelectorAll('#field .player-dot').length > 10")
 
 
@@ -152,7 +160,7 @@ def test_ui_sem_fontes_externas_renderiza(servidor, pagina):
 
 # ------------------------------------------------------------------ 3.1 ----
 def test_ui_proxima_jogada_ate_50ms(servidor, pagina):
-    abrir_prancheta(pagina, servidor.url)
+    abrir_prancheta(pagina, servidor)
     pagina.wait_for_timeout(500)  # tempo da pre-carga das vizinhas
     tempos = []
     for _ in range(3):
@@ -166,10 +174,11 @@ def test_ui_proxima_jogada_ate_50ms(servidor, pagina):
 
 
 # ------------------------------------------------------------------ 3.2 ----
+@pytest.mark.so_servidor("atrasa ou derruba um pedido específico ao servidor (prancheta de um lance ou busca); no site as pranchetas do jogo chegam num arquivo só e a busca não faz pedido")
 def test_ui_troca_rapida_mostra_so_a_ultima_jogada(servidor, pagina):
-    ids = jogadas_com_tracking(servidor.url)
+    ids = jogadas_com_tracking(servidor)
     b, c = ids[10], ids[20]  # longe da 1a jogada: nao estao pre-carregadas
-    abrir_prancheta(pagina, servidor.url)
+    abrir_prancheta(pagina, servidor)
     escolher_jogada(pagina, c)
     esperar(pagina, f"document.getElementById('playPick').value === '{c}' && ({DESCRICAO})")
     pagina.wait_for_timeout(100)
@@ -188,11 +197,12 @@ def test_ui_troca_rapida_mostra_so_a_ultima_jogada(servidor, pagina):
 
 
 # ------------------------------------------------------------------ 3.3 ----
+@pytest.mark.so_servidor("atrasa ou derruba um pedido específico ao servidor (prancheta de um lance ou busca); no site as pranchetas do jogo chegam num arquivo só e a busca não faz pedido")
 def test_ui_prefetch_falho_carrega_normal(servidor, pagina):
-    ids = jogadas_com_tracking(servidor.url)
+    ids = jogadas_com_tracking(servidor)
     # Roda depois do embrulho do fetch: a pre-carga da jogada seguinte vai falhar.
     pagina.add_init_script(f"window.__falharUmaVez = ['/plays/{ids[1]}/tracking'];")
-    abrir_prancheta(pagina, servidor.url)
+    abrir_prancheta(pagina, servidor)
     pagina.wait_for_timeout(500)  # a pre-carga de ids[1] falhou em silencio
     assert pagina.evaluate("window.__falharUmaVez.length") == 0, "a pre-carga nao chegou a ser tentada"
     assert pagina.locator(".state.error").count() == 0
@@ -203,9 +213,10 @@ def test_ui_prefetch_falho_carrega_normal(servidor, pagina):
 
 
 # ------------------------------------------------------------------ 3.4 ----
+@pytest.mark.so_servidor("atrasa ou derruba um pedido específico ao servidor (prancheta de um lance ou busca); no site as pranchetas do jogo chegam num arquivo só e a busca não faz pedido")
 def test_ui_prefetch_so_depois_da_jogada_escolhida(servidor, pagina):
-    ids = jogadas_com_tracking(servidor.url)
-    abrir_prancheta(pagina, servidor.url)
+    ids = jogadas_com_tracking(servidor)
+    abrir_prancheta(pagina, servidor)
     pagina.wait_for_timeout(500)
     rede = pagina.evaluate("""() => performance.getEntriesByType('resource')
         .filter((e) => e.name.includes('/tracking'))
@@ -233,6 +244,7 @@ def test_ui_busca_mostra_texto_final(servidor, pagina):
     assert all("mahomes" in n.lower() for n in _nomes(pagina))
 
 
+@pytest.mark.so_servidor("atrasa ou derruba um pedido específico ao servidor (prancheta de um lance ou busca); no site as pranchetas do jogo chegam num arquivo só e a busca não faz pedido")
 def test_ui_busca_resposta_antiga_descartada(servidor, pagina):
     _abrir_olheiro(pagina, servidor.url)
     # A busca por "ma" demora; a por "mahomes" chega antes dela.

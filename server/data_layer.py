@@ -656,6 +656,8 @@ class NFLData:
             p = p[p["grupo"] == role.upper()]
         if team:
             p = p[p["time"] == team.upper()]
+        # Ordenação por várias colunas no pandas é sempre estável: empatados ficam na ordem da
+        # tabela, a mesma da lista que o site exporta e filtra no navegador (site-publico).
         p = p.sort_values(["rating", "volume"], ascending=[False, False], na_position="last").head(limit)
         return [self._player_card(r, t.ano) for r in _registros(p)]
 

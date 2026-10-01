@@ -2,14 +2,20 @@
    Acesso à API local (server/serve.py). Extraído do app.js (spec novo-visual,
    tarefa 2.3): cache de respostas com LRU e deduplicação de pedidos em voo, e
    o "só o último vence" para fluxos que podem ser disparados de novo.
+   No site publicado (spec site-publico), o index.html traz
+   <meta name="nfl-dados" content="estatico"> e a fonte passa a ser a dos
+   arquivos exportados (fonte-estatica.js), com as mesmas funções.
    ========================================================================== */
+import { fonteEstatica } from './fonte-estatica.js';
+
+export const ESTATICO = (document.querySelector('meta[name="nfl-dados"]') || {}).content === 'estatico';
 
 // Cache da sessão (deduplica pedidos iguais, inclusive em voo). LRU com teto,
 // para não crescer sem fim numa sessão longa de navegação.
 const cache = new Map();
 const CACHE_MAX = 150;
 
-export function get(path) {
+export function get(path, ler = (res) => res.json()) {
   if (cache.has(path)) {
     const hit = cache.get(path);
     cache.delete(path);
@@ -26,7 +32,7 @@ export function get(path) {
         erro.status = res.status;          // 503 = o servidor ainda esta carregando os dados
         throw erro;
       }
-      return res.json();
+      return ler(res);
     });
   cache.set(path, p);
   p.catch(() => { if (cache.get(path) === p) cache.delete(path); });
@@ -48,7 +54,7 @@ function semCache(path) {
   return get(path);
 }
 
-export const api = {
+const servidor = {
   meta: () => get('/api/meta'),
   games: (season, week) => semCache('/api/games' + qs({ season, week })),
   game: (g) => get('/api/games/' + g),
@@ -61,6 +67,8 @@ export const api = {
   news: (season, week) => get('/api/news' + qs({ season, week })),
   summary: (season) => get('/api/summary' + qs({ season })),
 };
+
+export const api = ESTATICO ? fonteEstatica({ get }) : servidor;
 
 /**
  * "Só o último vence": cada chamada de ultimo(chave) começa um pedido novo e

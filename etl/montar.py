@@ -394,7 +394,20 @@ def sincronizar_e_montar(dados: Path = fontes.DADOS, progresso: Callable[[str], 
     return sinc, mont
 
 
-if __name__ == "__main__":
-    _s, r = sincronizar_e_montar(progresso=lambda m: print(m, flush=True))
+def main(argv: list[str] | None = None, sincronizar=sincronizar_e_montar) -> int:
+    """--estrito (usado pelo GitHub Actions, spec site-publico): sai com 1 se alguma fonte
+    falhou, para o site não ser publicado de novo sem aviso. Sem ele, segue com a cópia local."""
+    import argparse
+    ap = argparse.ArgumentParser(description="Sincroniza as fontes e monta o que mudou.")
+    ap.add_argument("--estrito", action="store_true", help="sai com erro se alguma fonte falhar")
+    args = ap.parse_args(argv)
+    s, r = sincronizar(progresso=lambda m: print(m, flush=True))
     print(f"ok em {r.segundos:.0f}s: temporadas {r.temporadas}, gerais {r.globais}, "
           f"{r.liberado_bytes / 2**20:.0f} MB de brutos descartados")
+    for f in s.falhas:
+        print("FALHA:", f, file=sys.stderr)
+    return 1 if args.estrito and s.falhas else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
