@@ -1,7 +1,7 @@
 # Requirements Document
 
 **Feature:** site-publico
-**Status:** em revisão
+**Status:** aprovado (José Cota, 2026-09-27)
 **Data:** 2026-09-27
 **Autores:** José Cota (com Claude)
 

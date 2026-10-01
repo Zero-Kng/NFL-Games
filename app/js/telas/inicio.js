@@ -7,7 +7,7 @@
 import { api, ultimo } from '../api.js';
 import { $, esc, badge, isNum, nm, inicioLocal, into, none, icone } from '../ui.js';
 import { ler as lerConfig, aoMudar, reduzirMovimento, aoMudarMovimento } from '../config.js';
-import { S, semanaMeta, rotuloSemana, ir } from '../main.js';
+import { S, semanaMeta, temporadaMeta, rotuloSemana, ir } from '../main.js';
 
 const AVANCO_MS = 5000;
 const NO_CARROSSEL = 4;
@@ -26,6 +26,7 @@ export function render(el) {
     '<section class="block" id="heroBlock" hidden>' +
       '<div class="block-head"><h2 id="heroTitulo">Principais notícias</h2>' +
         '<button class="link-btn" data-go="noticias">Ver todas</button></div>' +
+      '<p class="muted hero-semana" id="heroSemana" hidden></p>' +
       '<div class="hero" id="hero" role="region" aria-roledescription="carrossel" aria-labelledby="heroTitulo">' +
         '<div class="hero-track" id="heroTrack" aria-live="off"></div>' +
         '<div class="hero-dots" id="heroDots"></div>' +
@@ -55,8 +56,8 @@ export function render(el) {
   const atual = ultimo('inicio');
   const vale = () => atual() && pedido.season === S.season && pedido.week === S.week;
 
-  api.news(pedido.season, pedido.week)
-    .then((ns) => { if (vale()) carrossel.montar(ns.slice(0, NO_CARROSSEL)); })
+  noticiasDoCarrossel(pedido.season, pedido.week)
+    .then((r) => { if (vale()) { rotularCarrossel(r.semana); carrossel.montar(r.ns.slice(0, NO_CARROSSEL)); } })
     .catch((e) => { if (vale()) { console.warn('notícias indisponíveis:', e.message); carrossel.montar([]); } });
 
   api.summary(pedido.season)
@@ -100,13 +101,41 @@ function ligar(el) {
     if (b.dataset.slide) { carrossel.ir(Number(b.dataset.slide), true); return; }
     if (b.dataset.rolar) { $(b.dataset.rolar).scrollIntoView({ behavior: reduzirMovimento() ? 'auto' : 'smooth', block: 'start' }); return; }
     if ('limparTime' in b.dataset) filtrarPorTime(null);
+    // "Ver todas" com notícias de outra semana: a tela Notícias abre nela (o data-go faz o resto).
+    if (b.dataset.noticiasSemana) { S.week = Number(b.dataset.noticiasSemana); S.gameId = null; S.playId = null; }
   });
+}
+
+/**
+ * As notícias do carrossel: as da semana escolhida ou, se ela ainda não tem (jogos não
+ * disputados), as da semana anterior mais recente da temporada que tem (4.7, revisto em
+ * 2026-10-01). Devolve { ns, semana }: `semana` é a meta da semana de onde vieram, ou null.
+ */
+async function noticiasDoCarrossel(season, week) {
+  const t = temporadaMeta();
+  const semanas = t ? t.weeks.filter((w) => w.week <= week).sort((a, b) => b.week - a.week) : [];
+  for (const w of semanas) {
+    const ns = await api.news(season, w.week);
+    if (ns.length) return { ns, semana: w };
+  }
+  return { ns: [], semana: null };
+}
+
+/** Rótulo e "Ver todas" do carrossel quando as notícias são de outra semana. */
+function rotularCarrossel(semana) {
+  const outra = semana && semana.week !== S.week;
+  const rotulo = $('heroSemana');
+  rotulo.hidden = !outra;
+  rotulo.textContent = outra ? 'Notícias da ' + rotuloSemana(semana) : '';
+  const ver = document.querySelector('#heroBlock .link-btn');
+  if (outra) ver.dataset.noticiasSemana = semana.week;
+  else delete ver.dataset.noticiasSemana;
 }
 
 /* ----------------------------- carrossel ----------------------------- */
 // Avança sozinho a cada 5 s (4.5); pausa com o mouse em cima, durante o toque
 // ou com o foco dentro; parado com movimento reduzido (4.6) ou com o avanço
-// desligado nas Configurações. Semana sem notícias: o bloco some (4.7).
+// desligado nas Configurações. Sem notícias nem nas semanas anteriores: o bloco some (4.7).
 const carrossel = {
   timer: null, n: 0, i: 0, alvo: null, pausado: false,
   montar(ns) {
