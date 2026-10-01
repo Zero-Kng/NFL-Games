@@ -148,7 +148,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - O `.exe` não foi regenerado nesta tarefa: o da raiz está aberto, e a tarefa 5 o regenera sem console.
   - _Requisitos: 4.1–4.6, 5.1, 5.2_
 
-- [ ] 4. `rodar.py` no modo janela
+- [x] 4. `rodar.py` no modo janela
   - **Arquivos:** modificar `rodar.py`; testes em `tests/test_rodar.py`.
   - **Consome:** `/api/estado` com `"app"` (tarefa 2) e `--encerrar-sozinho` (tarefa 2).
   - **Produz:**
@@ -158,7 +158,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `fechar_abertura() -> None`;
     - `procurar_copia(host: str, portas: range, perguntar=None) -> int | None`;
     - `main(argv=None, modo_janela: bool | None = None) -> int`: `modo_janela=None` usa `MODO_JANELA`, e os testes passam `True`.
-  - [ ] 4.1 Escrever os testes, com dublês para o navegador, o servidor e a janela de aviso:
+  - [x] 4.1 Escrever os testes, com dublês para o navegador, o servidor e a janela de aviso:
     - `test_procurar_copia_acha_o_app`: um `ThreadingHTTPServer` de teste respondendo `{"app": "NFL Games", "pronto": true}` em `/api/estado` → devolve a porta dele.
     - `test_procurar_copia_acha_copia_ainda_carregando`: o mesmo com `"pronto": false` → devolve a porta.
     - `test_procurar_copia_ignora_outro_programa`: um servidor que responde HTML (ou 404) → `None`.
@@ -171,14 +171,17 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `test_preparar_saida_sem_permissao`: `dados` é um arquivo (não uma pasta) → devolve `None`, sem exceção.
     - `test_avisar_sem_aviso_nos_testes`: com `NFL_SEM_AVISO=1`, o `mostrar` não é chamado, e o stdout recebe a mensagem.
     - Os testes existentes (fora do modo janela) continuam sem mudança.
-  - [ ] 4.2 Rodar `pytest tests/test_rodar.py -v`. Esperado: FAIL nos testes novos.
-  - [ ] 4.3 Implementar como no design (componente 3). Detalhes:
+  - [x] 4.2 Rodar `pytest tests/test_rodar.py -v`. Esperado: FAIL nos testes novos.
+  - [x] 4.3 Implementar como no design (componente 3). Detalhes:
     - `fechar_abertura` faz `import pyi_splash` dentro de um `try` e ignora o `ImportError`;
     - `avisar` usa `ctypes.windll.user32.MessageBoxW(None, mensagem, "NFL Games", 0x10)`;
     - `procurar_copia` usa `urllib.request` com timeout de 0,5 s e ignora qualquer exceção.
-  - [ ] 4.4 Rodar `pytest tests/test_rodar.py -v`. Esperado: PASS.
-  - [ ] 4.5 Regenerar o `.exe` da raiz e conferir que ele sobe (ainda com console, até a tarefa 5).
-  - [ ] 4.6 Commit: `rodar.py: no executável do Windows, log, janela de aviso, cópia única e encerramento sozinho (sem-terminal, tarefa 4)`.
+  - [x] 4.4 Rodar `pytest tests/test_rodar.py -v`. Esperado: PASS.
+  - [x] 4.5 Regenerar o `.exe` da raiz e conferir que ele sobe (ainda com console, até a tarefa 5).
+  - [x] 4.6 Commit: `rodar.py: no executável do Windows, log, janela de aviso, cópia única e encerramento sozinho (sem-terminal, tarefa 4)`.
+  - **Feito (2026-10-01):** `tests/test_rodar.py`, 11 testes novos (32 no total). O `main()` virou um invólucro: no modo janela, ele prepara o log e transforma qualquer exceção numa janela de aviso; o corpo de antes ficou em `_main()`.
+    - No modo janela, a mensagem de abertura troca "Ctrl+C para parar" pelo jeito de fechar.
+    - O `.exe` não foi regenerado: ver a tarefa 3.
   - _Requisitos: 1.3, 1.4, 2.1–2.3, 3.1–3.5, 5.7_
 
 - [ ] 5. Executável sem console, com a logo, e a documentação
