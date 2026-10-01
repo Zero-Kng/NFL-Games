@@ -308,3 +308,23 @@ def test_rodar_explica_a_primeira_carga():
     rodar = (ROOT / "rodar.py").read_text(encoding="utf-8")
     assert "nflverse" in rodar and "primeira" in rodar.lower()
     assert "Big Data Bowl" not in rodar and "tracking" not in rodar
+
+
+# ------------------------------------------------ site-publico, tarefa 1 (2.2)
+def _ordem_estavel(p):
+    return p.sort_values(["rating", "volume"], ascending=[False, False], na_position="last",
+                         kind="stable")["playerId"].astype(str).tolist()
+
+
+@pytest.mark.parametrize("filtros", [{}, {"rated_only": False}, {"position": "WR"}])
+def test_players_list_empates_na_ordem_da_tabela(nfl, filtros):
+    """Empatados em rating e volume ficam na ordem da tabela, como na lista que o site exporta."""
+    p = nfl.temporadas[2021].jogadores
+    if filtros.get("rated_only", True):
+        p = p[p["avaliado"]]
+    if "position" in filtros:
+        p = p[p["posicao_exibida"].astype(str).str.upper() == filtros["position"]]
+    assert p.duplicated(["rating", "volume"], keep=False).any(), "o caso precisa ter empates"
+    esperado = _ordem_estavel(p)[:300]
+    obtido = [c["nflId"] for c in nfl.players_list(season=2021, limit=300, **filtros)]
+    assert obtido == esperado

@@ -19,7 +19,15 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from conftest import FONTES, alvo_de, simular_api
+
 playwright = pytest.importorskip("playwright.sync_api")
+
+
+@pytest.fixture(params=FONTES)
+def servidor(request, servidor_real):
+    """A página abre no app do PC ou no site exportado (site-publico, tarefa 5); `.api` é o servidor real."""
+    return alvo_de(request, servidor_real)
 
 TELAS = {"inicio": "Início", "jogo": "Jogo", "jogadores": "Jogadores", "noticias": "Notícias",
          "config": "Configurações", "sobre": "Sobre os dados"}
@@ -232,7 +240,7 @@ def test_ui_links_antigos_abrem_tela_nova(servidor, pagina, antiga, tela, aba):
 def test_ui_temporadas_so_com_dados(servidor, pagina):
     """3.1."""
     abrir(pagina, servidor.url)
-    meta = api(servidor.url, "/api/meta")
+    meta = api(servidor.api, "/api/meta")
     chips = pagina.eval_on_selector_all("#seasonChips .chip", "bs => bs.map(b => Number(b.dataset.season))")
     assert chips == [t["season"] for t in meta["seasons"]]
 
@@ -242,7 +250,7 @@ def test_ui_semanas_so_com_dados(servidor, pagina):
     abrir(pagina, servidor.url)
     pagina.click("#seasonChips [data-season='2024']")
     esperar(pagina, "document.querySelector('#seasonChips [aria-pressed=true]').dataset.season === '2024'")
-    meta = api(servidor.url, "/api/meta")
+    meta = api(servidor.api, "/api/meta")
     semanas = next(t for t in meta["seasons"] if t["season"] == 2024)["weeks"]
     chips = pagina.eval_on_selector_all("#weekChips .chip", "bs => bs.map(b => [Number(b.dataset.week), b.innerText])")
     assert [w for w, _ in chips] == [w["week"] for w in semanas]
@@ -253,7 +261,7 @@ def test_ui_semanas_so_com_dados(servidor, pagina):
 def test_ui_abre_na_semana_mais_recente(servidor, pagina):
     """3.5: sem semana escolhida, a mais recente já começada da temporada atual."""
     abrir(pagina, servidor.url)
-    meta = api(servidor.url, "/api/meta")
+    meta = api(servidor.api, "/api/meta")
     ativo = pagina.eval_on_selector("#weekChips [aria-pressed=true]", "b => Number(b.dataset.week)")
     assert ativo == meta["currentWeek"]
     assert pagina.eval_on_selector("#seasonChips [aria-pressed=true]", "b => Number(b.dataset.season)") == meta["season"]
@@ -292,7 +300,7 @@ def test_ui_configuracao_corrompida_usa_padrao(servidor, contexto, salvo):
         contexto.add_init_script(f"localStorage.setItem('nfl.config.v2', {json.dumps(salvo)});")
     pg = contexto.new_page()
     abrir(pg, servidor.url)
-    cfg = pg.evaluate("import('/js/config.js').then((m) => m.ler())")
+    cfg = pg.evaluate("import(new URL('js/config.js', document.baseURI).href).then((m) => m.ler())")
     assert cfg == {"avancoNoticias": True, "velocidadeReplay": 1}
 
 
@@ -317,8 +325,8 @@ def esperar_slide(pg, i):
     esperar(pg, f"Math.abs({TRACK}.scrollLeft - {i} * {TRACK}.clientWidth) < 2", 3000)
 
 
-def simular_noticias(pg, corpo):
-    pg.route("**/api/news?*", lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(corpo)))
+def simular_noticias(pg, alvo, corpo):
+    simular_api(pg, alvo, {"**/api/news?*": corpo})
 
 
 def evento(espn_id, state, home, away, period=2, clock="5:21", name=None):
@@ -350,9 +358,9 @@ def iso(dt):
     return dt.isoformat().replace("+00:00", "Z")
 
 
-def simular_semana(pg, base, jogos_de):
+def simular_semana(pg, alvo, jogos_de):
     """Troca /api/games por jogos reais (2025, semana 1) com status e horários dados."""
-    reais = api(base, "/api/games?season=2025&week=1")
+    reais = api(alvo.api, "/api/games?season=2025&week=1")
     lista = []
     for real, extra in zip(reais, jogos_de):
         g = json.loads(json.dumps(real))
@@ -360,8 +368,7 @@ def simular_semana(pg, base, jogos_de):
         g["home"]["score"], g["away"]["score"] = placar if placar else (None, None)
         g.update(extra)
         lista.append(g)
-    pg.route("**/api/games?*", lambda route: route.fulfill(
-        status=200, content_type="application/json", body=json.dumps(lista)))
+    simular_api(pg, alvo, {"**/api/games?*": lista})
     return lista
 
 
@@ -376,7 +383,7 @@ def test_ui_inicio_ordem_das_secoes(servidor, pagina):
 def test_ui_cartao_partidas_da_semana(servidor, pagina):
     """4.2: a quantidade real de jogos da semana escolhida."""
     abrir_inicio(pagina, servidor.url)
-    jogos = api(servidor.url, "/api/games?season=2021&week=1")
+    jogos = api(servidor.api, "/api/games?season=2021&week=1")
     esperar(pagina, f"document.getElementById('tilePartidas').textContent === '{len(jogos)}'")
     ids = pagina.eval_on_selector_all("#jogosLista .match", "ms => ms.map(m => Number(m.dataset.game))")
     assert ids == [g["gameId"] for g in jogos]
@@ -385,7 +392,7 @@ def test_ui_cartao_partidas_da_semana(servidor, pagina):
 def test_ui_cartao_jogadores_avaliados(servidor, pagina):
     """4.3: summary.ratedPlayers da temporada escolhida; o cartão leva a Jogadores."""
     abrir_inicio(pagina, servidor.url)
-    n = api(servidor.url, "/api/summary?season=2021")["ratedPlayers"]
+    n = api(servidor.api, "/api/summary?season=2021")["ratedPlayers"]
     esperado = f"{n:,}".replace(",", ".")
     esperar(pagina, f"document.getElementById('tileAvaliados').textContent === {json.dumps(esperado)}")
     pagina.click("#resumoBlock [data-go=jogadores]")
@@ -397,7 +404,7 @@ def test_ui_partida_abre_pagina_jogo(servidor, pagina):
     abrir_inicio(pagina, servidor.url)
     pagina.click("#jogosLista .match:nth-child(2)")
     esperar(pagina, "document.getElementById('jogo').classList.contains('active')")
-    jogos = api(servidor.url, "/api/games?season=2021&week=1")
+    jogos = api(servidor.api, "/api/games?season=2021&week=1")
     assert f"game={jogos[1]['gameId']}" in pagina.url
 
 
@@ -405,7 +412,7 @@ def test_ui_carrossel_4_primeiras(servidor, pagina):
     """7.4 e 7.2: as 4 primeiras notícias da semana, cada uma com o jogo a que se refere."""
     abrir_inicio(pagina, servidor.url)
     esperar(pagina, "document.querySelectorAll('#heroTrack .slide').length > 0")
-    news = api(servidor.url, "/api/news?season=2021&week=1")[:4]
+    news = api(servidor.api, "/api/news?season=2021&week=1")[:4]
     slides = pagina.eval_on_selector_all("#heroTrack .slide", "ss => ss.map(s => [s.dataset.noticia, s.innerText])")
     assert [i for i, _ in slides] == [n["id"] for n in news]
     for (_, t), n in zip(slides, news):
@@ -475,7 +482,7 @@ def test_ui_carrossel_parado_com_movimento_reduzido(servidor, navegador, motivo)
     pg.clock.fast_forward(16000)
     assert ponto_ativo(pg) == 0
     if motivo == "avanco_desligado":
-        pg.evaluate("import('/js/config.js').then((m) => m.gravar({ avancoNoticias: true }))")
+        pg.evaluate("import(new URL('js/config.js', document.baseURI).href).then((m) => m.gravar({ avancoNoticias: true }))")
         pg.clock.fast_forward(5200)
         assert ponto_ativo(pg) == 1
     ctx.close()
@@ -483,7 +490,7 @@ def test_ui_carrossel_parado_com_movimento_reduzido(servidor, navegador, motivo)
 
 def test_ui_semana_sem_noticias_oculta_carrossel(servidor, pagina):
     """4.7: sem notícias, o carrossel some e o resto do Início fica."""
-    simular_noticias(pagina, [])
+    simular_noticias(pagina, servidor, [])
     abrir_inicio(pagina, servidor.url)
     esperar(pagina, "document.querySelector('#jogosLista .match')")
     pagina.wait_for_timeout(200)
@@ -493,8 +500,8 @@ def test_ui_semana_sem_noticias_oculta_carrossel(servidor, pagina):
 
 def test_ui_noticia_nao_vira_html(servidor, pagina):
     """S.1 nas notícias do carrossel."""
-    real = api(servidor.url, "/api/news?season=2021&week=1")[0]
-    simular_noticias(pagina, [{**real, "titulo": '<img src=x onerror="window.__xss=1">Manchete',
+    real = api(servidor.api, "/api/news?season=2021&week=1")[0]
+    simular_noticias(pagina, servidor, [{**real, "titulo": '<img src=x onerror="window.__xss=1">Manchete',
                                "texto": "<b>negrito</b>", "destaque": "<i>9</i>", "tag": "<u>t</u>"}])
     abrir_inicio(pagina, servidor.url)
     esperar(pagina, "document.querySelector('#heroTrack .slide')")
@@ -507,8 +514,8 @@ def test_ui_trocar_semana_atualiza_inicio(servidor, pagina):
     abrir_inicio(pagina, servidor.url)
     esperar(pagina, "document.querySelector('#heroTrack .slide')")
     pagina.click("#weekChips [data-week='2']")
-    jogos = api(servidor.url, "/api/games?season=2021&week=2")
-    news = api(servidor.url, "/api/news?season=2021&week=2")[:4]
+    jogos = api(servidor.api, "/api/games?season=2021&week=2")
+    news = api(servidor.api, "/api/news?season=2021&week=2")[:4]
     esperar(pagina, "document.querySelector('#jogosLista .match') && "
                     f"document.querySelector('#jogosLista .match').dataset.game === '{jogos[0]['gameId']}'")
     esperar(pagina, "document.querySelector('#heroTrack .slide') && "
@@ -520,14 +527,13 @@ def test_ui_trocar_semana_atualiza_inicio(servidor, pagina):
 
 def test_ui_erro_na_semana_mantem_filtros(servidor, pagina):
     """3.4: a falha aparece na lista, e os filtros continuam funcionando."""
-    pagina.route("**/api/games?*week=2*", lambda r: r.fulfill(status=500, content_type="application/json",
-                                                              body=json.dumps({"error": "falha simulada"})))
+    simular_api(pagina, servidor, {"**/api/games?*week=2*": (500, {"error": "falha simulada"})})
     abrir_inicio(pagina, servidor.url)
     pagina.click("#weekChips [data-week='2']")
     esperar(pagina, "document.querySelector('#jogosLista .state.error')")
     assert "falha simulada" in pagina.inner_text("#jogosLista")
     pagina.click("#weekChips [data-week='3']")
-    jogos = api(servidor.url, "/api/games?season=2021&week=3")
+    jogos = api(servidor.api, "/api/games?season=2021&week=3")
     esperar(pagina, "document.querySelector('#jogosLista .match') && "
                     f"document.querySelector('#jogosLista .match').dataset.game === '{jogos[0]['gameId']}'")
     pagina.click("#seasonChips [data-season='2022']")
@@ -537,7 +543,7 @@ def test_ui_erro_na_semana_mantem_filtros(servidor, pagina):
 def test_ui_filtro_por_time_com_chip(servidor, pagina):
     """3.3 (tarefa): o filtro por time mostra só os jogos dele, e o chip "TIME ×" remove."""
     abrir_inicio(pagina, servidor.url)
-    pagina.evaluate("import('/js/telas/inicio.js').then((m) => m.filtrarPorTime('TB'))")
+    pagina.evaluate("import(new URL('js/telas/inicio.js', document.baseURI).href).then((m) => m.filtrarPorTime('TB'))")
     esperar(pagina, "document.querySelectorAll('#jogosLista .match').length === 1")
     assert "Buccaneers" in pagina.inner_text("#jogosLista")
     assert pagina.inner_text("#filtroTime .chip").strip() == "TB"
@@ -553,7 +559,7 @@ def test_ui_filtro_por_time_com_chip(servidor, pagina):
 # ------------------------------------------ 4.8: estados do cartão e placar ao vivo
 def test_ui_cartao_a_jogar_e_sem_resultado(servidor, pagina):
     simular_espn(pagina, [[]])
-    simular_semana(pagina, servidor.url, [
+    simular_semana(pagina, servidor, [
         {"espnId": "900001", "status": "agendado", "kickoffUtc": iso(AGORA + timedelta(hours=3))},
         {"espnId": "900002", "status": "sem_resultado", "kickoffUtc": iso(AGORA - timedelta(days=1))},
     ])
@@ -565,7 +571,7 @@ def test_ui_cartao_a_jogar_e_sem_resultado(servidor, pagina):
 
 def test_ui_cartao_encerrado_com_prorrogacao(servidor, pagina):
     simular_espn(pagina, [[]])
-    lista = simular_semana(pagina, servidor.url, [
+    lista = simular_semana(pagina, servidor, [
         {"espnId": "900003", "status": "encerrado", "placar": (27, 24), "overtime": True,
          "kickoffUtc": iso(AGORA - timedelta(days=3))},
     ])
@@ -575,8 +581,8 @@ def test_ui_cartao_encerrado_com_prorrogacao(servidor, pagina):
     assert pagina.eval_on_selector(".match .team.win .name", "e => e.textContent") == lista[0]["home"]["nick"]
 
 
-def _semana_ao_vivo(pg, base):
-    return simular_semana(pg, base, [
+def _semana_ao_vivo(pg, alvo):
+    return simular_semana(pg, alvo, [
         {"espnId": "900001", "status": "sem_resultado", "kickoffUtc": iso(AGORA - timedelta(hours=1))},
         {"espnId": "900002", "status": "agendado", "kickoffUtc": iso(AGORA + timedelta(hours=5))},
         {"espnId": "900003", "status": "encerrado", "placar": (24, 20), "kickoffUtc": iso(AGORA - timedelta(days=3))},
@@ -585,7 +591,7 @@ def _semana_ao_vivo(pg, base):
 
 def test_ui_ao_vivo_placar_quarto_relogio(servidor, pagina):
     simular_espn(pagina, [[evento("900001", "in", 3, 7, period=2, clock="5:21")]])
-    _semana_ao_vivo(pagina, servidor.url)
+    _semana_ao_vivo(pagina, servidor)
     abrir_inicio(pagina, servidor.url, "")
     esperar(pagina, "document.querySelector('.match').dataset.estado === 'aovivo'")
     t = pagina.inner_text(".match")
@@ -598,7 +604,7 @@ def test_ui_ao_vivo_atualiza_a_cada_30s_e_para_ao_encerrar(servidor, pagina):
         [evento("900001", "in", 10, 14, period=3, clock="10:00")],
         [evento("900001", "post", 17, 21, period=4, clock="0:00")],
     ])
-    _semana_ao_vivo(pagina, servidor.url)
+    _semana_ao_vivo(pagina, servidor)
     abrir_inicio(pagina, servidor.url, "")
     esperar(pagina, "document.querySelector('.match').innerText.includes('Q2 · 5:21')")
     assert len(pagina.espn) == 1
@@ -617,7 +623,7 @@ def test_ui_ao_vivo_atualiza_a_cada_30s_e_para_ao_encerrar(servidor, pagina):
 
 def test_ui_ao_vivo_para_fora_do_inicio(servidor, pagina):
     simular_espn(pagina, [[evento("900001", "in", 3, 7)]])
-    _semana_ao_vivo(pagina, servidor.url)
+    _semana_ao_vivo(pagina, servidor)
     abrir_inicio(pagina, servidor.url, "")
     esperar(pagina, "document.querySelector('.match').dataset.estado === 'aovivo'")
     ir_para(pagina, "noticias")
@@ -629,7 +635,7 @@ def test_ui_ao_vivo_para_fora_do_inicio(servidor, pagina):
 
 def test_ui_sem_jogo_em_andamento_nao_consulta(servidor, pagina):
     simular_espn(pagina, [[]])
-    simular_semana(pagina, servidor.url, [
+    simular_semana(pagina, servidor, [
         {"espnId": "900001", "status": "agendado", "kickoffUtc": iso(AGORA + timedelta(hours=5))},
         {"espnId": "900003", "status": "encerrado", "placar": (24, 20), "kickoffUtc": iso(AGORA - timedelta(days=3))},
     ])
@@ -641,7 +647,7 @@ def test_ui_sem_jogo_em_andamento_nao_consulta(servidor, pagina):
 
 def test_ui_ao_vivo_comeca_quando_o_jogo_comeca(servidor, pagina):
     simular_espn(pagina, [[evento("900001", "in", 0, 7, period=1, clock="9:00")]])
-    simular_semana(pagina, servidor.url, [
+    simular_semana(pagina, servidor, [
         {"espnId": "900001", "status": "agendado", "kickoffUtc": iso(AGORA + timedelta(minutes=10))},
     ])
     abrir_inicio(pagina, servidor.url, "")
@@ -653,7 +659,7 @@ def test_ui_ao_vivo_comeca_quando_o_jogo_comeca(servidor, pagina):
 def test_ui_ao_vivo_falha_mantem_ultimo_placar(servidor, pagina):
     simular_espn(pagina, [[evento("900001", "in", 3, 7)], 503,
                           [evento("900001", "in", 3, 14, period=3, clock="12:00")]])
-    _semana_ao_vivo(pagina, servidor.url)
+    _semana_ao_vivo(pagina, servidor)
     abrir_inicio(pagina, servidor.url, "")
     esperar(pagina, "document.querySelector('.match').dataset.estado === 'aovivo'")
     pagina.clock.fast_forward(30500)
@@ -667,7 +673,7 @@ def test_ui_ao_vivo_falha_mantem_ultimo_placar(servidor, pagina):
 
 def test_ui_encerrado_prevalece_nflverse(servidor, pagina):
     simular_espn(pagina, [[evento("900001", "in", 3, 7), evento("900003", "in", 10, 3)]])
-    _semana_ao_vivo(pagina, servidor.url)
+    _semana_ao_vivo(pagina, servidor)
     abrir_inicio(pagina, servidor.url, "")
     esperar(pagina, "document.querySelector('.match').dataset.estado === 'aovivo'")
     terceiro = pagina.eval_on_selector_all(".match", "ms => [ms[2].dataset.estado, ms[2].innerText]")
@@ -719,7 +725,7 @@ def test_ui_jogo_cabecalho_da_partida(servidor, pagina):
     t = pagina.inner_text("#jogoCab")
     assert "Cowboys" in t and "Buccaneers" in t and "29" in t and "31" in t and "Semana 1" in t and "FINAL" in t
     assert pagina.eval_on_selector("#jogoCab .team.win .name", "e => e.textContent") == "Buccaneers"
-    sb = api(servidor.url, "/api/games?season=2021&week=22")[0]["gameId"]
+    sb = api(servidor.api, "/api/games?season=2021&week=22")[0]["gameId"]
     abrir_jogo(pagina, servidor.url, f"?season=2021&week=22&game={sb}&screen=jogo")
     assert "Super Bowl" in pagina.inner_text("#jogoCab")
 
@@ -747,7 +753,7 @@ def test_ui_abas_do_antigo_treinador(servidor, pagina):
     pagina.click("#nextPlay")
     esperar(pagina, "new URLSearchParams(location.search).get('play') !== '55'")
     aba(pagina, "jogadas")
-    plays = api(servidor.url, "/api/games/2021090900/plays")
+    plays = api(servidor.api, "/api/games/2021090900/plays")
     esperar(pagina, "document.querySelectorAll('#jogoCorpo .play-row').length > 0")
     assert pagina.eval_on_selector_all("#jogoCorpo .play-row", "rs => rs.length") == len(plays)
     quartos = pagina.eval_on_selector_all("#jogoCorpo .sec-head h3", "hs => hs.map(h => h.textContent)")
@@ -764,7 +770,7 @@ def test_ui_replay_narrado_placar_e_acumulado(servidor, pagina):
     pagina.clock.install(time=AGORA)
     abrir_jogo(pagina, servidor.url, JOGO + "&aba=replay")
     esperar(pagina, "document.querySelectorAll('#bcFeed .tl-item').length === 1")
-    bc = api(servidor.url, "/api/games/2021090900/broadcast")
+    bc = api(servidor.api, "/api/games/2021090900/broadcast")
     assert pagina.inner_text("#bcPos") == f"1/{len(bc['feed'])}"
     pagina.click("#bcPlay")
     pagina.clock.fast_forward(1400 * 3 + 100)
@@ -831,7 +837,7 @@ def test_ui_jogo_sem_partida_abre_primeira_da_semana(servidor, pagina):
     """5.7."""
     abrir(pagina, servidor.url, "?season=2021&week=2")
     ir_para(pagina, "jogo")
-    primeiro = api(servidor.url, "/api/games?season=2021&week=2")[0]
+    primeiro = api(servidor.api, "/api/games?season=2021&week=2")[0]
     esperar(pagina, "document.querySelector('#jogoCab .jogo-cab')")
     assert primeiro["home"]["nick"] in pagina.inner_text("#jogoCab")
     assert f"game={primeiro['gameId']}" in pagina.url
@@ -924,7 +930,7 @@ def test_ui_materia_texto_externo_nao_vira_html(servidor, pagina):
 
 def test_ui_materia_nao_consulta_jogo_a_jogar(servidor, pagina):
     simular_materia(pagina, MATERIA)
-    agendado = next(g for g in api(servidor.url, "/api/games?season=2026&week=18") if g["status"] == "agendado")
+    agendado = next(g for g in api(servidor.api, "/api/games?season=2026&week=18") if g["status"] == "agendado")
     abrir_jogo(pagina, servidor.url, f"?season=2026&week=18&game={agendado['gameId']}&screen=jogo")
     assert "A JOGAR" in pagina.inner_text("#jogoCab")
     pagina.wait_for_timeout(300)
@@ -986,14 +992,14 @@ def test_ui_prancheta_posicoes_genericas(servidor, pagina):
 def test_ui_prancheta_cores_dos_lados(servidor, pagina):
     abrir(pagina, servidor.url)
     r = pagina.evaluate("""async () => {
-        const m = await import('/js/prancheta.js');
-        const ui = await import('/js/ui.js');
-        const meta = await (await fetch('/api/meta')).json();
+        const m = await import(new URL('js/prancheta.js', document.baseURI).href);
+        const ui = await import(new URL('js/ui.js', document.baseURI).href);
+        const meta = await (await import(new URL('js/api.js', document.baseURI).href)).api.meta();
         const t = (a) => meta.teams[a];
         return [m.coresDosLados({ offense: 'SEA', defense: 'NE' }, t), m.coresDosLados({ offense: 'TB', defense: 'DAL' }, t),
                 m.coresDosLados({}, t), ui.corDoTexto('#FFB612'), ui.corDoTexto('#002244'), ui.corDoTexto('#FB4F14')];
     }""")
-    meta = api(servidor.url, "/api/meta")["teams"]
+    meta = api(servidor.api, "/api/meta")["teams"]
     assert r[0] == {"offense": meta["SEA"]["primary"], "defense": meta["NE"]["secondary"]}
     assert r[1] == {"offense": meta["TB"]["primary"], "defense": meta["DAL"]["primary"]}
     assert r[2] == {} and r[3] == "#0b1322" and r[4] == "#ffffff" and r[5] == "#0b1322"   # CIN: 3,0:1 com branco
@@ -1016,10 +1022,10 @@ def nomes_da_lista(pg):
 def test_ui_jogadores_busca_filtro_perfil_comparacao(servidor, pagina):
     """6.1: lista por rating, filtro por posição, busca, perfil com radar e jogo a jogo, e comparação."""
     abrir_jogadores(pagina, servidor.url)
-    lista = api(servidor.url, "/api/players?season=2021&limit=60")
+    lista = api(servidor.api, "/api/players?season=2021&limit=60")
     assert nomes_da_lista(pagina) == [p["name"] for p in lista]
     pagina.click("#scoutFilters [data-pos=QB]")
-    qbs = api(servidor.url, "/api/players?season=2021&position=QB&limit=60")
+    qbs = api(servidor.api, "/api/players?season=2021&position=QB&limit=60")
     esperar(pagina, f"document.querySelector('#scoutBody .row-card b') && "
                     f"document.querySelector('#scoutBody .row-card b').textContent === {json.dumps(qbs[0]['name'])}")
     assert nomes_da_lista(pagina) == [p["name"] for p in qbs]
@@ -1045,7 +1051,7 @@ def test_ui_jogadores_busca_filtro_perfil_comparacao(servidor, pagina):
 def test_ui_jogadores_na_temporada_escolhida(servidor, pagina):
     abrir_jogadores(pagina, servidor.url)
     pagina.click("#seasonChips [data-season='2024']")
-    lista = api(servidor.url, "/api/players?season=2024&limit=60")
+    lista = api(servidor.api, "/api/players?season=2024&limit=60")
     esperar(pagina, "document.querySelector('#scoutBody .row-card b') && "
                     f"document.querySelector('#scoutBody .row-card b').textContent === {json.dumps(lista[0]['name'])}")
     assert "Temporada 2024" in pagina.inner_text("#jogadoresBlock .block-head")
@@ -1055,7 +1061,7 @@ def test_ui_jogadores_a_observar_da_partida(servidor, pagina):
     """6.2: os destaques da partida selecionada; o link leva à partida."""
     abrir_jogadores(pagina, servidor.url)
     esperar(pagina, "!document.getElementById('observarBlock').hidden")
-    watch = api(servidor.url, "/api/games/2021090900")["watch"]
+    watch = api(servidor.api, "/api/games/2021090900")["watch"]
     ids = pagina.eval_on_selector_all("#observarLista .watch-card", "cs => cs.map(c => c.dataset.player)")
     assert ids == [p["nflId"] for p in watch]
     assert pagina.inner_text("#observarJogo") == "DAL @ TB"
@@ -1071,12 +1077,12 @@ def test_ui_a_observar_atualiza_ao_trocar_partida(servidor, pagina):
     """6.3."""
     abrir_jogadores(pagina, servidor.url)
     esperar(pagina, "!document.getElementById('observarBlock').hidden")
-    outro = api(servidor.url, "/api/games?season=2021&week=1")[3]
+    outro = api(servidor.api, "/api/games?season=2021&week=1")[3]
     ir_para(pagina, "inicio")
     pagina.click(f"#jogosLista .match[data-game='{outro['gameId']}']")
     esperar(pagina, "document.getElementById('jogo').classList.contains('active')")
     ir_para(pagina, "jogadores")
-    watch = api(servidor.url, f"/api/games/{outro['gameId']}")["watch"]
+    watch = api(servidor.api, f"/api/games/{outro['gameId']}")["watch"]
     esperar(pagina, f"document.querySelector('#observarLista .watch-card') && "
                     f"document.querySelector('#observarLista .watch-card').dataset.player === {json.dumps(watch[0]['nflId'])}")
     assert pagina.inner_text("#observarJogo") == f"{outro['away']['abbr']} @ {outro['home']['abbr']}"
@@ -1084,16 +1090,15 @@ def test_ui_a_observar_atualiza_ao_trocar_partida(servidor, pagina):
 
 def test_ui_a_observar_sem_partida_usa_a_primeira_da_semana(servidor, pagina):
     abrir_jogadores(pagina, servidor.url, "?season=2021&week=2&screen=jogadores")
-    primeiro = api(servidor.url, "/api/games?season=2021&week=2")[0]
+    primeiro = api(servidor.api, "/api/games?season=2021&week=2")[0]
     esperar(pagina, "!document.getElementById('observarBlock').hidden")
     assert pagina.inner_text("#observarJogo") == f"{primeiro['away']['abbr']} @ {primeiro['home']['abbr']}"
 
 
 def test_ui_a_observar_oculto_sem_avaliados(servidor, pagina):
     """6.4: resposta simulada sem ninguém com amostra suficiente."""
-    real = api(servidor.url, "/api/games/2021090900")
-    pagina.route("**/api/games/2021090900", lambda r: r.fulfill(
-        status=200, content_type="application/json", body=json.dumps({**real, "watch": []})))
+    real = api(servidor.api, "/api/games/2021090900")
+    simular_api(pagina, servidor, {"**/api/games/2021090900": {**real, "watch": []}})
     abrir_jogadores(pagina, servidor.url)
     pagina.wait_for_timeout(300)
     assert pagina.eval_on_selector("#observarBlock", "e => e.hidden") is True
@@ -1154,7 +1159,7 @@ def esperar_busca_completa(pg):
 def test_ui_noticias_da_semana(servidor, pagina):
     """7.1 e 7.2: as notícias da semana, na ordem da API, cada uma com o jogo a que se refere."""
     abrir_noticias(pagina, servidor.url)
-    news = api(servidor.url, "/api/news?season=2021&week=1")
+    news = api(servidor.api, "/api/news?season=2021&week=1")
     ids = pagina.eval_on_selector_all("#noticiasLista .news-item", "ns => ns.map(n => n.dataset.noticia)")
     assert ids == [n["id"] for n in news]
     assert pagina.inner_text("#noticiasConta") == f"{len(news)} notícias · Semana 1"
@@ -1181,7 +1186,7 @@ def test_ui_noticias_semana_vazia(servidor, pagina):
 def test_ui_noticias_trocar_semana(servidor, pagina):
     abrir_noticias(pagina, servidor.url)
     pagina.click("#weekChips [data-week='2']")
-    news = api(servidor.url, "/api/news?season=2021&week=2")
+    news = api(servidor.api, "/api/news?season=2021&week=2")
     esperar(pagina, "document.querySelector('#noticiasLista .news-item') && "
                     f"document.querySelector('#noticiasLista .news-item').dataset.noticia === {json.dumps(news[0]['id'])}")
 
@@ -1201,7 +1206,7 @@ def test_ui_busca_agrupa_times_jogadores_noticias(servidor, pagina):
     esperar_busca_completa(pagina)
     assert grupos_da_busca(pagina) == ["Times", "Jogadores", "Notícias"]
     assert "Tampa Bay Buccaneers" in pagina.inner_text("#searchResults")
-    jogadores = api(servidor.url, "/api/players?season=2021&q=buc&limit=8")
+    jogadores = api(servidor.api, "/api/players?season=2021&q=buc&limit=8")
     ids = pagina.eval_on_selector_all("[data-busca-jogador]", "bs => bs.map(b => b.dataset.buscaJogador)")
     assert ids == [p["nflId"] for p in jogadores]
     noticias = pagina.eval_on_selector_all("#searchResults [data-game]", "bs => bs.length")
@@ -1274,16 +1279,19 @@ def test_ui_busca_cancelar_e_esc_limpam(servidor, pagina):
 
 def test_ui_busca_corta_em_100_caracteres(servidor, pagina):
     """S.2: só os 100 primeiros caracteres (o campo também tem maxlength)."""
-    pedidos = []
-    pagina.on("request", lambda r: pedidos.append(r.url) if "/api/players?" in r.url else None)
     abrir(pagina, servidor.url)
+    pagina.evaluate("""async () => {                                     // espião no api.players (vale nas duas fontes)
+        const m = await import(new URL('js/api.js', document.baseURI).href);
+        const original = m.api.players;
+        window.__buscas = [];
+        m.api.players = (s, p) => { window.__buscas.push(p && p.q); return original(s, p); };
+    }""")
     pagina.click("#btnSearch")
     assert pagina.get_attribute("#searchInput", "maxlength") == "100"
     pagina.evaluate("""() => { const i = document.getElementById('searchInput');
         i.value = 'a'.repeat(150); i.dispatchEvent(new Event('input', { bubbles: true })); }""")
     esperar(pagina, "document.querySelector('#searchResults .sr-empty, #searchResults [data-busca-jogador]')")
-    q = urllib.parse.parse_qs(urllib.parse.urlparse(pedidos[-1]).query)["q"][0]
-    assert q == "a" * 100
+    assert pagina.evaluate("window.__buscas[window.__buscas.length - 1]") == "a" * 100
 
 
 # ================================================================ Tarefa 8: Configurações e Sobre
@@ -1331,7 +1339,7 @@ def test_ui_configuracao_aplica_sem_recarregar(servidor, pagina):
     pagina.click("#bcPlay")
     pagina.clock.fast_forward(1500)
     esperar(pagina, "document.getElementById('bcPos').textContent.startsWith('2/')")
-    pagina.evaluate("import('/js/config.js').then((m) => m.gravar({ velocidadeReplay: 0.5 }))")   # com o Replay andando
+    pagina.evaluate("import(new URL('js/config.js', document.baseURI).href).then((m) => m.gravar({ velocidadeReplay: 0.5 }))")   # com o Replay andando
     pagina.clock.fast_forward(2000)
     assert pagina.inner_text("#bcPos").startswith("2/")
     pagina.clock.fast_forward(1000)
@@ -1378,7 +1386,7 @@ def test_ui_sobre_mostra_fontes_e_ultima_atualizacao(servidor, pagina):
     t = pagina.inner_text("#sobreDados")
     assert "nflverse" in t and "CC-BY-4.0" in t and "ESPN" in t and "FTN Data" in t
     assert "Última atualização:" in t and "sem registro" not in t
-    meta = api(servidor.url, "/api/meta")
+    meta = api(servidor.api, "/api/meta")
     assert pagina.eval_on_selector_all("#sobreDados .fonte", "fs => fs.length") == len(meta["fontes"])
     anos = [s["season"] for s in meta["seasons"]]
     assert f"Temporadas {min(anos)} a {max(anos)}" in t
@@ -1522,8 +1530,8 @@ def test_ui_contraste_dos_escudos_de_todos_os_times(servidor, pagina):
     """NFR 4 nos escudos: o texto (branco ou escuro) contrasta 4,5:1 com a cor de cada um dos 32 times."""
     abrir(pagina, servidor.url)
     ruins = pagina.evaluate("""async () => {
-        const ui = await import('/js/ui.js');
-        const meta = await (await fetch('/api/meta')).json();
+        const ui = await import(new URL('js/ui.js', document.baseURI).href);
+        const meta = await (await import(new URL('js/api.js', document.baseURI).href)).api.meta();
         return Object.values(meta.teams).filter((t) => { const c = ui.corLegivel(t.primary); return ui.contraste(c.fundo, c.texto) < 4.5; })
             .map((t) => t.abbr + ' ' + t.primary);
     }""")
@@ -1582,28 +1590,25 @@ XSS = '<img src=x onerror="window.__xss=1">'
 
 def test_ui_texto_do_dado_nao_vira_html(servidor, pagina):
     """S.1: nomes, manchetes e descrições com marcação aparecem como texto em todas as telas."""
-    jogos = api(servidor.url, "/api/games?season=2021&week=1")
+    jogos = api(servidor.api, "/api/games?season=2021&week=1")
     jogos[0]["home"]["nick"] = XSS + "Bucs"
-    news = api(servidor.url, "/api/news?season=2021&week=1")
+    news = api(servidor.api, "/api/news?season=2021&week=1")
     news[0]["titulo"] = XSS + "Manchete"
     news[0]["texto"] = "<b>texto</b>"
-    jogadores = api(servidor.url, "/api/players?season=2021&limit=60")
+    jogadores = api(servidor.api, "/api/players?season=2021&limit=60")
     jogadores[0]["name"] = XSS + "Jogador"
-    plays = api(servidor.url, "/api/games/2021090900/plays")
+    plays = api(servidor.api, "/api/games/2021090900/plays")
     for p in plays:
         p["description"] = XSS + p["description"]
-    jogo = api(servidor.url, "/api/games/2021090900")
+    jogo = api(servidor.api, "/api/games/2021090900")
     jogo["stadium"] = XSS + "Estádio"
     jogo["watch"][0]["name"] = XSS + "Destaque"
 
-    def responder(corpo):
-        return lambda r: r.fulfill(status=200, content_type="application/json", body=json.dumps(corpo))
-
-    pagina.route("**/api/games?season=2021&week=1", responder(jogos))
-    pagina.route("**/api/news?season=2021&week=1", responder(news))
-    pagina.route("**/api/players?season=2021&limit=60", responder(jogadores))
-    pagina.route("**/api/games/2021090900/plays", responder(plays))
-    pagina.route("**/api/games/2021090900", responder(jogo))
+    simular_api(pagina, servidor, {"**/api/games?season=2021&week=1": jogos,
+                                   "**/api/news?season=2021&week=1": news,
+                                   "**/api/players?season=2021&limit=60": jogadores,
+                                   "**/api/games/2021090900/plays": plays,
+                                   "**/api/games/2021090900": jogo})
     abrir(pagina, servidor.url, "?season=2021&week=1&game=2021090900")
     esperar(pagina, "document.querySelector('#jogosLista .match') && document.querySelector('#heroTrack .slide')")
     ir_para(pagina, "noticias")
@@ -1652,6 +1657,7 @@ CARREGANDO = {"pronto": False, "fase": "carregando", "mensagem": "carregando os 
 PRONTO = {"pronto": True, "fase": "pronto", "mensagem": "pronto", "primeiraCarga": True}
 
 
+@pytest.mark.so_servidor("tela de carregamento do servidor (503 e /api/estado), que não existe no site")
 def test_ui_tela_de_carregamento_ate_os_dados_ficarem_prontos(servidor, pagina):
     chamadas = _simular_carga(pagina, [PREPARANDO, PREPARANDO, PRONTO])
     pagina.goto(servidor.url + "/?season=2021&week=1")
@@ -1664,6 +1670,7 @@ def test_ui_tela_de_carregamento_ate_os_dados_ficarem_prontos(servidor, pagina):
     assert chamadas["estado"] >= 3 and "season=2021" in pagina.url   # abre na tela do link, sem recarregar
 
 
+@pytest.mark.so_servidor("tela de carregamento do servidor (503 e /api/estado), que não existe no site")
 def test_ui_carregamento_da_copia_local_sem_aviso_de_minutos(servidor, pagina):
     _simular_carga(pagina, [CARREGANDO, PRONTO], metas_503=1)
     pagina.goto(servidor.url + "/")
@@ -1673,6 +1680,7 @@ def test_ui_carregamento_da_copia_local_sem_aviso_de_minutos(servidor, pagina):
     esperar(pagina, "document.getElementById('carregando').hidden && document.querySelector('.screen.active')", 15000)
 
 
+@pytest.mark.so_servidor("tela de carregamento do servidor (503 e /api/estado), que não existe no site")
 def test_ui_carregamento_mostra_o_erro(servidor, pagina):
     erro = {"pronto": False, "fase": "erro", "primeiraCarga": True,
             "mensagem": "Sem dados para subir o app: <b>sem internet</b>"}
@@ -1685,6 +1693,7 @@ def test_ui_carregamento_mostra_o_erro(servidor, pagina):
     assert pagina.query_selector("#carregando b") is None
 
 
+@pytest.mark.so_servidor("tela de carregamento do servidor (503 e /api/estado), que não existe no site")
 def test_ui_carregamento_com_o_servidor_encerrado(servidor, pagina):
     _simular_carga(pagina, [PREPARANDO, 0], metas_503=99)                 # 0 = a conexão cai
     pagina.goto(servidor.url + "/")
@@ -1693,6 +1702,7 @@ def test_ui_carregamento_com_o_servidor_encerrado(servidor, pagina):
     assert "O app foi encerrado" in tela and "janela do terminal" in tela
 
 
+@pytest.mark.so_servidor("tela de carregamento do servidor (503 e /api/estado), que não existe no site")
 def test_ui_carregamento_sem_animacao_com_movimento_reduzido(servidor, navegador):
     ctx = navegador.new_context(viewport={"width": 430, "height": 860}, reduced_motion="reduce")
     pg = ctx.new_page()

@@ -169,3 +169,21 @@ def test_temporadas_faltando_numa_carga_interrompida(tmp_path, monkeypatch):
     assert montar.temporadas_faltando(tmp_path) == []
     (tmp_path / "jogos.npz").unlink()                                       # sem o calendário, nada está pronto
     assert montar.temporadas_faltando(tmp_path) == [2021, 2022, 2023]
+
+
+# ------------------------------------------------ site-publico, tarefa 6 (3.4)
+def _sincronizacao_falsa(falhas):
+    from types import SimpleNamespace
+    sinc = SimpleNamespace(falhas=list(falhas), baixados=[])
+    mont = SimpleNamespace(segundos=1.0, temporadas=[], globais=[], liberado_bytes=0)
+    return lambda progresso=print: (sinc, mont)
+
+
+@pytest.mark.parametrize("argv, falhas, codigo", [
+    ([], ["pbp: sem acesso à fonte"], 0),               # o app do PC segue com a cópia local
+    (["--estrito"], ["pbp: sem acesso à fonte"], 1),    # o Actions não publica e avisa
+    (["--estrito"], [], 0),
+])
+def test_main_estrito_falha_quando_uma_fonte_falha(argv, falhas, codigo):
+    import montar
+    assert montar.main(argv, sincronizar=_sincronizacao_falsa(falhas)) == codigo

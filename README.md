@@ -12,6 +12,28 @@ próprio servidor.
 
 ## Como executar
 
+### No celular (ou em qualquer navegador): <https://zero-kng.github.io/NFL-Games/>
+
+Abra o link no Chrome (Android) ou no Safari (iPhone), no 4G ou em qualquer Wi-Fi: não
+precisa instalar nada nem deixar o PC ligado. É a mesma interface, com as mesmas telas e
+os mesmos números do app do PC, para as temporadas de 2021 em diante.
+
+- **Ícone na tela inicial:** no Chrome, menu ⋮ → **Adicionar à tela inicial**; no Safari,
+  **Compartilhar → Adicionar à Tela de Início**.
+- **Atualização:** os dados são atualizados **uma vez por dia** (7h de Brasília), e a
+  cada mudança no app. O placar ao vivo dos jogos continua vindo da ESPN na hora.
+- **Precisa de internet.** Sem conexão, só o app do PC funciona (com a cópia local).
+- **iPhone:** a tela Jogo pede iOS 16.4 ou mais novo (de 2023).
+
+Como funciona: o GitHub Actions (`.github/workflows/pages.yml`) baixa os dados do nflverse,
+monta, grava as respostas da API em arquivos (`tools/exportar.py`) e publica no GitHub Pages.
+A interface percebe que está no site e lê esses arquivos em vez do servidor. Se o GitHub
+pausar o agendamento (ele faz isso depois de 60 dias sem atividade no repositório), reative
+em **Actions → Pages → Enable workflow**; para publicar na hora, **Run workflow**.
+
+Para gerar o site na sua máquina: `python tools/exportar.py` (cria a pasta `site/`, ~160 MB,
+em ~5 min).
+
 ### Opção 1 — executável (sem instalar Python)
 
 Baixe o arquivo do seu sistema na página
@@ -230,6 +252,7 @@ Projeto/
 │  └─ js/                     módulos ES, sem build e sem dependências
 │     ├─ main.js              estado, roteador, filtros, menu e busca
 │     ├─ api.js · ui.js       cache de respostas, "só o último vence", formatadores e HTML seguro
+│     ├─ fonte-estatica.js    no site publicado: lê os arquivos exportados no lugar do servidor
 │     ├─ config.js            Configurações (localStorage, com padrões)
 │     ├─ prancheta.js         o campo com a formação
 │     └─ telas/               inicio · jogo · jogadores · noticias · extras (Configurações e Sobre)
@@ -246,11 +269,13 @@ Projeto/
 │  ├─ tabela_npz.py           formato binário das tabelas
 │  ├─ teams.py                nomes e cores das 32 franquias
 │  └─ smoke_test.py           roda todas as consultas e imprime amostras
-├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários), empacotar (executável), logo
-├─ .github/workflows/         executáveis de Windows e Linux nas versões (Releases)
+├─ tools/                     golden (regressão), bench (1 usuário), carga (N usuários), empacotar (executável), logo,
+│                             exportar (o site do GitHub Pages)
+├─ .github/workflows/         executáveis de Windows e Linux nas versões (Releases) e o site diário (Pages)
 ├─ tests/                     pytest + testes de navegador (Playwright com o Edge)
 ├─ rascunho/                  o protótipo do visual (referência, não é servido)
 ├─ .kiro/specs/               specs SDD (requirements, design, tasks)
+├─ site/                      gerado pelo tools/exportar.py (não versionar; o Actions publica o seu)
 └─ dados/                     gerado automaticamente (não versionar)
    ├─ manifest.json           o que foi baixado, quando, e a última sincronização
    ├─ brutos/                 cópias validadas dos arquivos do nflverse

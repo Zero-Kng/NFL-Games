@@ -14,7 +14,15 @@ import urllib.request
 
 import pytest
 
+from conftest import FONTES, alvo_de
+
 playwright = pytest.importorskip("playwright.sync_api")
+
+
+@pytest.fixture(params=FONTES)
+def servidor(request, servidor_real):
+    """A página abre no app do PC ou no site exportado (site-publico, tarefa 5); `.api` é o servidor real."""
+    return alvo_de(request, servidor_real)
 
 ESPERAR = """async ([cond, limite]) => {
   const f = new Function('return (' + cond + ')');
@@ -77,12 +85,12 @@ def ir_para(pg, tela):
 # ============================================================ 1.2, 8.2 temporada
 def test_ui_seletor_de_temporada(servidor, pagina):
     abrir(pagina, servidor.url)
-    meta = api(servidor.url, "/api/meta")
+    meta = api(servidor.api, "/api/meta")
     chips = pagina.eval_on_selector_all("#seasonChips .chip", "cs => cs.map(c => Number(c.dataset.season))")
     assert chips == [t["season"] for t in meta["seasons"]] and len(chips) == 6
     pagina.click("#seasonChips [data-season='2021']")
     # a semana padrão de uma temporada encerrada é a mais recente: o Super Bowl (disputado em 2022)
-    sb = [str(g["gameId"]) for g in api(servidor.url, "/api/games?season=2021&week=22")]
+    sb = [str(g["gameId"]) for g in api(servidor.api, "/api/games?season=2021&week=22")]
     esperar(pagina, f"document.querySelector('#jogosLista .match') && document.querySelector('#jogosLista .match').dataset.game === '{sb[0]}'")
     assert "Super Bowl" in texto(pagina, "#jogosConta") and "Super Bowl" in texto(pagina, "#weekChips [aria-pressed=true]")
     assert "Temporada 2021 · Super Bowl" in pagina.text_content("#sidebarSub")
