@@ -9,6 +9,7 @@ Saidas:
     app/img/logo.png     a logo sem fundo, recolorida na paleta do app (cabecalho e menu lateral)
     app/img/icone.png    icone quadrado, 64 px (aba do navegador)
     app/img/icone.ico    o mesmo em 16 a 256 px (icone do NFL-Games.exe)
+    tools/abertura.png   a logo num cartao de 360 x 240 (a tela de abertura do NFL-Games.exe)
 
 A logo original vai do azul (linhas de velocidade) ao branco (a bola); aqui o
 que era azul vira o --blue-soft (#7aa7f2) e o que era branco vira o --text
@@ -69,6 +70,18 @@ def icone(logo: Image.Image, lado: int) -> Image.Image:
     return fundo.resize((lado, lado), Image.LANCZOS)
 
 
+def abertura(logo: Image.Image) -> Image.Image:
+    """A tela de abertura do .exe (spec sem-terminal): a logo num cartao da cor de superficie do app."""
+    largura, altura, escala = 360, 240, 4      # desenha grande e reduz: bordas suaves
+    fundo = Image.new("RGBA", (largura * escala, altura * escala), (0, 0, 0, 0))
+    ImageDraw.Draw(fundo).rounded_rectangle((0, 0, largura * escala - 1, altura * escala - 1),
+                                            radius=24 * escala, fill=SUPERFICIE)
+    alto = 120 * escala
+    peca = logo.resize((round(logo.width * alto / logo.height), alto), Image.LANCZOS)
+    fundo.alpha_composite(peca, ((fundo.width - peca.width) // 2, (fundo.height - peca.height) // 2))
+    return fundo.resize((largura, altura), Image.LANCZOS)
+
+
 def main() -> int:
     if not ORIGEM.is_file():
         print(f"[erro] nao achei {ORIGEM}")
@@ -79,8 +92,8 @@ def main() -> int:
     logo.resize((largura, ALTURA_LOGO), Image.LANCZOS).save(DESTINO / "logo.png", optimize=True)
     icone(logo, 64).save(DESTINO / "icone.png", optimize=True)
     icone(logo, 256).save(DESTINO / "icone.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
-    for nome in ("logo.png", "icone.png", "icone.ico"):
-        arq = DESTINO / nome
+    abertura(logo).save(RAIZ / "tools" / "abertura.png", optimize=True)
+    for arq in [DESTINO / n for n in ("logo.png", "icone.png", "icone.ico")] + [RAIZ / "tools" / "abertura.png"]:
         print(f"{arq.relative_to(RAIZ)}  {Image.open(arq).size}  {arq.stat().st_size / 1024:.0f} KB")
     return 0
 

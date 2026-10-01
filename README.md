@@ -45,6 +45,16 @@ numa pasta só dele (os dados ficam numa pasta `dados/` ao lado do executável):
 | Windows | `NFL-Games.exe` | duplo clique. Se o Windows avisar que o app não é reconhecido (ele não tem assinatura digital), clique em **Mais informações → Executar assim mesmo**. |
 | Linux | `nfl-games` | `chmod +x nfl-games` (uma vez) e `./nfl-games` |
 
+**No Windows, o app não abre janela de terminal.** No duplo clique aparece a logo e, em
+seguida, o navegador:
+
+- **Para fechar:** **Encerrar o app**, no fim do menu lateral. Ou só feche as abas do
+  app: ele se encerra sozinho em ~15 s, ou em até 3 min se a aba for fechada à força.
+- **Abrir de novo** com o app já aberto só reabre o navegador nele, sem abrir outra cópia.
+- **As mensagens** (progresso, avisos e erros) ficam em `dados/nfl-games.log`, recomeçado a
+  cada abertura. Um erro que impeça o app de abrir aparece numa janela de aviso, com o
+  caminho desse arquivo.
+
 ### Opção 2 — a partir do código (Windows, Linux e macOS)
 
 ```bash
@@ -64,8 +74,10 @@ que mostra o progresso enquanto os dados são preparados; quando ficam prontos, 
 abre sozinho. Na **primeira execução** o servidor baixa e monta os dados do nflverse:
 **~330 MB**, alguns minutos (a tela avisa), e precisa de internet. Se a primeira carga
 for interrompida, a próxima abertura continua de onde parou. Nas próximas, sobe
-em ~4 s com a cópia local (o executável leva ~7 s, porque se descompacta antes). A
-janela do terminal fica aberta enquanto o app roda: feche-a (ou Ctrl+C) para parar.
+em ~4 s com a cópia local (o executável leva ~7 s, porque se descompacta antes; a logo
+aparece enquanto isso). A partir do código (`rodar.py`, `rodar.sh`) e no executável de
+Linux, a janela do terminal fica aberta enquanto o app roda: feche-a (ou Ctrl+C) para parar.
+Em qualquer um deles, **Encerrar o app** no menu também fecha.
 
 As opções valem para o executável, o `rodar.py` e o `rodar.sh`:
 

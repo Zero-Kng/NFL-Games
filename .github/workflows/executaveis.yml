@@ -56,9 +56,12 @@ jobs:
         run: |
           mkdir vazio && cp "${{ matrix.arquivo }}" vazio/
           set +e
-          saida=$(cd vazio && ./$(basename "${{ matrix.arquivo }}") --offline --sem-navegador --port 8123 2>&1)
+          # NFL_SEM_AVISO: no Windows o .exe nao tem console (spec sem-terminal) e mostraria
+          # uma janela de aviso; com a variavel, a mensagem so vai para dados/nfl-games.log.
+          saida=$(cd vazio && NFL_SEM_AVISO=1 ./$(basename "${{ matrix.arquivo }}") --offline --sem-navegador --port 8123 2>&1)
           codigo=$?
           set -e
+          if [ -f vazio/dados/nfl-games.log ]; then saida="$saida$(cat vazio/dados/nfl-games.log)"; fi
           echo "$saida"
           test "$codigo" = "1"
           echo "$saida" | grep -q "Sem dados para subir o app"

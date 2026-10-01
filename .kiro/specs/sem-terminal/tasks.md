@@ -184,7 +184,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - O `.exe` não foi regenerado: ver a tarefa 3.
   - _Requisitos: 1.3, 1.4, 2.1–2.3, 3.1–3.5, 5.7_
 
-- [ ] 5. Executável sem console, com a logo, e a documentação
+- [x] 5. Executável sem console, com a logo, e a documentação
   - **Arquivos:**
     - modificar `tools/logo.py` (gera `tools/abertura.png`), `tools/empacotar.py` (no Windows, `--windowed --splash tools/abertura.png`), `tests/test_executavel.py`, `.github/workflows/executaveis.yml` (no Windows, o passo "Conferir o executavel" lê o log) e `README.md`;
     - criar `tools/abertura.png`.
@@ -192,7 +192,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
   - **Produz:**
     - `tools/abertura.png`: 360 × 240 px, RGBA, cartão `--surface` com cantos de 24 px e a logo centralizada a 120 px de altura;
     - `empacotar.argumentos(dist, trabalho)` com `--windowed` e `--splash` no Windows, e `--console` sem `--splash` no Linux.
-  - [ ] 5.1 Escrever os testes:
+  - [x] 5.1 Escrever os testes:
     - em `tests/test_infra.py` (rodam sempre, sem empacotar): `test_empacotar_windows_sem_console_com_logo`, que com `os.name` simulado em `"nt"` encontra `--windowed` e `--splash` apontando para `tools/abertura.png`, e não encontra `--console`. `test_empacotar_linux_com_console`: o contrário. `test_abertura_png`: 360 × 240 px e RGBA.
     - em `tests/test_executavel.py` (`NFL_EMPACOTAR=1`):
       - `test_executavel_e_janela`: o campo `Subsystem` do cabeçalho PE é 2 (GUI). Ler o offset em `0x3C`, e depois o subsistema em `offset_PE + 0x5C`.
@@ -200,22 +200,29 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
       - `test_executavel_encerra_pela_rota`: com dados, sobe e cria o log; `POST /api/encerrar` com o cabeçalho → sai com 0 em até 5 s.
       - `test_executavel_segunda_abertura_reaproveita`: com o primeiro no ar (sem `--port`, na porta escolhida por ele), uma segunda abertura sai com 0 em até 15 s, e nenhuma porta nova passa a responder `"app": "NFL Games"` nas portas 8000–8019.
       - O teste "sobe o app com os dados ao lado" passa a ler o caminho dos dados no log, e não no stdout.
-  - [ ] 5.2 Rodar `pytest tests/test_infra.py -v` e `NFL_EMPACOTAR=1 pytest tests/test_executavel.py -v`. Esperado: FAIL nos novos.
-  - [ ] 5.3 Implementar: `python tools/logo.py` gera os arquivos (inclusive o `abertura.png`), e mudar o `empacotar.py`. No workflow `executaveis.yml`, a conferência no Windows:
+  - [x] 5.2 Rodar `pytest tests/test_infra.py -v` e `NFL_EMPACOTAR=1 pytest tests/test_executavel.py -v`. Esperado: FAIL nos novos.
+  - [x] 5.3 Implementar: `python tools/logo.py` gera os arquivos (inclusive o `abertura.png`), e mudar o `empacotar.py`. No workflow `executaveis.yml`, a conferência no Windows:
     - passa `NFL_SEM_AVISO=1`;
     - confere o código 1 e procura `Sem dados para subir o app` em `vazio/dados/nfl-games.log`;
     - no Linux, segue lendo a saída, como hoje.
-  - [ ] 5.4 Rodar `pytest tests/test_infra.py -v` e `NFL_EMPACOTAR=1 pytest tests/test_executavel.py -v`. Esperado: PASS.
-  - [ ] 5.5 README, em "Como executar → Opção 1":
+  - [x] 5.4 Rodar `pytest tests/test_infra.py -v` e `NFL_EMPACOTAR=1 pytest tests/test_executavel.py -v`. Esperado: PASS.
+  - [x] 5.5 README, em "Como executar → Opção 1":
     - o `.exe` abre sem janela de terminal, com a logo;
     - para fechar: "Encerrar o app" no menu, ou fechar as abas (encerra sozinho em ~15 s, ou em até 3 min);
     - abrir de novo reaproveita a cópia aberta;
     - as mensagens ficam em `dados/nfl-games.log`.
 
     Atualizar também a tabela de opções e a seção "O que acontece ao abrir", onde citam a janela do terminal.
-  - [ ] 5.6 Suíte inteira: `pytest -q`. Esperado: tudo passa.
-  - [ ] 5.7 Regenerar o `.exe` da raiz e conferir que ele sobe, agora sem console.
-  - [ ] 5.8 Commit: `Executável do Windows sem console e com a logo na abertura; README (sem-terminal, tarefa 5)`.
+  - [x] 5.6 Suíte inteira: `pytest -q`. Esperado: tudo passa.
+  - [x] 5.7 Regenerar o `.exe` da raiz e conferir que ele sobe, agora sem console.
+  - [x] 5.8 Commit: `Executável do Windows sem console e com a logo na abertura; README (sem-terminal, tarefa 5)`.
+  - **Feito (2026-10-01):**
+    - `test_infra.py`: 3 testes novos. `test_executavel.py` (`NFL_EMPACOTAR=1`): 12 passaram, incluindo o `.exe` de tipo GUI, o log, o encerramento pela rota em menos de 5 s e a segunda abertura reaproveitando a primeira.
+    - A logo entrou no pacote (`Splash-00.res` e `tcl9tk90.dll`), mesmo com o `tkinter` fora.
+    - Suíte inteira: 575 passaram. Uma falha fora desta branch: `test_montar::test_formacao_e_jogadores_por_temporada` (`KeyError: 'ftn_pendente'`). O PR #14 grava uma coluna nova, e a `dados/` desta máquina foi montada antes dele; o teste passa quando os dados forem remontados.
+    - O `argumentos()` ganhou `windows=`, e o `rodar.PORTA_PADRAO` lê `NFL_PORTA_PADRAO`, só para o teste da segunda abertura não achar o app aberto na 8000.
+    - **Corrigido nesta tarefa:** o log era recomeçado antes de procurar a cópia aberta, então abrir de novo apagava o log da cópia em uso. Agora ele só recomeça quando o app vai subir de fato (`test_modo_janela_reaproveitar_nao_apaga_o_log_da_copia`).
+    - `.exe` gerado: pronto em 4,5 s e encerrado pela rota com código 0. A raiz está travada pelo app aberto, então ele ficou como `NFL-Games-novo.exe`.
   - _Requisitos: 1.1–1.4, 3.1, 3.3, RNF 1, RNF 3, RNF 4_
 
 - [ ] 6. Conferência no PC do José

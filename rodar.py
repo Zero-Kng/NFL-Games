@@ -27,7 +27,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent
 PYTHON_MINIMO = (3, 10)
-PORTA_PADRAO = 8000
+PORTA_PADRAO = int(os.environ.get("NFL_PORTA_PADRAO") or 8000)   # a variavel e so para testes
 PORTAS_A_TENTAR = 20                                    # 8000 ocupada: tenta 8001, 8002... ate 8019
 BIBLIOTECAS = ("pandas", "numpy")
 PYTHON = "python" if os.name == "nt" else "python3"     # o nome que a pessoa digita no terminal
@@ -252,20 +252,20 @@ def _esperar_enter() -> None:
 
 def main(argv: list[str] | None = None, modo_janela: bool | None = None) -> int:
     janela = MODO_JANELA if modo_janela is None else modo_janela
-    log = preparar_saida(pastas()[1]) if janela else None
+    saida = {"log": None}                     # o log so e recomecado quando o app vai subir de fato
     try:
-        return _main(argv, janela, log)
+        return _main(argv, janela, saida)
     except Exception as e:  # noqa: BLE001 - sem terminal, a pessoa so ve a janela de aviso
         if not janela:
             raise
         import traceback  # noqa: PLC0415
         traceback.print_exc()
         fechar_abertura()
-        avisar(_texto_do_aviso(f"Erro inesperado: {e!r}", log))
+        avisar(_texto_do_aviso(f"Erro inesperado: {e!r}", saida["log"]))
         return 1
 
 
-def _main(argv: list[str] | None, janela: bool, log: Path | None) -> int:
+def _main(argv: list[str] | None, janela: bool, saida: dict) -> int:
     _utf8()
     if not checar_python():
         return 1
@@ -286,6 +286,8 @@ def _main(argv: list[str] | None, janela: bool, log: Path | None) -> int:
                 webbrowser.open(url)
             fechar_abertura()
             return 0
+    if janela:
+        saida["log"] = preparar_saida(pastas()[1])  # so agora: reaproveitar nao apaga o log da copia aberta
     padrao = PORTA_PADRAO
     args.port, trocou = escolher_porta(args.host, args.port)
     if trocou:
@@ -320,7 +322,7 @@ def _main(argv: list[str] | None, janela: bool, log: Path | None) -> int:
         if janela:
             fechar_abertura()
             avisar(_texto_do_aviso("O servidor não subiu. Se for a primeira execução, "
-                                   "confira a conexão com a internet.", log))
+                                   "confira a conexão com a internet.", saida["log"]))
             return codigo
         if not CONGELADO:
             print(f"       Se faltar biblioteca, instale:  {PYTHON} -m pip install pandas numpy", flush=True)

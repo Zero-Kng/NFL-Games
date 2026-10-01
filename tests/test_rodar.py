@@ -370,3 +370,13 @@ def test_avisar_sem_aviso_nos_testes(monkeypatch, capsys):
     mostrou = []
     rodar.avisar("teste", mostrar=lambda *a: mostrou.append(a))
     assert mostrou == [] and "[aviso] teste" in capsys.readouterr().out
+
+
+def test_modo_janela_reaproveitar_nao_apaga_o_log_da_copia(janela, monkeypatch, tmp_path):
+    """Abrir o .exe de novo não pode recomeçar o log da cópia que já está rodando."""
+    chamadas = []
+    monkeypatch.setattr(rodar, "preparar_saida", lambda dados: chamadas.append(dados) or tmp_path / "x.log")
+    monkeypatch.setattr(rodar, "procurar_copia", lambda host, portas: 8000)
+    monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: pytest.fail("não podia subir outro servidor"))
+    assert rodar.main([], modo_janela=True) == 0
+    assert chamadas == []

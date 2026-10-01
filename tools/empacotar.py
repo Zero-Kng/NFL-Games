@@ -26,19 +26,25 @@ FORA = ["matplotlib", "scipy", "IPython", "jupyter", "notebook", "tkinter", "pyt
         "PyInstaller", "setuptools", "pyarrow"]
 
 
-def argumentos(dist: Path, trabalho: Path) -> list[str]:
+def argumentos(dist: Path, trabalho: Path, windows: bool | None = None) -> list[str]:
+    windows = os.name == "nt" if windows is None else windows
     sep = os.pathsep                                   # o PyInstaller usa ';' no Windows e ':' no Linux
     args = [
         str(RAIZ / "rodar.py"),
-        "--onefile", "--console", "--noconfirm", "--clean",
+        "--onefile", "--noconfirm", "--clean",
         "--name", NOME,
         "--distpath", str(dist), "--workpath", str(trabalho), "--specpath", str(trabalho),
         "--paths", str(RAIZ / "server"), "--paths", str(RAIZ / "etl"),
         "--hidden-import", "serve",                     # importado pelo rodar.py so na hora de subir
         "--add-data", f"{RAIZ / 'app'}{sep}app",
     ]
-    if os.name == "nt":                                 # icone do .exe (o PyInstaller ignora no Linux)
-        args += ["--icon", str(RAIZ / "app" / "img" / "icone.ico")]
+    if windows:
+        # Spec sem-terminal: no Windows, sem console e com a logo na hora do duplo clique (a tela
+        # de abertura do PyInstaller, que fecha quando o navegador abre: rodar.fechar_abertura).
+        args += ["--windowed", "--splash", str(RAIZ / "tools" / "abertura.png"),
+                 "--icon", str(RAIZ / "app" / "img" / "icone.ico")]
+    else:                                               # Linux: segue no terminal, como antes
+        args += ["--console"]
     for modulo in FORA:
         args += ["--exclude-module", modulo]
     return args
