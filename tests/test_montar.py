@@ -99,7 +99,13 @@ def test_formacao_e_jogadores_por_temporada(jogadas):
     jd = jogadas[2026]
     lances = jd[jd["play_type"].astype(str).isin(["pass", "run"])]
     assert lances["of_nomes"].isna().all()
-    assert lances["qb_local"].notna().mean() > 0.9
+    # O FTN sai 2 a 3 dias depois do jogo: a cobertura só vale nos jogos já publicados,
+    # e os pendentes (sem FTN nenhum) só existem a partir da última semana publicada.
+    pend = lances["ftn_pendente"].astype(bool)
+    assert lances.loc[pend, "qb_local"].isna().all()
+    assert lances.loc[~pend, "qb_local"].notna().mean() > 0.9
+    if pend.any():
+        assert lances.loc[pend, "week"].min() >= lances.loc[~pend, "week"].max()
 
 
 def test_nomes_de_2021_vem_do_elenco(jogadas):

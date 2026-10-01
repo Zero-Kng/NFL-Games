@@ -39,6 +39,8 @@ import tabela_npz  # noqa: E402
 # Suba quando mudar o que é montado: força refazer todas as temporadas.
 ETL_VERSION = 4
 
+FTN_DESDE = next(f.anos_min for f in fontes.CATALOGO if f.nome == "ftn")
+
 RODADAS = {"WC": "Wild Card", "DIV": "Divisional", "CON": "Final de Conferência", "SB": "Super Bowl"}
 
 COLS_JOGADAS = [
@@ -190,6 +192,20 @@ def _nomes_por_id(ids: pd.Series, elenco: pd.DataFrame, bio: pd.DataFrame, campo
     return [conv(t) for t in ids]
 
 
+def _ftn_pendente(p: pd.DataFrame, com_ftn: set, ano: int) -> pd.Series:
+    """Jogos ainda à espera do FTN: o nflverse o publica 2 a 3 dias depois do jogo.
+
+    Só conta como pendente o jogo sem FTN a partir da última semana que já o tem;
+    um jogo mais antigo sem FTN não vai mais recebê-lo (é "indisponível").
+    """
+    if ano < FTN_DESDE:
+        return pd.Series(False, index=p.index)
+    sem = ~p["game_id"].isin(com_ftn)
+    if not com_ftn:
+        return sem
+    return sem & (p["week"] >= p.loc[~sem, "week"].max())
+
+
 def montar_jogadas(dados: Path, ano: int, bio: pd.DataFrame) -> pd.DataFrame:
     p = _ler(_brutos(dados, "jogadas", ano), usecols=COLS_JOGADAS)
     p = p[p["play_type"].notna()].copy()
@@ -208,6 +224,7 @@ def montar_jogadas(dados: Path, ano: int, bio: pd.DataFrame) -> pd.DataFrame:
         ftn = ftn.rename(columns=COLS_FTN | {"nflverse_game_id": "game_id", "nflverse_play_id": "play_id"})
         ftn = ftn.drop_duplicates(["game_id", "play_id"])
         p = p.merge(ftn, on=["game_id", "play_id"], how="left")
+    p["ftn_pendente"] = _ftn_pendente(p, set(ftn["game_id"]) if not ftn.empty else set(), ano)
 
     for c in list(COLS_PARTICIPACAO.values()) + list(COLS_FTN.values()):
         if c not in p:
