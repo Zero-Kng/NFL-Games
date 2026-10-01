@@ -2,7 +2,7 @@
 
 **Feature:** site-publico
 **Workflow:** requirements-first
-**Status:** em revisão
+**Status:** aprovado (José Cota, 2026-09-27)
 **Data:** 2026-09-27
 
 ---
