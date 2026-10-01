@@ -61,7 +61,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
 
 ## Tarefas
 
-- [ ] 1. Regra de presença (`server/presenca.py`)
+- [x] 1. Regra de presença (`server/presenca.py`)
   - **Arquivos:** criar `server/presenca.py`; testes em `tests/test_presenca.py`.
   - **Produz:**
     - `class Presenca(agora=time.monotonic, limite_s=180.0, saida_s=15.0, salto_s=60.0)`, com os métodos `sinal(aba: str) -> None`, `saiu(aba: str) -> None` e `verificar() -> str | None`;
@@ -69,7 +69,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - os motivos exatos `"a última aba do app foi fechada"` e `"nenhuma aba do app deu sinal em 3 min"`.
 
     As regras do `verificar()`, e a ordem delas, são as do design (componente 4).
-  - [ ] 1.1 Escrever os testes, com um relógio falso (`agora` é uma lista mutável lida por uma lambda):
+  - [x] 1.1 Escrever os testes, com um relógio falso (`agora` é uma lista mutável lida por uma lambda):
     - `test_nao_encerra_antes_da_primeira_aba`: 1 h sem nada → `verificar() is None`. Com verificações a cada 5 s, para não acionar o salto.
     - `test_encerra_sem_sinal_em_3_min`: sinal em t=0. Em t=179, `None`; em t=180, o motivo dos 3 min.
     - `test_encerra_15_s_depois_da_ultima_saida`: sinal de "a" e saída de "a" em t=10. Em t=24, `None`; em t=25, o motivo da última aba.
@@ -77,10 +77,10 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `test_fechar_uma_de_duas_abas_nao_encerra`: sinais de "a" e "b"; saída de "a"; sinais de "b" a cada 30 s até t=600 → sempre `None`.
     - `test_salto_de_relogio_recomeca`: sinal em t=0, verificação em t=5, depois t=7205 (o PC dormiu 2 h) → `None`. Sem sinal novo, em t=7205+180, o motivo dos 3 min.
     - `test_limite_de_abas_e_id_cortado`: 150 abas diferentes → no máximo 100 guardadas (as mais antigas saem). Um id de 1.000 caracteres é guardado com 64.
-  - [ ] 1.2 Rodar `pytest tests/test_presenca.py -v`. Esperado: FAIL (`ModuleNotFoundError: presenca`).
-  - [ ] 1.3 Implementar `server/presenca.py`. Com um `threading.Lock`, porque a vigia e o handler HTTP rodam em threads diferentes.
-  - [ ] 1.4 Rodar `pytest tests/test_presenca.py -v`. Esperado: PASS.
-  - [ ] 1.5 Commit: `Regra de presença das abas para o app se encerrar sozinho (sem-terminal, tarefa 1)`.
+  - [x] 1.2 Rodar `pytest tests/test_presenca.py -v`. Esperado: FAIL (`ModuleNotFoundError: presenca`).
+  - [x] 1.3 Implementar `server/presenca.py`. Com um `threading.Lock`, porque a vigia e o handler HTTP rodam em threads diferentes.
+  - [x] 1.4 Rodar `pytest tests/test_presenca.py -v`. Esperado: PASS.
+  - [x] 1.5 Commit: `Regra de presença das abas para o app se encerrar sozinho (sem-terminal, tarefa 1)`.
   - _Requisitos: 5.3–5.6_
 
 - [ ] 2. Rotas de encerrar e de presença no servidor
