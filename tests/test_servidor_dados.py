@@ -255,14 +255,23 @@ def test_atualizacao_diaria_agendada():
     """7.2 com relógio controlado: roda depois da 1ª espera e a cada intervalo, e para no Event."""
     import serve
     chamadas = []
+    quatro = threading.Event()
+
+    def passo():
+        chamadas.append(time.perf_counter())
+        if len(chamadas) >= 4:
+            quatro.set()
+
     parar = threading.Event()
-    serve.ciclo_de_atualizacao(parar, intervalo_s=0.05, primeira_espera_s=0.01,
-                               passo=lambda: chamadas.append(time.perf_counter()))
-    time.sleep(0.4)
+    t = serve.ciclo_de_atualizacao(parar, intervalo_s=0.05, primeira_espera_s=0.01, passo=passo)
+    assert quatro.wait(5)                                    # repetiu a cada intervalo
     parar.set()
+    # Um passo cuja espera venceu antes do set ainda roda; mede-se depois de o ciclo sair.
+    t.join(5)
+    assert not t.is_alive()                                  # parou no Event
     n = len(chamadas)
     time.sleep(0.15)
-    assert n >= 4 and len(chamadas) == n                     # parou de chamar depois do Event
+    assert len(chamadas) == n                                # e não chama mais depois de sair
 
 
 def test_atualizacao_sem_rede_segue_com_os_dados(monkeypatch, nfl):
