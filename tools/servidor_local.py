@@ -43,6 +43,7 @@ class Servidor:
     pid: int
     startup_s: float
     log: deque = field(default_factory=lambda: deque(maxlen=400))
+    proc: subprocess.Popen | None = None          # para os testes que encerram o servidor
 
 
 @contextmanager
@@ -95,7 +96,7 @@ def servidor(args: tuple[str, ...] = (), esperar_aquecimento: bool = True, timeo
             if not viu["fim"].wait(max(1.0, limite - time.perf_counter())):
                 raise TimeoutError("aquecimento do cache nao terminou a tempo")
 
-        yield Servidor(url=url, pid=proc.pid, startup_s=startup, log=log)
+        yield Servidor(url=url, pid=proc.pid, startup_s=startup, log=log, proc=proc)
     finally:
         proc.terminate()
         try:

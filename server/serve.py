@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "etl"))
 
 import fontes  # noqa: E402  (so biblioteca padrao)
 from response_cache import CacheDeRespostas, Resposta, serializar  # noqa: E402  (idem)
+from presenca import Presenca  # noqa: E402  (idem)
 
 # O ETL (montar) e a camada de dados (NFLData) trazem o pandas e o numpy, que
 # levam ~1 s para importar (~2 s no executavel). Eles entram so depois de a
@@ -97,7 +98,57 @@ _ESPERA_ERRO_S = float(os.environ.get("NFL_ESPERA_ERRO_S", "3"))
 # pandas e ve o que falta), "preparando" (baixando/montando na primeira carga),
 # "carregando" (lendo a copia local), "pronto" ou "erro". mensagem: a ultima
 # linha de progresso, a mesma do terminal.
-ESTADO = {"pronto": False, "fase": "iniciando", "mensagem": "iniciando o servidor...", "primeiraCarga": False}
+ESTADO = {"app": "NFL Games", "pronto": False, "fase": "iniciando", "mensagem": "iniciando o servidor...",
+          "primeiraCarga": False}
+
+# Spec sem-terminal: o NFL-Games.exe roda sem terminal. O app termina pelo menu
+# (POST /api/encerrar) ou sozinho (--encerrar-sozinho), quando as abas param de dar
+# sinal (POST /api/presenca). PARAR e o mesmo sinal do Ctrl+C.
+PARAR = threading.Event()
+TERMINOU = threading.Event()               # o main() chegou ao fim (a saida forcada nao e necessaria)
+PRESENCA = Presenca(limite_s=float(os.environ.get("NFL_PRESENCA_LIMITE_S") or 180),
+                    saida_s=float(os.environ.get("NFL_PRESENCA_SAIDA_S") or 15))
+_VIGIA_S = float(os.environ.get("NFL_VIGIA_S") or 5)
+_ENCERRAR_EM_S = 5.0                       # RNF 2: o processo termina em ate 5 s
+_MAX_CORPO = 1024
+_LOCAIS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+
+def pedido_confiavel(ip: str, cabecalhos, porta: int) -> bool:
+    """So a propria pagina do app muda o estado do servidor: pedido da propria maquina, com o
+    cabecalho do app (uma pagina de outro site nao consegue manda-lo sem CORS, que o servidor
+    nunca autoriza) e, se o navegador mandar Origin, a origem do proprio app."""
+    if ip not in _LOCAIS or cabecalhos.get("X-NFL-App") != "1":
+        return False
+    origem = cabecalhos.get("Origin")
+    return origem is None or origem in (f"http://127.0.0.1:{porta}", f"http://localhost:{porta}")
+
+
+def encerrar_em(segundos: float, terminou: threading.Event, sair=os._exit) -> None:
+    """Se o main() nao terminar em `segundos` (ex.: no meio do download da 1a carga, que nao
+    olha o PARAR), forca a saida. Os dados sao gravados de forma atomica: nada fica pela metade."""
+    if terminou.wait(segundos):
+        return
+    for fluxo in (sys.stdout, sys.stderr):
+        try:
+            fluxo.flush()
+        except (AttributeError, OSError, ValueError):
+            pass
+    sair(0)
+
+
+def pedir_encerramento(motivo: str) -> None:
+    print(motivo, flush=True)
+    PARAR.set()
+    threading.Thread(target=encerrar_em, args=(_ENCERRAR_EM_S, TERMINOU), name="encerrar", daemon=True).start()
+
+
+def vigiar_presenca() -> None:
+    while not PARAR.wait(_VIGIA_S):
+        motivo = PRESENCA.verificar()
+        if motivo:
+            pedir_encerramento(f"encerrado: {motivo}")
+            return
 
 
 class Server(ThreadingHTTPServer):
@@ -353,6 +404,44 @@ class Handler(BaseHTTPRequestHandler):
             traceback.print_exc()
             self._send_json({"error": "erro interno no servidor"}, status=500)
 
+    def do_POST(self):
+        path = unquote(urlparse(self.path).path)
+        try:
+            if path not in ("/api/encerrar", "/api/presenca"):
+                self.close_connection = True
+                raise ApiError(404, f"rota desconhecida: {path}")
+            if not pedido_confiavel(self.client_address[0], self.headers, self.server.server_address[1]):
+                self.close_connection = True
+                raise ApiError(403, "pedido recusado")
+            if path == "/api/encerrar":
+                self._send_json({"encerrando": True})
+                pedir_encerramento("encerrado pelo app")
+                return
+            aba, saiu = self._ler_presenca()
+            (PRESENCA.saiu if saiu else PRESENCA.sinal)(aba)
+            self._send_bytes(b"", "text/plain", HTTPStatus.NO_CONTENT)
+        except ApiError as e:
+            self._send_json({"error": e.message}, status=e.status, extra_headers=e.headers)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            pass
+
+    def _ler_presenca(self) -> tuple[str, bool]:
+        try:
+            tamanho = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            tamanho = -1
+        if not 0 < tamanho <= _MAX_CORPO:
+            self.close_connection = True              # o corpo (se houver) fica sem ler
+            raise ApiError(400, "corpo invalido")
+        try:
+            corpo = json.loads(self.rfile.read(tamanho))
+        except ValueError:
+            raise ApiError(400, "corpo invalido")
+        aba, saiu = (corpo.get("aba"), corpo.get("saiu", False)) if isinstance(corpo, dict) else (None, None)
+        if not isinstance(aba, str) or not aba or not isinstance(saiu, bool):
+            raise ApiError(400, "corpo invalido")
+        return aba, saiu
+
     def _handle_api(self, path: str, query: dict):
         if path == "/api/estado":
             self._send_json(dict(ESTADO))
@@ -545,6 +634,8 @@ def parser() -> argparse.ArgumentParser:
                     help="requisicoes /api simultaneas antes de responder 503 (padrao: %(default)s)")
     ap.add_argument("--offline", action="store_true",
                     help="nao acessa a internet: usa so a copia local (testes e medicoes)")
+    ap.add_argument("--encerrar-sozinho", action="store_true",
+                    help="encerra quando nenhuma aba do app der sinal (usado pelo NFL-Games.exe)")
     return ap
 
 
@@ -571,14 +662,16 @@ def main() -> int:
         print("[aviso] escutando em todas as interfaces, sem autenticacao. Use so em rede confiavel.")
     print("ctrl+c para parar\n", flush=True)
 
-    parar = threading.Event()
+    if args.encerrar_sozinho:
+        threading.Thread(target=vigiar_presenca, name="presenca", daemon=True).start()
     try:
-        codigo = _carregar_e_servir(args, parar)
+        codigo = _carregar_e_servir(args, PARAR)
     except KeyboardInterrupt:
         print("\nencerrando...")
         codigo = 0
-    parar.set()
+    PARAR.set()
     httpd.shutdown()
+    TERMINOU.set()
     return codigo
 
 

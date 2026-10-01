@@ -83,7 +83,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
   - [x] 1.5 Commit: `Regra de presença das abas para o app se encerrar sozinho (sem-terminal, tarefa 1)`.
   - _Requisitos: 5.3–5.6_
 
-- [ ] 2. Rotas de encerrar e de presença no servidor
+- [x] 2. Rotas de encerrar e de presença no servidor
   - **Arquivos:** modificar `server/serve.py`; testes em `tests/test_encerrar.py`.
   - **Consome:** `Presenca` (tarefa 1).
   - **Produz:**
@@ -94,7 +94,7 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `Handler.do_POST` com `POST /api/encerrar` → 200 `{"encerrando": true}` e `POST /api/presenca` → 204;
     - `encerrar_em(segundos: float, terminou: threading.Event, sair=os._exit) -> None`: espera `segundos` pelo `terminou`; se não vier, faz flush do stdout e do stderr e chama `sair(0)`.
     - Variáveis de ambiente lidas na subida: `NFL_PRESENCA_LIMITE_S` e `NFL_PRESENCA_SAIDA_S` (os tempos da `Presenca`) e `NFL_VIGIA_S` (o intervalo da vigia, padrão 5).
-  - [ ] 2.1 Escrever os testes:
+  - [x] 2.1 Escrever os testes:
     - `test_pedido_confiavel`, parametrizado: `("127.0.0.1", {"X-NFL-App": "1"})` → True; com `Origin: http://127.0.0.1:{porta}` → True; com `Origin: http://localhost:{porta}` → True; `"::1"` → True; `"192.168.0.10"` → False; sem cabeçalho → False; `Origin: https://exemplo.com` → False; `Origin` em outra porta → False.
     - `test_estado_identifica_o_app`: o `/api/estado` do `servidor_real` traz `"app": "NFL Games"`.
     - `test_rotas_que_mudam_estado_recusam_pedidos_de_fora` (no `servidor_real`, sem derrubar): `POST /api/encerrar` sem o cabeçalho → 403; com o cabeçalho e `Origin: https://exemplo.com` → 403; `GET /api/encerrar` → 404; `OPTIONS /api/encerrar` com `Origin` de fora → não 2xx e sem `Access-Control-Allow-Origin`. Depois, `/api/meta` ainda responde 200.
@@ -104,15 +104,16 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `test_sem_aba_nao_encerra_sozinho`: o mesmo servidor, sem nenhum sinal, continua respondendo depois de 4 s.
     - `test_sem_a_opcao_nao_encerra_sozinho`: sem `--encerrar-sozinho`, com sinal e saída, continua respondendo depois de 4 s.
     - `test_encerrar_forca_a_saida_se_a_carga_nao_terminar`: `encerrar_em(0.2, threading.Event(), sair=lista.append)` → depois de ~0,2 s, `lista == [0]`. Com o evento já setado → `lista == []`.
-  - [ ] 2.2 Rodar `pytest tests/test_encerrar.py -v`. Esperado: FAIL.
-  - [ ] 2.3 Implementar no `serve.py`, como no design (componente 5). Detalhes:
+  - [x] 2.2 Rodar `pytest tests/test_encerrar.py -v`. Esperado: FAIL.
+  - [x] 2.3 Implementar no `serve.py`, como no design (componente 5). Detalhes:
     - O `servidor_local` precisa aceitar variáveis de ambiente extras. Ver o parâmetro existente; se não houver, acrescentar `env: dict | None = None`.
     - O corpo do `/api/presenca` é lido com `Content-Length` de no máximo 1024.
     - Depois de responder ao encerrar, `PARAR.set()` e uma thread com `encerrar_em(5, terminou)`. O `terminou` é setado no fim do `main()`.
     - A mensagem final de encerramento é impressa no `main()`.
-  - [ ] 2.4 Rodar `pytest tests/test_encerrar.py tests/test_servidor_dados.py tests/test_borda_http.py -v` e `python tools/golden.py check`. Esperado: PASS e 2116/2116.
-  - [ ] 2.5 Regenerar o `.exe` da raiz e conferir que ele sobe.
-  - [ ] 2.6 Commit: `Servidor: rotas protegidas para encerrar o app e para o sinal das abas, e encerramento sozinho (sem-terminal, tarefa 2)`.
+  - [x] 2.4 Rodar `pytest tests/test_encerrar.py tests/test_servidor_dados.py tests/test_borda_http.py -v` e `python tools/golden.py check`. Esperado: PASS e 2116/2116.
+  - [x] 2.5 Regenerar o `.exe` da raiz e conferir que ele sobe.
+  - [x] 2.6 Commit: `Servidor: rotas protegidas para encerrar o app e para o sinal das abas, e encerramento sozinho (sem-terminal, tarefa 2)`.
+  - **Feito (2026-10-01):** `tests/test_encerrar.py`, 17 testes; golden 2116/2116. O `servidor_local.Servidor` ganhou o campo `proc`, para os testes conferirem a saída do processo.
   - _Requisitos: 2.3, 4.4, 5.3–5.8, RNF 2, segurança 1–4_
 
 - [ ] 3. Interface: presença e "Encerrar o app"
