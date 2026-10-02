@@ -296,11 +296,6 @@ Projeto/
    └─ temporadas/{ano}/       jogadas · estatísticas por jogador e jogo · ratings
 ```
 
-A pasta `nfl-big-data-bowl-regional-event-data-main/` (dataset do Big Data Bowl 2023,
-usado pela primeira versão) e o `cache/` não são mais lidos. O dataset saiu do
-versionamento (Q-D1 na spec `dados-externos`), mas os 826 MB continuam no histórico do git.
-Se as pastas ainda existirem na sua máquina, podem ser apagadas: o `.gitignore` as ignora.
-
 ---
 
 ## Como o rating é calculado
