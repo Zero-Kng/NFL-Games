@@ -70,3 +70,6 @@ def test_abertura_png():
     _, ROOT = _empacotar()
     img = Image.open(ROOT / "tools" / "abertura.png")
     assert img.size == (360, 240) and img.mode == "RGBA"
+    # A tela de abertura do PyInstaller não desenha transparência parcial: usa uma cor-chave
+    # (magenta), e os pixels semitransparentes dos cantos viravam uma linha roxa na borda.
+    assert set(img.getchannel("A").tobytes()) <= {0, 255}

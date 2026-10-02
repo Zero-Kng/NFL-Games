@@ -233,6 +233,9 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
   - Ficaram para decidir depois os 10 itens Minor listados no relatório (ver o resumo da PR).
   - **Bloqueio do Windows (2026-10-02):** o Controle Inteligente de Aplicativos passou a barrar `pandas/_libs/testing.cp314-win_amd64.pyd`, sem mudança no arquivo (19/09). Os testes que sobem o servidor de verdade e o `.exe` novo ficaram para depois do desbloqueio. Os textos da tela de carregamento foram conferidos com o servidor de arquivos estático.
 
+- [x] **Linha roxa na borda da logo de abertura** (vista pelo José, 2026-10-02): a tela de abertura do PyInstaller troca o transparente por uma cor-chave (magenta), e os cantos suavizados do cartão viravam uma linha roxa. O `abertura.png` passa a ter só pontos totalmente opacos ou totalmente transparentes (`test_abertura_png`).
+  - O `.exe` com a correção foi gerado, mas o Controle Inteligente de Aplicativos barrou o arquivo novo inteiro. A conferência da tela fica para depois do bloqueio.
+
 - [ ] 6. Conferência no PC do José
   - _Depende de: tarefa 5_
   - [ ] 6.1 Pedir ao José para conferir no PC dele, com o `NFL-Games.exe` da raiz:

@@ -79,7 +79,12 @@ def abertura(logo: Image.Image) -> Image.Image:
     alto = 120 * escala
     peca = logo.resize((round(logo.width * alto / logo.height), alto), Image.LANCZOS)
     fundo.alpha_composite(peca, ((fundo.width - peca.width) // 2, (fundo.height - peca.height) // 2))
-    return fundo.resize((largura, altura), Image.LANCZOS)
+    final = fundo.resize((largura, altura), Image.LANCZOS)
+    # A tela de abertura do PyInstaller nao desenha transparencia parcial: troca o transparente por
+    # uma cor-chave (magenta), e os cantos suavizados viravam uma linha roxa. Cada ponto fica
+    # totalmente opaco ou totalmente transparente.
+    final.putalpha(final.getchannel("A").point(lambda a: 255 if a >= 128 else 0))
+    return final
 
 
 def main() -> int:
