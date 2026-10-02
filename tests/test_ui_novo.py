@@ -15,6 +15,7 @@ import json
 import re
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -1861,3 +1862,62 @@ def test_ui_presenca(servidor, pagina):
     corpos = [json.loads(s.post_data) for s in sinais]
     assert {c["aba"] for c in corpos} == {corpos[0]["aba"]} and not any(c["saiu"] for c in corpos)
     assert all(s.method == "POST" and s.headers.get("x-nfl-app") == "1" for s in sinais)
+
+
+# ------------------------------------------- sem-terminal, itens menores da revisão
+@pytest.mark.so_servidor("encerrar o app só existe no PC")
+def test_ui_encerrado_resto_da_pagina_inerte(servidor, pagina):
+    """Item 7: depois de encerrar, o conteúdo de baixo sai do Tab e do leitor de tela."""
+    pagina.route("**/api/encerrar", lambda r: r.fulfill(status=200, content_type="application/json",
+                                                         body='{"encerrando": true}'))
+    abrir(pagina, servidor.url)
+    abrir_dialogo_encerrar(pagina)
+    pagina.click("#btnEncerrarSim")
+    esperar(pagina, "document.querySelector('.carregando.encerrado') && !document.getElementById('carregando').hidden")
+    vivos = pagina.evaluate("""[...document.body.children]
+        .filter((e) => e.id !== 'carregando' && e.tagName !== 'SCRIPT' && !e.inert)
+        .map((e) => e.id || e.className || e.tagName)""")
+    assert vivos == []
+    assert pagina.evaluate("document.getElementById('carregando').inert") is False
+
+
+@pytest.mark.so_servidor("encerrar o app só existe no PC")
+def test_ui_encerrar_desabilita_o_botao_durante_o_pedido(servidor, pagina):
+    """Item 8: dois cliques não mandam dois pedidos; recusado, o botão volta."""
+    pendentes = []
+    pagina.route("**/api/encerrar", lambda r: pendentes.append(r))
+    abrir(pagina, servidor.url)
+    abrir_dialogo_encerrar(pagina)
+    pagina.click("#btnEncerrarSim")
+    esperar(pagina, "document.getElementById('btnEncerrarSim').disabled")
+    pagina.wait_for_timeout(200)
+    assert len(pendentes) == 1
+    pendentes[0].fulfill(status=403, content_type="application/json", body='{"error": "pedido recusado"}')
+    esperar(pagina, "!document.getElementById('btnEncerrarSim').disabled")
+    assert "Não foi possível encerrar o app" in pagina.inner_text("#dlgEncerrar")
+
+
+def test_ui_presenca_avisa_a_saida_ao_sair_da_pagina(navegador):
+    """Item 9: ao sair da página (pagehide), a aba avisa {saiu: true} com o cabeçalho do app. O
+    Playwright não mostra pedidos keepalive feitos na saída da página; a prova é o efeito: um
+    servidor com --encerrar-sozinho e tempos curtos se encerra por "a última aba do app foi fechada"."""
+    import sys
+    import time
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
+    from servidor_local import servidor as subir
+    rapido = {"NFL_PRESENCA_SAIDA_S": "1", "NFL_PRESENCA_LIMITE_S": "60", "NFL_VIGIA_S": "0.2"}
+    with subir(args=("--encerrar-sozinho",), env=rapido) as srv:
+        ctx = navegador.new_context()
+        ctx.route("https://site.api.espn.com/**", lambda r: r.fulfill(status=404, body=""))
+        pg = ctx.new_page()
+        pg.goto(srv.url + "/")
+        esperar(pg, "document.querySelector('.screen.active')")
+        pg.wait_for_timeout(500)
+        assert srv.proc.poll() is None                     # aba aberta: o app segue
+        pg.goto("about:blank")
+        t0 = time.time()
+        while srv.proc.poll() is None and time.time() - t0 < 10:
+            time.sleep(0.1)
+        ctx.close()
+        assert srv.proc.poll() == 0
+        assert any("encerrado: a última aba do app foi fechada" in linha for linha in srv.log)

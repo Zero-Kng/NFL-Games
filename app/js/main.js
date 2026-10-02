@@ -312,6 +312,7 @@ if (!ESTATICO) {
 
 async function encerrarApp() {
   $('dlgEncerrarErro').hidden = true;
+  $('btnEncerrarSim').disabled = true;    // um pedido só, mesmo com dois cliques
   let encerrou;
   try {
     const r = await fetch('/api/encerrar', { method: 'POST', headers: { 'X-NFL-App': '1' } });
@@ -319,7 +320,11 @@ async function encerrarApp() {
   } catch (e) {
     encerrou = true;                       // o servidor já tinha parado: o objetivo foi cumprido
   }
-  if (!encerrou) { $('dlgEncerrarErro').hidden = false; return; }
+  if (!encerrou) {
+    $('btnEncerrarSim').disabled = false;
+    $('dlgEncerrarErro').hidden = false;
+    return;
+  }
   if (pararPresenca) pararPresenca();
   if (TELAS[S.tela].sair) TELAS[S.tela].sair();
   $('dlgEncerrar').close();
@@ -330,6 +335,10 @@ async function encerrarApp() {
   $('carregandoFase').textContent = 'Pode fechar esta aba.';
   $('carregandoNota').hidden = true;
   tela.hidden = false;
+  // O app de baixo sai do Tab e do leitor de tela: só a tela final continua.
+  for (const el of document.body.children) {
+    if (el !== tela && el.tagName !== 'SCRIPT') el.inert = true;
+  }
 }
 
 /* --------------------------------- boot -------------------------------- */

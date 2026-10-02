@@ -73,3 +73,12 @@ def test_abertura_png():
     # A tela de abertura do PyInstaller não desenha transparência parcial: usa uma cor-chave
     # (magenta), e os pixels semitransparentes dos cantos viravam uma linha roxa na borda.
     assert set(img.getchannel("A").tobytes()) <= {0, 255}
+
+
+def test_workflow_executaveis_dispara_com_a_logo():
+    """Item 10: mudar a logo da abertura regera o executável num PR."""
+    import yaml
+    from conftest import ROOT
+    wf = yaml.safe_load((ROOT / ".github" / "workflows" / "executaveis.yml").read_text(encoding="utf-8"))
+    gatilhos = wf.get("on", wf.get(True))
+    assert {"tools/abertura.png", "tools/logo.py"} <= set(gatilhos["pull_request"]["paths"])

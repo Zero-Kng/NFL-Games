@@ -135,12 +135,14 @@ def test_sem_tela_mostra_o_endereco(capsys):
 
 
 def test_sem_navegador_nao_abre(monkeypatch):
+    """Sem navegador, a vigia so espera a porta (para fechar a logo do .exe): nao abre nada."""
     chamados = []
     monkeypatch.setattr(rodar, "faltando", lambda: [])
-    monkeypatch.setattr(rodar, "vigiar_e_abrir", lambda *a, **k: chamados.append(a))
+    monkeypatch.setattr(rodar, "vigiar_e_abrir", lambda *a, **k: chamados.append(k))
     monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: 0)
+    monkeypatch.setattr(rodar.webbrowser, "open", lambda url: pytest.fail("abriu o navegador"))
     assert rodar.main(["--sem-navegador"]) == 0
-    assert chamados == []
+    assert len(chamados) == 1 and chamados[0]["abrir"]("http://x") is None
 
 
 def test_servidor_recebe_as_opcoes_e_as_pastas(monkeypatch):
@@ -303,6 +305,7 @@ def janela(monkeypatch, tmp_path):
     monkeypatch.setattr(rodar.webbrowser, "open", lambda url: reg["abriu"].append(url) or True)
     monkeypatch.setattr(rodar, "_esperar_enter", lambda: reg.__setitem__("enter", reg["enter"] + 1))
     monkeypatch.setattr(rodar, "procurar_copia", lambda host, portas: None)
+    monkeypatch.setattr(rodar, "trava_unica", lambda nome=None: True)
     return reg
 
 
@@ -409,3 +412,86 @@ def test_avisar_janela_na_frente(monkeypatch):
     chamadas = []
     rodar.avisar("x", mostrar=lambda *a: chamadas.append(a))
     assert chamadas == [(None, "x", "NFL Games", 0x10 | 0x10000 | 0x40000)]
+
+
+# ------------------------------------------------ itens menores da revisão final
+@pytest.mark.skipif(os.name != "nt", reason="a trava é um mutex com nome do Windows")
+def test_trava_unica_so_a_primeira_pega():
+    """Item 3: dois duplos cliques seguidos — só a primeira cópia pega a trava."""
+    nome = rf"Local\NFL-Games-teste-{os.getpid()}-{time.time_ns()}"
+    assert rodar.trava_unica(nome) is True
+    assert rodar.trava_unica(nome) is False
+
+
+def test_segunda_copia_espera_a_primeira(janela, monkeypatch):
+    """Item 3: sem a trava, espera a primeira cópia responder e só abre o navegador nela."""
+    respostas = iter([None, None, 8000])
+    monkeypatch.setattr(rodar, "trava_unica", lambda nome=None: False)
+    monkeypatch.setattr(rodar, "procurar_copia", lambda host, portas: next(respostas))
+    monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: pytest.fail("não podia subir outro servidor"))
+    monkeypatch.setattr(rodar, "ESPERA_COPIA_INTERVALO_S", 0.01)
+    assert rodar.main([], modo_janela=True) == 0
+    assert janela["abriu"] == ["http://127.0.0.1:8000"]
+
+
+def test_procurar_copia_espera_a_resposta_de_uma_copia_ocupada():
+    """Item 3: uma cópia ocupada com a montagem (GIL) pode demorar ~1 s para responder."""
+    import json as _json
+    corpo = _json.dumps({"app": "NFL Games", "pronto": False}).encode()
+
+    class Lento(BaseHTTPRequestHandler):
+        def do_GET(self):
+            time.sleep(1)
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+
+        def log_message(self, *a):
+            pass
+
+    porta = porta_livre()
+    srv = ThreadingHTTPServer(("127.0.0.1", porta), Lento)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        assert rodar.procurar_copia("127.0.0.1", range(porta, porta + 1)) == porta
+    finally:
+        srv.shutdown()
+
+
+def test_sem_navegador_fecha_a_logo_quando_a_porta_abre(janela, monkeypatch):
+    """Item 4: com --sem-navegador, a logo fecha quando o servidor abre a porta."""
+    porta = porta_livre()
+
+    def servidor(opcoes):
+        with socket.socket() as s:
+            s.bind(("127.0.0.1", porta))
+            s.listen()
+            t0 = time.time()
+            while janela["fechou"] == 0 and time.time() - t0 < 5:
+                time.sleep(0.05)
+        return 0
+
+    monkeypatch.setattr(rodar, "rodar_servidor", servidor)
+    assert rodar.main(["--sem-navegador", "--port", str(porta)], modo_janela=True) == 0
+    assert janela["fechou"] >= 1 and janela["abriu"] == []
+
+
+def test_navegador_que_nao_abre_avisa_o_endereco():
+    """Item 5: no .exe, se o navegador não abrir, a pessoa recebe o endereço numa janela."""
+    porta = porta_livre()
+    falhas = []
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", porta))
+        s.listen()
+        rodar.vigiar_e_abrir("127.0.0.1", porta, ProcessoFalso(), abrir=lambda url: False,
+                             ao_falhar=falhas.append)
+    assert falhas == [f"http://127.0.0.1:{porta}"]
+
+
+def test_avisar_informativo(monkeypatch):
+    """Item 5: o aviso do navegador é informativo (sem o ícone de erro)."""
+    monkeypatch.delenv("NFL_SEM_AVISO", raising=False)
+    chamadas = []
+    rodar.avisar("x", mostrar=lambda *a: chamadas.append(a), icone=0x40)
+    assert chamadas == [(None, "x", "NFL Games", 0x40 | 0x10000 | 0x40000)]

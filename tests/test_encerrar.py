@@ -143,3 +143,58 @@ def test_servidor_responde_sem_stderr(monkeypatch):
 def test_estado_diz_se_esta_sem_terminal():
     """Important 3: a tela de carregamento precisa saber se há terminal para indicar onde ver o erro."""
     assert serve.ESTADO.get("semTerminal") is False
+
+
+# ------------------------------------------------ itens menores da revisão final
+def _servidor_em_processo():
+    from http.server import ThreadingHTTPServer
+    from servidor_local import porta_livre
+    porta = porta_livre()
+    srv = ThreadingHTTPServer(("127.0.0.1", porta), serve.Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, porta
+
+
+def test_post_erro_inesperado_responde_500(monkeypatch):
+    """Item 1: um erro inesperado no POST responde 500, como o GET, em vez de derrubar a conexão."""
+    class Quebrada:
+        def sinal(self, aba):
+            raise RuntimeError("falha simulada")
+    monkeypatch.setattr(serve, "PRESENCA", Quebrada())
+    srv, porta = _servidor_em_processo()
+    try:
+        status, _, corpo = pedir(f"http://127.0.0.1:{porta}/api/presenca", corpo={"aba": "t", "saiu": False},
+                                 cabecalhos=APP)
+        assert status == 500 and json.loads(corpo)["error"] == "erro interno no servidor"
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_corpo_incompleto_nao_prende_a_thread(monkeypatch):
+    """Item 2: Content-Length maior que o corpo não prende a thread para sempre."""
+    import socket
+    assert serve.Handler.timeout == 10
+    monkeypatch.setattr(serve.Handler, "timeout", 1)
+    srv, porta = _servidor_em_processo()
+    try:
+        with socket.create_connection(("127.0.0.1", porta), timeout=5) as s:
+            s.sendall(b"POST /api/presenca HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nX-NFL-App: 1\r\n"
+                      b"Content-Type: application/json\r\nContent-Length: 100\r\n\r\n{\"aba\"" % porta)
+            t0 = time.time()
+            while s.recv(4096):
+                pass                                   # o servidor desiste e fecha a conexão
+            assert time.time() - t0 < 4
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+@pytest.mark.parametrize("host, esperado", [
+    ("127.0.0.1:8000", True), ("localhost:8000", True), (None, True),
+    ("exemplo.com:8000", False), ("127.0.0.1:9999", False),
+])
+def test_pedido_confiavel_confere_o_host(host, esperado):
+    """Item 6: com DNS rebinding num navegador sem Origin, o Host denuncia o site de fora."""
+    cab = {"X-NFL-App": "1", **({"Host": host} if host else {})}
+    assert serve.pedido_confiavel("127.0.0.1", cab, 8000) is esperado

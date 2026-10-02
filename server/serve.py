@@ -120,6 +120,10 @@ def pedido_confiavel(ip: str, cabecalhos, porta: int) -> bool:
     nunca autoriza) e, se o navegador mandar Origin, a origem do proprio app."""
     if ip not in _LOCAIS or cabecalhos.get("X-NFL-App") != "1":
         return False
+    # Host tambem: num DNS rebinding em navegador antigo (sem Origin), o Host traz o dominio de fora.
+    host = cabecalhos.get("Host")
+    if host is not None and host not in (f"127.0.0.1:{porta}", f"localhost:{porta}"):
+        return False
     origem = cabecalhos.get("Origin")
     return origem is None or origem in (f"http://127.0.0.1:{porta}", f"http://localhost:{porta}")
 
@@ -387,6 +391,9 @@ def _etags(header: str) -> set[str]:
 class Handler(BaseHTTPRequestHandler):
     server_version = "NFLGames/1.0"
     protocol_version = "HTTP/1.1"
+    # Limite por operacao de rede: um pedido que nunca termina de mandar o corpo (Content-Length
+    # maior que o corpo) ou uma conexao parada liberam a thread em vez de prende-la para sempre.
+    timeout = 10
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -422,8 +429,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send_bytes(b"", "text/plain", HTTPStatus.NO_CONTENT)
         except ApiError as e:
             self._send_json({"error": e.message}, status=e.status, extra_headers=e.headers)
-        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-            pass
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError):
+            self.close_connection = True                # o cliente desistiu (ou nunca mandou o corpo)
+        except Exception:
+            traceback.print_exc()
+            self.close_connection = True
+            self._send_json({"error": "erro interno no servidor"}, status=500)
 
     def _ler_presenca(self) -> tuple[str, bool]:
         try:
