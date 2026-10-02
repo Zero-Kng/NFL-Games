@@ -98,7 +98,7 @@ _ESPERA_ERRO_S = float(os.environ.get("NFL_ESPERA_ERRO_S", "3"))
 # pandas e ve o que falta), "preparando" (baixando/montando na primeira carga),
 # "carregando" (lendo a copia local), "pronto" ou "erro". mensagem: a ultima
 # linha de progresso, a mesma do terminal.
-ESTADO = {"app": "NFL Games", "pronto": False, "fase": "iniciando", "mensagem": "iniciando o servidor...",
+ESTADO = {"app": "NFL Games", "semTerminal": False, "pronto": False, "fase": "iniciando", "mensagem": "iniciando o servidor...",
           "primeiraCarga": False}
 
 # Spec sem-terminal: o NFL-Games.exe roda sem terminal. O app termina pelo menu
@@ -532,6 +532,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *args):
+        if sys.stderr is None:                  # sem console e sem log (NFL-Games.exe): nao ha onde escrever
+            return
         sys.stderr.write(f"  {self.address_string()} · {fmt % args}\n")
 
 
@@ -663,6 +665,8 @@ def main() -> int:
     print("ctrl+c para parar\n", flush=True)
 
     if args.encerrar_sozinho:
+        # So o NFL-Games.exe (sem terminal) pede isso: a tela de carregamento aponta o log, e nao o terminal.
+        ESTADO["semTerminal"] = True
         threading.Thread(target=vigiar_presenca, name="presenca", daemon=True).start()
     try:
         codigo = _carregar_e_servir(args, PARAR)

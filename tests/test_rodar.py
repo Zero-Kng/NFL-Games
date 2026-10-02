@@ -380,3 +380,32 @@ def test_modo_janela_reaproveitar_nao_apaga_o_log_da_copia(janela, monkeypatch, 
     monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: pytest.fail("não podia subir outro servidor"))
     assert rodar.main([], modo_janela=True) == 0
     assert chamadas == []
+
+
+# ------------------------------------------- sem-terminal, revisão final
+def test_procurar_copia_rapido_em_portas_livres():
+    """Critical 1: no Windows, conectar numa porta local fechada leva ~2 s; com 20 portas, a
+    abertura ficava ~10 s mais lenta. Portas livres são puladas sem conectar."""
+    base = porta_livre()
+    t0 = time.perf_counter()
+    assert rodar.procurar_copia("127.0.0.1", range(base, base + 20)) is None
+    assert time.perf_counter() - t0 < 1.0
+
+
+def test_preparar_saida_sem_permissao_nao_deixa_saida_nula(monkeypatch, tmp_path):
+    """Important 2: no .exe sem console, sys.stdout/stderr são None; sem log, o servidor quebrava
+    em todo pedido (log_message) e ficava escondido para sempre."""
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    (tmp_path / "dados").write_text("um arquivo, não uma pasta")
+    assert rodar.preparar_saida(tmp_path / "dados") is None
+    assert sys.stdout is not None and sys.stderr is not None
+    sys.stderr.write("não quebra\n")
+
+
+def test_avisar_janela_na_frente(monkeypatch):
+    """Important 4: sem MB_SETFOREGROUND e MB_TOPMOST, o aviso abria atrás do navegador."""
+    monkeypatch.delenv("NFL_SEM_AVISO", raising=False)
+    chamadas = []
+    rodar.avisar("x", mostrar=lambda *a: chamadas.append(a))
+    assert chamadas == [(None, "x", "NFL Games", 0x10 | 0x10000 | 0x40000)]

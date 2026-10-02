@@ -1725,6 +1725,27 @@ def test_ui_carregamento_mostra_o_erro(servidor, pagina):
 
 
 @pytest.mark.so_servidor("tela de carregamento do servidor (503 e /api/estado), que não existe no site")
+def test_ui_carregamento_sem_terminal_aponta_o_log(servidor, pagina):
+    """sem-terminal, revisão final: no .exe não há terminal; o erro aponta o arquivo de log."""
+    erro = {"pronto": False, "fase": "erro", "primeiraCarga": True, "semTerminal": True,
+            "mensagem": "Sem dados para subir o app"}
+    _simular_carga(pagina, [{**PREPARANDO, "semTerminal": True}, erro], metas_503=99)
+    pagina.goto(servidor.url + "/")
+    esperar(pagina, "document.getElementById('carregando').classList.contains('erro')", 15000)
+    tela = pagina.text_content("#carregando")
+    assert "nfl-games.log" in tela and "terminal" not in tela
+
+
+@pytest.mark.so_servidor("tela de carregamento do servidor (503 e /api/estado), que não existe no site")
+def test_ui_carregamento_sem_terminal_servidor_encerrado(servidor, pagina):
+    _simular_carga(pagina, [{**PREPARANDO, "semTerminal": True}, 0], metas_503=99)
+    pagina.goto(servidor.url + "/")
+    esperar(pagina, "document.getElementById('carregando').classList.contains('erro')", 15000)
+    tela = pagina.text_content("#carregando")
+    assert "O app foi encerrado" in tela and "nfl-games.log" in tela and "terminal" not in tela
+
+
+@pytest.mark.so_servidor("tela de carregamento do servidor (503 e /api/estado), que não existe no site")
 def test_ui_carregamento_com_o_servidor_encerrado(servidor, pagina):
     _simular_carga(pagina, [PREPARANDO, 0], metas_503=99)                 # 0 = a conexão cai
     pagina.goto(servidor.url + "/")

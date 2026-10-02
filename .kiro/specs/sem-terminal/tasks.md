@@ -225,6 +225,14 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
     - `.exe` gerado: pronto em 4,5 s e encerrado pela rota com código 0. A raiz está travada pelo app aberto, então ele ficou como `NFL-Games-novo.exe`.
   - _Requisitos: 1.1–1.4, 3.1, 3.3, RNF 1, RNF 3, RNF 4_
 
+- [x] Revisão final da branch (revisor independente, 2026-10-02): pronta para merge, com correções. Corrigido, cada item com teste que falhou antes:
+  - **Abertura ~10 s mais lenta (Critical):** no Windows, conectar numa porta local fechada leva ~2 s, e o `procurar_copia` tentava as 20 portas com 0,5 s de espera cada. Agora pula as portas livres sem conectar (`test_procurar_copia_rapido_em_portas_livres`).
+  - **Sem log, o servidor do `.exe` não respondia a nada:** sem console, `sys.stderr` é `None` e o registro de cada pedido quebrava. Agora, sem log, a saída vai para o nada (`os.devnull`), e o `log_message` não escreve se não houver onde (`test_preparar_saida_sem_permissao_nao_deixa_saida_nula`, `test_servidor_responde_sem_stderr`).
+  - **A tela de carregamento mandava olhar "a janela do terminal":** o `/api/estado` passa a dizer `semTerminal`, e a página aponta `dados/nfl-games.log` no `.exe` (`test_estado_diz_se_esta_sem_terminal` e dois testes de interface).
+  - **A janela de aviso podia abrir atrás do navegador:** agora usa `MB_SETFOREGROUND | MB_TOPMOST` (`test_avisar_janela_na_frente`).
+  - Ficaram para decidir depois os 10 itens Minor listados no relatório (ver o resumo da PR).
+  - **Bloqueio do Windows (2026-10-02):** o Controle Inteligente de Aplicativos passou a barrar `pandas/_libs/testing.cp314-win_amd64.pyd`, sem mudança no arquivo (19/09). Os testes que sobem o servidor de verdade e o `.exe` novo ficaram para depois do desbloqueio. Os textos da tela de carregamento foram conferidos com o servidor de arquivos estático.
+
 - [ ] 6. Conferência no PC do José
   - _Depende de: tarefa 5_
   - [ ] 6.1 Pedir ao José para conferir no PC dele, com o `NFL-Games.exe` da raiz:

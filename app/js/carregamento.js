@@ -29,15 +29,19 @@ function mostrar(titulo, fase, nota, erro) {
 export async function esperarDados() {
   mostrar('Preparando os dados', 'Iniciando…', '', false);
   let falhas = 0;
+  // O NFL-Games.exe do Windows roda sem terminal (spec sem-terminal): as mensagens ficam no log.
+  let semTerminal = false;
+  const ondeVer = () => (semTerminal ? 'no arquivo dados/nfl-games.log, ao lado do NFL-Games.exe' : 'na janela do terminal');
   for (;;) {
     let estado;
     try {
       const r = await fetch('/api/estado', { cache: 'no-store', headers: { Accept: 'application/json' } });
       estado = await r.json();
       falhas = 0;
+      semTerminal = !!estado.semTerminal;
     } catch (e) {
       if (++falhas >= FALHAS_ATE_DESISTIR) {
-        mostrar('O app foi encerrado', 'Veja a mensagem na janela do terminal e abra o app de novo.', '', true);
+        mostrar('O app foi encerrado', 'Veja a mensagem ' + ondeVer() + ' e abra o app de novo.', '', true);
         return false;
       }
       await dormir(INTERVALO_MS);
@@ -49,7 +53,7 @@ export async function esperarDados() {
     }
     if (estado.fase === 'erro') {
       mostrar('Não foi possível carregar os dados', estado.mensagem || '',
-        'Veja os detalhes na janela do terminal.', true);
+        'Veja os detalhes ' + ondeVer() + '.', true);
       return false;
     }
     mostrar('Preparando os dados', estado.mensagem || 'Carregando…',

@@ -122,3 +122,24 @@ def test_encerrar_forca_a_saida_se_a_carga_nao_terminar():
     terminou.set()
     serve.encerrar_em(0.2, terminou, sair=saidas.append)
     assert saidas == [0]
+
+
+def test_servidor_responde_sem_stderr(monkeypatch):
+    """Important 2 (segunda camada): com sys.stderr None, o servidor ainda responde."""
+    from http.server import ThreadingHTTPServer
+    from servidor_local import porta_livre
+    monkeypatch.setattr(sys, "stderr", None)
+    porta = porta_livre()
+    srv = ThreadingHTTPServer(("127.0.0.1", porta), serve.Handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        status, estado = http_json(f"http://127.0.0.1:{porta}/api/estado")
+        assert status == 200 and estado["app"] == "NFL Games"
+    finally:
+        srv.shutdown()
+        srv.server_close()
+
+
+def test_estado_diz_se_esta_sem_terminal():
+    """Important 3: a tela de carregamento precisa saber se há terminal para indicar onde ver o erro."""
+    assert serve.ESTADO.get("semTerminal") is False

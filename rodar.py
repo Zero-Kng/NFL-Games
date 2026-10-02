@@ -137,6 +137,13 @@ def preparar_saida(dados: Path) -> Path | None:
         log.parent.mkdir(parents=True, exist_ok=True)
         novo = open(log, "w", encoding="utf-8", errors="replace", buffering=1)
     except OSError:
+        # Sem console (sys.stdout/stderr None) e sem log, quem escreve neles quebraria (o servidor
+        # registra cada pedido no stderr): sem log, as mensagens vao para o nada.
+        nada = None
+        for nome in ("stdout", "stderr"):
+            if getattr(sys, nome) is None:
+                nada = nada or open(os.devnull, "w", encoding="utf-8")
+                setattr(sys, nome, nada)
         return None
     if _log is not None:
         try:
@@ -157,7 +164,8 @@ def avisar(mensagem: str, mostrar=None) -> None:
     if mostrar is None:
         import ctypes  # noqa: PLC0415 - so no Windows
         mostrar = ctypes.windll.user32.MessageBoxW
-    mostrar(None, mensagem, "NFL Games", 0x10)
+    # MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST: na frente do navegador, que abriu antes
+    mostrar(None, mensagem, "NFL Games", 0x10 | 0x10000 | 0x40000)
 
 
 def fechar_abertura() -> None:
@@ -181,6 +189,10 @@ def procurar_copia(host: str, portas: range, perguntar=None) -> int | None:
 
     perguntar = perguntar or _perguntar
     for porta in portas:
+        # Porta livre: ninguem nela, pula sem conectar (no Windows, conectar numa porta local
+        # fechada leva ~2 s; com 20 portas, a abertura ficava ~10 s mais lenta).
+        if porta_disponivel(host, porta):
+            continue
         try:
             estado = perguntar(f"http://{_host_local(host)}:{porta}/api/estado")
         except Exception:  # noqa: BLE001 - porta fechada, outro programa, resposta que nao e JSON
