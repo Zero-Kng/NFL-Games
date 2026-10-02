@@ -28,6 +28,8 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent
 PYTHON_MINIMO = (3, 10)
 PORTA_PADRAO = int(os.environ.get("NFL_PORTA_PADRAO") or 8000)   # a variavel e so para testes
+ESPERA_COPIA_S = 60                                     # a 2a copia espera a 1a responder por ate 60 s
+ESPERA_COPIA_INTERVALO_S = 0.5
 PORTAS_A_TENTAR = 20                                    # 8000 ocupada: tenta 8001, 8002... ate 8019
 BIBLIOTECAS = ("pandas", "numpy")
 PYTHON = "python" if os.name == "nt" else "python3"     # o nome que a pessoa digita no terminal
@@ -155,17 +157,35 @@ def preparar_saida(dados: Path) -> Path | None:
     return log
 
 
-def avisar(mensagem: str, mostrar=None) -> None:
-    """Janela de aviso do Windows. Com NFL_SEM_AVISO=1 (testes, GitHub Actions), so o log:
-    uma janela travaria o teste esperando um clique."""
+def avisar(mensagem: str, mostrar=None, icone: int = 0x10) -> None:
+    """Janela de aviso do Windows (icone: 0x10 erro, 0x40 informacao). Com NFL_SEM_AVISO=1
+    (testes, GitHub Actions), so o log: uma janela travaria o teste esperando um clique."""
     if os.environ.get("NFL_SEM_AVISO") == "1":
         print(f"[aviso] {mensagem}", flush=True)
         return
     if mostrar is None:
         import ctypes  # noqa: PLC0415 - so no Windows
         mostrar = ctypes.windll.user32.MessageBoxW
-    # MB_ICONERROR | MB_SETFOREGROUND | MB_TOPMOST: na frente do navegador, que abriu antes
-    mostrar(None, mensagem, "NFL Games", 0x10 | 0x10000 | 0x40000)
+    # icone | MB_SETFOREGROUND | MB_TOPMOST: na frente do navegador, que abriu antes
+    mostrar(None, mensagem, "NFL Games", icone | 0x10000 | 0x40000)
+
+
+_travas = []                                            # os mutex ficam abertos enquanto o processo vive
+
+
+def trava_unica(nome: str = "Local\\NFL-Games") -> bool:
+    """Mutex com nome do Windows: so a 1a copia aberta pega. Dois duplos cliques seguidos nao sobem
+    duas copias na mesma dados/ (a 2a espera a 1a responder). Fora do Windows, sempre pega."""
+    if os.name != "nt":
+        return True
+    import ctypes  # noqa: PLC0415
+    k32 = ctypes.windll.kernel32
+    k32.CreateMutexW.restype = ctypes.c_void_p
+    alca = k32.CreateMutexW(None, False, nome)
+    ja_existia = k32.GetLastError() == 183          # ERROR_ALREADY_EXISTS
+    if alca:
+        _travas.append(alca)
+    return not ja_existia
 
 
 def fechar_abertura() -> None:
@@ -184,7 +204,7 @@ def procurar_copia(host: str, portas: range, perguntar=None) -> int | None:
     import urllib.request  # noqa: PLC0415
 
     def _perguntar(url):
-        with urllib.request.urlopen(url, timeout=0.5) as r:
+        with urllib.request.urlopen(url, timeout=2) as r:   # so portas ocupadas: uma copia montando dados demora
             return json.load(r)
 
     perguntar = perguntar or _perguntar
@@ -207,7 +227,8 @@ def _texto_do_aviso(motivo: str, log: Path | None) -> str:
             f"Detalhes em: {log if log else 'sem arquivo de log'}")
 
 
-def vigiar_e_abrir(host: str, porta: int, processo, abrir=webbrowser.open, intervalo_s: float = 0.5) -> bool:
+def vigiar_e_abrir(host: str, porta: int, processo, abrir=webbrowser.open, intervalo_s: float = 0.5,
+                   ao_falhar=None) -> bool:
     """
     Espera o servidor aceitar conexoes e abre o navegador. Na primeira subida
     isso leva alguns minutos (download dos dados), entao espera enquanto o
@@ -229,6 +250,8 @@ def vigiar_e_abrir(host: str, porta: int, processo, abrir=webbrowser.open, inter
         fechar_abertura()                           # o navegador assume daqui (sem-terminal)
         if abriu is False:
             print(f"\nAbra no navegador: {url}\n", flush=True)
+            if ao_falhar:                           # no .exe nao ha terminal para ler o endereco
+                ao_falhar(url)
         return True
     return False
 
@@ -289,8 +312,16 @@ def _main(argv: list[str] | None, janela: bool, saida: dict) -> int:
 
     args, extras = ler_opcoes(argv)
     if janela and args.port is None:
-        # Ja ha um NFL Games rodando (o .exe aberto de novo): so abre o navegador nele.
-        aberta = procurar_copia(args.host, range(PORTA_PADRAO, PORTA_PADRAO + PORTAS_A_TENTAR))
+        # Ja ha um NFL Games rodando (o .exe aberto de novo): so abre o navegador nele. Se a trava
+        # ja estava pega, outra copia acabou de abrir (dois duplos cliques seguidos): espera ela
+        # responder em vez de subir uma segunda copia na mesma dados/.
+        portas = range(PORTA_PADRAO, PORTA_PADRAO + PORTAS_A_TENTAR)
+        aberta = procurar_copia(args.host, portas)
+        if aberta is None and not trava_unica():
+            limite = time.monotonic() + ESPERA_COPIA_S
+            while aberta is None and time.monotonic() < limite:
+                time.sleep(ESPERA_COPIA_INTERVALO_S)
+                aberta = procurar_copia(args.host, portas)
         if aberta is not None:
             url = endereco(args.host, aberta)
             print(f"o NFL Games ja esta aberto em {url}; abrindo o navegador nele.", flush=True)
@@ -317,8 +348,15 @@ def _main(argv: list[str] | None, janela: bool, saida: dict) -> int:
              if janela else "Ctrl+C (ou fechar esta janela) para parar.\n"), flush=True)
 
     servindo = _Servindo()
-    if not args.sem_navegador:
-        threading.Thread(target=vigiar_e_abrir, args=(args.host, args.port, servindo), daemon=True).start()
+    if args.sem_navegador:
+        # Sem navegador, a logo da abertura fecha quando a porta abre (senao ficaria ate o fim).
+        abrir, ao_falhar = (lambda url: None), None
+    else:
+        abrir = webbrowser.open
+        ao_falhar = (lambda url: avisar(f"O navegador não abriu sozinho. Abra o NFL Games em: {url}", icone=0x40)
+                     ) if janela else None
+    threading.Thread(target=vigiar_e_abrir, args=(args.host, args.port, servindo),
+                     kwargs={"abrir": abrir, "ao_falhar": ao_falhar}, daemon=True).start()
     opcoes = opcoes_servidor(args, extras) + (["--encerrar-sozinho"] if janela else [])
     try:
         codigo = rodar_servidor(opcoes)

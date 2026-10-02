@@ -13,6 +13,8 @@ on:
     paths:
       - "rodar.py"
       - "tools/empacotar.py"
+      - "tools/logo.py"
+      - "tools/abertura.png"
       - "server/**"
       - "etl/**"
       - "app/**"

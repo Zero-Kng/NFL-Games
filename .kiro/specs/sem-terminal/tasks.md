@@ -236,6 +236,21 @@ Situações que a spec implica e que um usuário real vai encontrar. Cada uma te
 - [x] **Linha roxa na borda da logo de abertura** (vista pelo José, 2026-10-02): a tela de abertura do PyInstaller troca o transparente por uma cor-chave (magenta), e os cantos suavizados do cartão viravam uma linha roxa. O `abertura.png` passa a ter só pontos totalmente opacos ou totalmente transparentes (`test_abertura_png`).
   - O `.exe` com a correção foi gerado, mas o Controle Inteligente de Aplicativos barrou o arquivo novo inteiro. A conferência da tela fica para depois do bloqueio.
 
+- [x] **Itens menores da revisão final** (pedido do José, 2026-10-02), cada um com teste:
+  1. Erro inesperado no `POST` responde 500, como o `GET` (`test_post_erro_inesperado_responde_500`).
+  2. O servidor tem limite de 10 s por operação de rede, e `Content-Length` maior que o corpo não prende a thread (`test_corpo_incompleto_nao_prende_a_thread`).
+  3. Dois duplos cliques seguidos:
+     - um mutex com nome do Windows (`trava_unica`) faz a segunda cópia esperar até 60 s pela primeira, em vez de subir outra;
+     - portas ocupadas têm 2 s para responder (`test_trava_unica_so_a_primeira_pega`, `test_segunda_copia_espera_a_primeira`, `test_procurar_copia_espera_a_resposta_de_uma_copia_ocupada`).
+  4. Com `--sem-navegador`, a logo fecha quando a porta abre (`test_sem_navegador_fecha_a_logo_quando_a_porta_abre`).
+  5. No `.exe`, se o navegador não abrir, uma janela informativa mostra o endereço (`test_navegador_que_nao_abre_avisa_o_endereco`, `test_avisar_informativo`).
+  6. A proteção das rotas também confere o `Host` (`test_pedido_confiavel_confere_o_host`).
+  7. Ao encerrar, o resto da página fica `inert` (`test_ui_encerrado_resto_da_pagina_inerte`).
+  8. O botão "Encerrar" fica desabilitado durante o pedido (`test_ui_encerrar_desabilita_o_botao_durante_o_pedido`).
+  9. Teste do aviso de saída da aba. O Playwright não mostra pedidos `keepalive` da saída da página, então a prova é o servidor com `--encerrar-sozinho` se encerrando por "a última aba" (`test_ui_presenca_avisa_a_saida_ao_sair_da_pagina`). O comportamento já funcionava.
+  10. O workflow dos executáveis roda também com `tools/logo.py` e `tools/abertura.png` (`test_workflow_executaveis_dispara_com_a_logo`).
+  - Suíte inteira: 600 passaram. O `.exe` novo foi barrado pelo Controle Inteligente de Aplicativos (`WinError 4551`), então o da raiz não foi trocado; a conferência do executável fica com o workflow do GitHub.
+
 - [ ] 6. Conferência no PC do José
   - _Depende de: tarefa 5_
   - [ ] 6.1 Pedir ao José para conferir no PC dele, com o `NFL-Games.exe` da raiz:
