@@ -41,3 +41,35 @@ def test_workflow_pages_autentica_a_api_do_github():
     wf = yaml.safe_load((ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8"))
     montar = next(p for job in wf["jobs"].values() for p in job["steps"] if "etl/montar.py" in p.get("run", ""))
     assert montar["env"]["GITHUB_TOKEN"] == "${{ github.token }}"
+
+
+# ------------------------------------------------ sem-terminal, tarefa 5
+def _empacotar():
+    import sys
+    from conftest import ROOT
+    sys.path.insert(0, str(ROOT / "tools"))
+    import empacotar
+    return empacotar, ROOT
+
+
+def test_empacotar_windows_sem_console_com_logo(tmp_path):
+    empacotar, ROOT = _empacotar()
+    args = empacotar.argumentos(tmp_path / "dist", tmp_path / "build", windows=True)
+    assert "--windowed" in args and "--console" not in args
+    assert args[args.index("--splash") + 1] == str(ROOT / "tools" / "abertura.png")
+
+
+def test_empacotar_linux_com_console(tmp_path):
+    empacotar, _ = _empacotar()
+    args = empacotar.argumentos(tmp_path / "dist", tmp_path / "build", windows=False)
+    assert "--console" in args and "--windowed" not in args and "--splash" not in args
+
+
+def test_abertura_png():
+    from PIL import Image
+    _, ROOT = _empacotar()
+    img = Image.open(ROOT / "tools" / "abertura.png")
+    assert img.size == (360, 240) and img.mode == "RGBA"
+    # A tela de abertura do PyInstaller não desenha transparência parcial: usa uma cor-chave
+    # (magenta), e os pixels semitransparentes dos cantos viravam uma linha roxa na borda.
+    assert set(img.getchannel("A").tobytes()) <= {0, 255}

@@ -242,3 +242,170 @@ def test_sobe_o_app_de_ponta_a_ponta():
         _matar_arvore(proc)
     saida = proc.stdout.read()
     assert "NFL GAMES" in saida and f"http://127.0.0.1:{porta}" in saida
+
+
+# ================================================ sem-terminal, tarefa 4 (modo janela)
+import json  # noqa: E402
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer  # noqa: E402
+
+
+def _servidor_de_teste(corpo: bytes, tipo="application/json"):
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", tipo)
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+
+        def log_message(self, *a):
+            pass
+
+    porta = porta_livre()
+    srv = ThreadingHTTPServer(("127.0.0.1", porta), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv, porta
+
+
+def test_procurar_copia_acha_o_app():
+    srv, porta = _servidor_de_teste(json.dumps({"app": "NFL Games", "pronto": True}).encode())
+    try:
+        assert rodar.procurar_copia("127.0.0.1", range(porta, porta + 1)) == porta
+    finally:
+        srv.shutdown()
+
+
+def test_procurar_copia_acha_copia_ainda_carregando():
+    """Foco de revisão 2: a 1ª cópia ainda baixando os dados também conta."""
+    srv, porta = _servidor_de_teste(json.dumps({"app": "NFL Games", "pronto": False, "fase": "preparando"}).encode())
+    try:
+        assert rodar.procurar_copia("127.0.0.1", range(porta, porta + 1)) == porta
+    finally:
+        srv.shutdown()
+
+
+def test_procurar_copia_ignora_outro_programa():
+    srv, porta = _servidor_de_teste(b"<html>outro programa</html>", "text/html")
+    try:
+        assert rodar.procurar_copia("127.0.0.1", range(porta, porta + 2)) is None
+    finally:
+        srv.shutdown()
+
+
+@pytest.fixture
+def janela(monkeypatch, tmp_path):
+    """main() no modo janela, com dublês: nada de log de verdade, janela de aviso ou navegador."""
+    reg = {"avisos": [], "fechou": 0, "abriu": [], "opcoes": None, "enter": 0}
+    monkeypatch.setattr(rodar, "faltando", lambda: [])
+    monkeypatch.setattr(rodar, "preparar_saida", lambda dados: tmp_path / "nfl-games.log")
+    monkeypatch.setattr(rodar, "avisar", lambda msg, mostrar=None: reg["avisos"].append(msg))
+    monkeypatch.setattr(rodar, "fechar_abertura", lambda: reg.__setitem__("fechou", reg["fechou"] + 1))
+    monkeypatch.setattr(rodar.webbrowser, "open", lambda url: reg["abriu"].append(url) or True)
+    monkeypatch.setattr(rodar, "_esperar_enter", lambda: reg.__setitem__("enter", reg["enter"] + 1))
+    monkeypatch.setattr(rodar, "procurar_copia", lambda host, portas: None)
+    return reg
+
+
+def test_modo_janela_reaproveita_a_copia(janela, monkeypatch):
+    monkeypatch.setattr(rodar, "procurar_copia", lambda host, portas: 8000)
+    monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: pytest.fail("não podia subir outro servidor"))
+    assert rodar.main([], modo_janela=True) == 0
+    assert janela["abriu"] == ["http://127.0.0.1:8000"] and janela["fechou"] >= 1
+
+
+def test_modo_janela_com_porta_dada_nao_procura(janela, monkeypatch):
+    monkeypatch.setattr(rodar, "procurar_copia", lambda host, portas: pytest.fail("não devia procurar"))
+    monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: 0)
+    assert rodar.main(["--port", "9000", "--sem-navegador"], modo_janela=True) == 0
+
+
+def test_modo_janela_passa_encerrar_sozinho(janela, monkeypatch):
+    recebidas = []
+    monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: recebidas.append(opcoes) or 0)
+    rodar.main(["--sem-navegador", "--port", "9101"], modo_janela=True)
+    rodar.main(["--sem-navegador", "--port", "9101"], modo_janela=False)
+    assert "--encerrar-sozinho" in recebidas[0] and "--encerrar-sozinho" not in recebidas[1]
+
+
+def test_modo_janela_erro_avisa_com_o_log(janela, monkeypatch, tmp_path):
+    monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: 1)
+    assert rodar.main(["--sem-navegador"], modo_janela=True) == 1
+    aviso = janela["avisos"][0]
+    assert aviso.startswith("O NFL Games não conseguiu abrir.") and str(tmp_path / "nfl-games.log") in aviso
+    assert janela["enter"] == 0 and janela["fechou"] >= 1
+
+
+def test_modo_janela_excecao_inesperada(janela, monkeypatch, capsys):
+    def quebra(opcoes):
+        raise RuntimeError("x")
+
+    monkeypatch.setattr(rodar, "rodar_servidor", quebra)
+    assert rodar.main(["--sem-navegador"], modo_janela=True) == 1
+    assert "RuntimeError" in capsys.readouterr().err
+    assert janela["avisos"] and "RuntimeError" in janela["avisos"][0]
+
+
+def test_preparar_saida_grava_e_recomeca(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "stdout", sys.stdout)
+    monkeypatch.setattr(sys, "stderr", sys.stderr)
+    log = rodar.preparar_saida(tmp_path / "dados")
+    print("a")
+    assert rodar.preparar_saida(tmp_path / "dados") == log == tmp_path / "dados" / "nfl-games.log"
+    print("b")
+    sys.stdout.flush()
+    conteudo = log.read_text(encoding="utf-8")
+    sys.stdout.close()
+    assert conteudo == "b\n"
+
+
+def test_preparar_saida_sem_permissao(monkeypatch, tmp_path):
+    monkeypatch.setattr(sys, "stdout", sys.stdout)
+    monkeypatch.setattr(sys, "stderr", sys.stderr)
+    (tmp_path / "dados").write_text("um arquivo, não uma pasta")
+    assert rodar.preparar_saida(tmp_path / "dados") is None
+
+
+def test_avisar_sem_aviso_nos_testes(monkeypatch, capsys):
+    monkeypatch.setenv("NFL_SEM_AVISO", "1")
+    mostrou = []
+    rodar.avisar("teste", mostrar=lambda *a: mostrou.append(a))
+    assert mostrou == [] and "[aviso] teste" in capsys.readouterr().out
+
+
+def test_modo_janela_reaproveitar_nao_apaga_o_log_da_copia(janela, monkeypatch, tmp_path):
+    """Abrir o .exe de novo não pode recomeçar o log da cópia que já está rodando."""
+    chamadas = []
+    monkeypatch.setattr(rodar, "preparar_saida", lambda dados: chamadas.append(dados) or tmp_path / "x.log")
+    monkeypatch.setattr(rodar, "procurar_copia", lambda host, portas: 8000)
+    monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: pytest.fail("não podia subir outro servidor"))
+    assert rodar.main([], modo_janela=True) == 0
+    assert chamadas == []
+
+
+# ------------------------------------------- sem-terminal, revisão final
+def test_procurar_copia_rapido_em_portas_livres():
+    """Critical 1: no Windows, conectar numa porta local fechada leva ~2 s; com 20 portas, a
+    abertura ficava ~10 s mais lenta. Portas livres são puladas sem conectar."""
+    base = porta_livre()
+    t0 = time.perf_counter()
+    assert rodar.procurar_copia("127.0.0.1", range(base, base + 20)) is None
+    assert time.perf_counter() - t0 < 1.0
+
+
+def test_preparar_saida_sem_permissao_nao_deixa_saida_nula(monkeypatch, tmp_path):
+    """Important 2: no .exe sem console, sys.stdout/stderr são None; sem log, o servidor quebrava
+    em todo pedido (log_message) e ficava escondido para sempre."""
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    (tmp_path / "dados").write_text("um arquivo, não uma pasta")
+    assert rodar.preparar_saida(tmp_path / "dados") is None
+    assert sys.stdout is not None and sys.stderr is not None
+    sys.stderr.write("não quebra\n")
+
+
+def test_avisar_janela_na_frente(monkeypatch):
+    """Important 4: sem MB_SETFOREGROUND e MB_TOPMOST, o aviso abria atrás do navegador."""
+    monkeypatch.delenv("NFL_SEM_AVISO", raising=False)
+    chamadas = []
+    rodar.avisar("x", mostrar=lambda *a: chamadas.append(a))
+    assert chamadas == [(None, "x", "NFL Games", 0x10 | 0x10000 | 0x40000)]
