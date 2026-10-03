@@ -37,7 +37,15 @@ CONGELADO = bool(getattr(sys, "frozen", False))          # rodando como executav
 # Spec sem-terminal: o NFL-Games.exe do Windows roda sem console. As mensagens vao para
 # dados/nfl-games.log, os erros que impedem o app de abrir viram uma janela de aviso, abrir
 # de novo reaproveita a copia que ja esta rodando, e o app se encerra sozinho sem abas.
-MODO_JANELA = CONGELADO and os.name == "nt"
+def modo_janela_atual(executavel: str, congelado: bool, sistema: str) -> bool:
+    """Sem console no Windows: o .exe do PyInstaller ou o pythonw.exe (o atalho NFL Games.lnk,
+    que roda o codigo atual pelo Python instalado, assinado e confiavel para o Windows)."""
+    if sistema != "nt":
+        return False
+    return congelado or Path(executavel).name.lower() == "pythonw.exe"
+
+
+MODO_JANELA = modo_janela_atual(sys.executable, CONGELADO, os.name)
 NOME_LOG = "nfl-games.log"
 _log = None                                             # o arquivo aberto por preparar_saida
 
@@ -188,8 +196,57 @@ def trava_unica(nome: str = "Local\\NFL-Games") -> bool:
     return not ja_existia
 
 
+_abertura = {"fechar": None, "pronta": None, "thread": None, "erro": None}
+
+
+def abrir_abertura(imagem: Path) -> None:
+    """A logo de abertura sem o PyInstaller (pelo atalho/pythonw): uma janela sem borda do Tkinter,
+    centralizada e na frente, ate fechar_abertura(). O magenta e a cor-chave do transparente
+    (a imagem so tem pontos opacos ou transparentes: sem linha roxa nos cantos)."""
+    fechar, pronta = threading.Event(), threading.Event()
+
+    def janela():
+        try:
+            import tkinter as tk  # noqa: PLC0415
+            raiz = tk.Tk()
+            raiz.overrideredirect(True)
+            raiz.attributes("-topmost", True)
+            chave = "#ff00ff"
+            raiz.configure(bg=chave)
+            raiz.attributes("-transparentcolor", chave)
+            foto = tk.PhotoImage(master=raiz, file=str(imagem))
+            rotulo = tk.Label(raiz, image=foto, bg=chave, bd=0, highlightthickness=0)
+            rotulo.pack()
+            largura, altura = foto.width(), foto.height()
+            raiz.geometry(f"{largura}x{altura}+{(raiz.winfo_screenwidth() - largura) // 2}"
+                          f"+{(raiz.winfo_screenheight() - altura) // 2}")
+
+            def vigiar():
+                if fechar.is_set():
+                    raiz.destroy()
+                else:
+                    raiz.after(100, vigiar)
+
+            raiz.after(100, vigiar)
+            pronta.set()
+            raiz.mainloop()
+            # O Tcl tem de ser liberado na thread que o criou (senao vaza; gh-83274)
+            del rotulo, foto, raiz
+            import gc  # noqa: PLC0415
+            gc.collect()
+        except Exception as e:  # noqa: BLE001 - sem a logo, o app abre do mesmo jeito
+            _abertura["erro"] = repr(e)
+            pronta.set()
+
+    t = threading.Thread(target=janela, name="abertura", daemon=True)
+    _abertura.update(fechar=fechar, pronta=pronta, thread=t, erro=None)
+    t.start()
+
+
 def fechar_abertura() -> None:
-    """Fecha a logo da abertura (--splash do PyInstaller); sem ela, nao faz nada."""
+    """Fecha a logo da abertura (--splash do PyInstaller ou a janela do Tkinter); sem ela, nao faz nada."""
+    if _abertura["fechar"] is not None:
+        _abertura["fechar"].set()
     try:
         import pyi_splash  # noqa: PLC0415 - so existe no executavel com --splash
         pyi_splash.close()
@@ -287,6 +344,8 @@ def _esperar_enter() -> None:
 
 def main(argv: list[str] | None = None, modo_janela: bool | None = None) -> int:
     janela = MODO_JANELA if modo_janela is None else modo_janela
+    if janela and not CONGELADO:              # pelo atalho (pythonw): a logo vem do Tkinter, ja de cara
+        abrir_abertura(RAIZ / "tools" / "abertura.png")
     saida = {"log": None}                     # o log so e recomecado quando o app vai subir de fato
     try:
         return _main(argv, janela, saida)
@@ -308,6 +367,10 @@ def _main(argv: list[str] | None, janela: bool, saida: dict) -> int:
     if falta:
         print(f"[ERRO] Faltam bibliotecas do Python: {', '.join(falta)}.\n"
               f"       Instale com:  {PYTHON} -m pip install pandas numpy", flush=True)
+        if janela:                                    # pelo atalho nao ha terminal para ler isso
+            fechar_abertura()
+            avisar(f"Faltam bibliotecas do Python: {', '.join(falta)}.\n\n"
+                   f"Instale num terminal com:\n{PYTHON} -m pip install pandas numpy")
         return 1
 
     args, extras = ler_opcoes(argv)

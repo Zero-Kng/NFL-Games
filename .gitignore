@@ -28,3 +28,6 @@ build/
 
 # Site estatico gerado pelo tools/exportar.py (GitHub Pages; publicado pelo Actions, nao pelo Git)
 site/
+
+# Atalho do Windows criado por tools/atalho.py (guarda caminhos desta maquina)
+/NFL Games.lnk

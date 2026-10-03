@@ -45,6 +45,10 @@ numa pasta só dele (os dados ficam numa pasta `dados/` ao lado do executável):
 | Windows | `NFL-Games.exe` | duplo clique. Se o Windows avisar que o app não é reconhecido (ele não tem assinatura digital), clique em **Mais informações → Executar assim mesmo**. |
 | Linux | `nfl-games` | `chmod +x nfl-games` (uma vez) e `./nfl-games` |
 
+Com o **Controle Inteligente de Aplicativos** do Windows ligado, o `.exe` pode ser bloqueado
+sem opção de executar, porque não tem assinatura digital. Nesse caso, use o atalho da
+Opção 2, que abre o app do mesmo jeito.
+
 **No Windows, o app não abre janela de terminal.** No duplo clique aparece a logo e, em
 seguida, o navegador:
 
@@ -67,6 +71,12 @@ python rodar.py
 
 No Linux e no macOS, `./rodar.sh` faz o mesmo (usa o `python3`).
 
+**Atalho no Windows:** `python tools/atalho.py` cria o `NFL Games.lnk` na raiz do projeto.
+Com dois cliques nele, o app abre como o executável: sem janela de terminal, com a logo, e
+pelo Python instalado. O atalho roda sempre o código atual, então não fica desatualizado, e
+não é barrado pelo Controle Inteligente de Aplicativos. Se o Python mudar de lugar (outra
+versão, reinstalação), rode o comando de novo.
+
 ### O que acontece ao abrir
 
 O navegador abre na hora, em **<http://127.0.0.1:8000>**, com uma tela de carregamento
@@ -75,8 +85,8 @@ abre sozinho. Na **primeira execução** o servidor baixa e monta os dados do nf
 **~330 MB**, alguns minutos (a tela avisa), e precisa de internet. Se a primeira carga
 for interrompida, a próxima abertura continua de onde parou. Nas próximas, sobe
 em ~4 s com a cópia local (o executável leva ~7 s, porque se descompacta antes; a logo
-aparece enquanto isso). A partir do código (`rodar.py`, `rodar.sh`) e no executável de
-Linux, a janela do terminal fica aberta enquanto o app roda: feche-a (ou Ctrl+C) para parar.
+aparece enquanto isso). A partir do código (`rodar.py`, `rodar.sh`, exceto pelo atalho) e
+no executável de Linux, a janela do terminal fica aberta enquanto o app roda: feche-a (ou Ctrl+C) para parar.
 Em qualquer um deles, **Encerrar o app** no menu também fecha.
 
 As opções valem para o executável, o `rodar.py` e o `rodar.sh`:

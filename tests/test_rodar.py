@@ -306,6 +306,7 @@ def janela(monkeypatch, tmp_path):
     monkeypatch.setattr(rodar, "_esperar_enter", lambda: reg.__setitem__("enter", reg["enter"] + 1))
     monkeypatch.setattr(rodar, "procurar_copia", lambda host, portas: None)
     monkeypatch.setattr(rodar, "trava_unica", lambda nome=None: True)
+    monkeypatch.setattr(rodar, "abrir_abertura", lambda imagem: None)   # nenhuma janela de verdade
     return reg
 
 
@@ -495,3 +496,43 @@ def test_avisar_informativo(monkeypatch):
     chamadas = []
     rodar.avisar("x", mostrar=lambda *a: chamadas.append(a), icone=0x40)
     assert chamadas == [(None, "x", "NFL Games", 0x40 | 0x10000 | 0x40000)]
+
+
+# ------------------------------------------- atalho pelo pythonw (sem .exe novo)
+@pytest.mark.parametrize("executavel, congelado, sistema, esperado", [
+    (r"C:\Python\pythonw.exe", False, "nt", True),        # o atalho NFL Games.lnk
+    (r"C:\Python\python.exe", False, "nt", False),        # python rodar.py num terminal
+    (r"C:\app\NFL-Games.exe", True, "nt", True),          # o .exe do PyInstaller
+    ("/usr/bin/python3", False, "posix", False),
+    ("/opt/nfl-games", True, "posix", False),            # executável de Linux: com terminal
+])
+def test_modo_janela_atual(executavel, congelado, sistema, esperado):
+    assert rodar.modo_janela_atual(executavel, congelado, sistema) is esperado
+
+
+def test_faltando_no_modo_janela_avisa(janela, monkeypatch):
+    """Pelo pythonw não há terminal: falta de biblioteca vira janela de aviso com o comando."""
+    monkeypatch.setattr(rodar, "faltando", lambda: ["pandas"])
+    monkeypatch.setattr(rodar, "CONGELADO", False)
+    assert rodar.main([], modo_janela=True) == 1
+    assert janela["avisos"] and "pip install pandas numpy" in janela["avisos"][0]
+
+
+def test_modo_janela_pelo_python_mostra_a_logo(janela, monkeypatch):
+    """Sem o PyInstaller, a logo de abertura é a janela do Tkinter."""
+    abertas = []
+    monkeypatch.setattr(rodar, "CONGELADO", False)
+    monkeypatch.setattr(rodar, "abrir_abertura", lambda imagem: abertas.append(imagem))
+    monkeypatch.setattr(rodar, "rodar_servidor", lambda opcoes: 0)
+    rodar.main(["--sem-navegador", "--port", str(porta_livre())], modo_janela=True)
+    assert abertas == [ROOT / "tools" / "abertura.png"]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="a logo de abertura pelo Tkinter é só do Windows")
+def test_abertura_tk_abre_e_fecha():
+    rodar.abrir_abertura(ROOT / "tools" / "abertura.png")
+    assert rodar._abertura["pronta"].wait(5), "a janela da logo não abriu"
+    assert rodar._abertura["erro"] is None, rodar._abertura["erro"]
+    rodar.fechar_abertura()
+    rodar._abertura["thread"].join(5)
+    assert not rodar._abertura["thread"].is_alive(), "a janela da logo não fechou"
