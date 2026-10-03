@@ -1,4 +1,4 @@
-# NFL Games — Início · Jogo · Jogadores · Notícias
+# NFL Games: Início · Jogo · Jogadores · Notícias
 
 Protótipo de UI ligado a dados reais e públicos da NFL, da **temporada 2021 em diante**
 (temporada regular e playoffs, com todas as jogadas: passes, corridas, chutes e retornos).
@@ -34,7 +34,7 @@ em **Actions → Pages → Enable workflow**; para publicar na hora, **Run workf
 Para gerar o site na sua máquina: `python tools/exportar.py` (cria a pasta `site/`, ~160 MB,
 em ~5 min).
 
-### Opção 1 — executável (sem instalar Python)
+### Opção 1: executável (sem instalar Python)
 
 Baixe o arquivo do seu sistema na página
 [Releases](https://github.com/Zero-Kng/NFL-Games/releases) do repositório e coloque-o
@@ -59,7 +59,7 @@ seguida, o navegador:
   cada abertura. Um erro que impeça o app de abrir aparece numa janela de aviso, com o
   caminho desse arquivo.
 
-### Opção 2 — a partir do código (Windows, Linux e macOS)
+### Opção 2: a partir do código (Windows, Linux e macOS)
 
 ```bash
 # 1. dependências (uma vez)
