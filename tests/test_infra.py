@@ -82,3 +82,24 @@ def test_workflow_executaveis_dispara_com_a_logo():
     wf = yaml.safe_load((ROOT / ".github" / "workflows" / "executaveis.yml").read_text(encoding="utf-8"))
     gatilhos = wf.get("on", wf.get(True))
     assert {"tools/abertura.png", "tools/logo.py"} <= set(gatilhos["pull_request"]["paths"])
+
+
+# ------------------------------------------- atalho pelo pythonw
+def test_atalho_cria_o_lnk(tmp_path):
+    """tools/atalho.py: NFL Games.lnk abre o rodar.py pelo pythonw, na pasta do projeto, com o ícone do app."""
+    import os
+    import sys
+    from pathlib import Path
+    import pytest
+    if os.name != "nt":
+        pytest.skip("atalho .lnk é do Windows")
+    from conftest import ROOT
+    sys.path.insert(0, str(ROOT / "tools"))
+    import atalho
+    pythonw = Path(sys.executable).with_name("pythonw.exe")
+    lnk = atalho.criar_atalho(tmp_path / "NFL Games.lnk", pythonw, ROOT, ROOT / "app" / "img" / "icone.ico")
+    lido = atalho.ler_atalho(lnk)
+    assert Path(lido["TargetPath"]) == pythonw
+    assert lido["Arguments"] == "rodar.py"
+    assert Path(lido["WorkingDirectory"]) == ROOT
+    assert lido["IconLocation"].lower().startswith(str(ROOT / "app" / "img" / "icone.ico").lower())
